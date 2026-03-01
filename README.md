@@ -10,132 +10,7 @@
 
 ---
 
-## 🎉 最近更新
 
-### v3.3.3 - 回归修复：深色模式兼容性与性能模式覆盖遗漏 (2026-03-01)
-
-**修复内容：**
-- ✅ 修复 `HelpCenter.vue` 独立重定义 `backdrop-filter`，不受性能模式管控
-- ✅ 修复 `Friends.vue` Scoped CSS 中 `.dark` 选择器无法匹配 `<html>` 祖先
-- ✅ 修复 `NotificationModal.vue` 底部动作条样式被意外修改
-
-**涉及文件：** `HelpCenter.vue` / `Friends.vue` / `NotificationModal.vue`
-
----
-
-### v3.3.2 - Chrome 闪烁修复与性能模式全面增强 (2026-03-01)
-
-**闪烁根因修复：**
-- ✅ 移除 `glass-panel` 的 `will-change`，改用 `contain: layout style paint`
-- ✅ 降低 `mesh-orb` 光球模糊值 `blur(80px)` → `blur(60px)` + `opacity: 0.4`
-- ✅ 降低 `HelpButton` 脉冲动画频率 `2s` → `4s` + 悬停暂停
-
-**性能模式全面增强：**
-- ✅ 追加全局 `animation-duration: 0s !important` + `transition-duration: 0s !important`
-- ✅ 追加 `will-change: auto !important` + `contain: none !important` 强制重置
-- ✅ 覆盖 `*` / `*::before` / `*::after` 所有伪元素
-
-**涉及文件：** `style.css` / `HelpButton.vue`
-
----
-
-### v3.3.1 - 好友列表按钮统一与公告弹窗品牌增强 (2026-03-01)
-
-**好友列表按钮 UI 统一：**
-- ✅ 引入 `op-btn` 基础类 + 6 种颜色变体（偷取 - 蓝/浇水 - 青/除草 - 绿/除虫 - 橙/捣乱 - 红/黑名单 - 灰）
-- ✅ 修复「除草」按钮与其他按钮形状不一致的问题
-- ✅ 修复「加入黑名单」按钮深色模式下可读性差的问题
-
-**公告弹窗品牌信息：**
-- ✅ 在「更新公告」弹窗底部注入作者防伪水印（Author: smdk000 | QQ 群:227916149）
-
-**涉及文件：** `Friends.vue` / `NotificationModal.vue` / `BaseSwitch.vue` / `Settings.vue`
-
----
-
-### v3.3.0 - 自动控制功能提示与推荐建议系统 (2026-03-01)
-
-- ✅ `BaseSwitch.vue` 新增 `hint`/`recommend` prop + CSS Tooltip 气泡（零依赖）
-- ✅ `Settings.vue` 全部 18 个开关添加功能解释 + 推荐建议标签
-- ✅ 推荐标签三色区分：绿 (开) / 红 (关) / 橙 (视情况)
-
-**涉及文件：** `BaseSwitch.vue` / `Settings.vue`
-
----
-
-### v3.2.9 - 令牌桶进阶优化：紧急通道 & 冗余 Sleep 清理 (2026-03-01)
-
-**防偷抢收紧急通道 (P0)：**
-- ✅ 新增 `sendMsgAsyncUrgent` 紧急通道（队头插入），防偷不再被好友巡查长队列阻塞
-- ✅ `farm.js` 新增 `getAllLandsUrgent` / `fertilizeUrgent` / `harvestUrgent` 紧急版 API
-- ✅ `antiStealHarvest` 全部改用紧急通道
-
-**冗余 Sleep 清理 (P1)：**
-- ✅ 移除 `farm.js` 中 2 处 + `friend.js` 中 5 处冗余 sleep（共 7 处）
-- ✅ 保留 3 处经验值检测 sleep（业务逻辑等待）
-
-**队列深度监控 (P2)：**
-- ✅ 排队超过 5 帧时自动打印警告日志
-
-**涉及文件：** `network.js` / `farm.js` / `friend.js`
-
----
-
-### v3.2.8 - 性能优化：SQLite 防争用 & WebSocket 3QPS 令牌桶限流 (2026-02-28)
-
-**SQLite 防争用增强：**
-- ✅ 追加 `busy_timeout = 5000`：并发写入遇锁时自旋最多 5 秒，避免直接抛 `SQLITE_BUSY`
-- ✅ 追加 `wal_autocheckpoint = 1000`：每累积 1000 页自动合并 WAL，防止 `.db-wal` 膨胀
-
-**WebSocket 令牌桶限流器：**
-- ✅ 在 `sendMsgAsync` 前注入 Token Bucket 异步排队网关
-- ✅ 所有业务请求强制以 **3 QPS（每帧 ≥ 334ms）** 匀速发出
-- ✅ 心跳同步 `sendMsg` 不受限流影响
-
-**涉及文件：** `database.js` / `network.js`
-
----
-
-## 🎉 历史版本功能（v3.2.5）
-
-### 底层与存储基建 (v3.2.5)
-- ✅ 数据库原生支持版本迁移架构
-- ✅ 引入轻量级 Cron 自动化释放老旧日志，降低 SQLite 读写耗时
-- ✅ 前端列表操作状态按需记忆并启用防抖
-- ✅ 配置非范式 JSON 弹性扩容化
-
-### 多用户系统
-- ✅ 用户注册/登录
-- ✅ 卡密管理系统（天卡/周卡/月卡/永久卡）
-- ✅ 用户权限控制（管理员/普通用户）
-- ✅ 账号续费功能
-- ✅ 用户状态管理（正常/封禁/过期）
-
-### 偷菜过滤增强
-- ✅ 植物黑名单/白名单
-- ✅ 好友黑名单/白名单
-- ✅ 可视化多选界面
-- ✅ 实时配置保存
-
-### 智能自动化
-- ✅ 自动同意好友请求
-- ✅ 60 秒防偷与抢收保护
-- ✅ 两季作物智能识别（不误铲第二季）
-- ✅ 自动领取任务奖励
-
-### 界面优化
-- ✅ 玻璃态UI (Glassmorphism) 全站渲染重构，提供完美沉浸感
-- ✅ GPU 硬件加速的流动网格渐变背景（流畅降耗无闪白）
-- ✅ 全新左下角响应式主题设置侧拉抽屉 
-- ✅ 5 大高定系统变色主题（御农翠绿、赛博紫、黯金黄、深海蓝、猛男粉）
-- ✅ UI/UX 文字全对比度校准，白天与深色模式自适应修正
-- ✅ 修复跨页面/菜单跳转时颜色配置重置失效的深层数据同步缺陷
-- ✅ 修复全站毛玻璃渲染动画闪烁并增加系统性能极简自适应机制
-- ✅ 全新登录/注册页面
-- ✅ 用户信息卡片
-- ✅ 用户管理页面
-- ✅ 卡密管理页面
-- ✅ 帮助中心系统
 
 ## 技术栈
 
@@ -599,6 +474,133 @@ ISC License
 
 - GitHub Issues: [提交问题](https://github.com/your-repo/issues)
 - 讨论区：[GitHub Discussions](https://github.com/your-repo/discussions)
+
+- ## 🎉 最近更新
+
+### v3.3.3 - 回归修复：深色模式兼容性与性能模式覆盖遗漏 (2026-03-01)
+
+**修复内容：**
+- ✅ 修复 `HelpCenter.vue` 独立重定义 `backdrop-filter`，不受性能模式管控
+- ✅ 修复 `Friends.vue` Scoped CSS 中 `.dark` 选择器无法匹配 `<html>` 祖先
+- ✅ 修复 `NotificationModal.vue` 底部动作条样式被意外修改
+
+**涉及文件：** `HelpCenter.vue` / `Friends.vue` / `NotificationModal.vue`
+
+---
+
+### v3.3.2 - Chrome 闪烁修复与性能模式全面增强 (2026-03-01)
+
+**闪烁根因修复：**
+- ✅ 移除 `glass-panel` 的 `will-change`，改用 `contain: layout style paint`
+- ✅ 降低 `mesh-orb` 光球模糊值 `blur(80px)` → `blur(60px)` + `opacity: 0.4`
+- ✅ 降低 `HelpButton` 脉冲动画频率 `2s` → `4s` + 悬停暂停
+
+**性能模式全面增强：**
+- ✅ 追加全局 `animation-duration: 0s !important` + `transition-duration: 0s !important`
+- ✅ 追加 `will-change: auto !important` + `contain: none !important` 强制重置
+- ✅ 覆盖 `*` / `*::before` / `*::after` 所有伪元素
+
+**涉及文件：** `style.css` / `HelpButton.vue`
+
+---
+
+### v3.3.1 - 好友列表按钮统一与公告弹窗品牌增强 (2026-03-01)
+
+**好友列表按钮 UI 统一：**
+- ✅ 引入 `op-btn` 基础类 + 6 种颜色变体（偷取 - 蓝/浇水 - 青/除草 - 绿/除虫 - 橙/捣乱 - 红/黑名单 - 灰）
+- ✅ 修复「除草」按钮与其他按钮形状不一致的问题
+- ✅ 修复「加入黑名单」按钮深色模式下可读性差的问题
+
+**公告弹窗品牌信息：**
+- ✅ 在「更新公告」弹窗底部注入作者防伪水印（Author: smdk000 | QQ 群:227916149）
+
+**涉及文件：** `Friends.vue` / `NotificationModal.vue` / `BaseSwitch.vue` / `Settings.vue`
+
+---
+
+### v3.3.0 - 自动控制功能提示与推荐建议系统 (2026-03-01)
+
+- ✅ `BaseSwitch.vue` 新增 `hint`/`recommend` prop + CSS Tooltip 气泡（零依赖）
+- ✅ `Settings.vue` 全部 18 个开关添加功能解释 + 推荐建议标签
+- ✅ 推荐标签三色区分：绿 (开) / 红 (关) / 橙 (视情况)
+
+**涉及文件：** `BaseSwitch.vue` / `Settings.vue`
+
+---
+
+### v3.2.9 - 令牌桶进阶优化：紧急通道 & 冗余 Sleep 清理 (2026-03-01)
+
+**防偷抢收紧急通道 (P0)：**
+- ✅ 新增 `sendMsgAsyncUrgent` 紧急通道（队头插入），防偷不再被好友巡查长队列阻塞
+- ✅ `farm.js` 新增 `getAllLandsUrgent` / `fertilizeUrgent` / `harvestUrgent` 紧急版 API
+- ✅ `antiStealHarvest` 全部改用紧急通道
+
+**冗余 Sleep 清理 (P1)：**
+- ✅ 移除 `farm.js` 中 2 处 + `friend.js` 中 5 处冗余 sleep（共 7 处）
+- ✅ 保留 3 处经验值检测 sleep（业务逻辑等待）
+
+**队列深度监控 (P2)：**
+- ✅ 排队超过 5 帧时自动打印警告日志
+
+**涉及文件：** `network.js` / `farm.js` / `friend.js`
+
+---
+
+### v3.2.8 - 性能优化：SQLite 防争用 & WebSocket 3QPS 令牌桶限流 (2026-02-28)
+
+**SQLite 防争用增强：**
+- ✅ 追加 `busy_timeout = 5000`：并发写入遇锁时自旋最多 5 秒，避免直接抛 `SQLITE_BUSY`
+- ✅ 追加 `wal_autocheckpoint = 1000`：每累积 1000 页自动合并 WAL，防止 `.db-wal` 膨胀
+
+**WebSocket 令牌桶限流器：**
+- ✅ 在 `sendMsgAsync` 前注入 Token Bucket 异步排队网关
+- ✅ 所有业务请求强制以 **3 QPS（每帧 ≥ 334ms）** 匀速发出
+- ✅ 心跳同步 `sendMsg` 不受限流影响
+
+**涉及文件：** `database.js` / `network.js`
+
+---
+
+## 🎉 历史版本功能（v3.2.5）
+
+### 底层与存储基建 (v3.2.5)
+- ✅ 数据库原生支持版本迁移架构
+- ✅ 引入轻量级 Cron 自动化释放老旧日志，降低 SQLite 读写耗时
+- ✅ 前端列表操作状态按需记忆并启用防抖
+- ✅ 配置非范式 JSON 弹性扩容化
+
+### 多用户系统
+- ✅ 用户注册/登录
+- ✅ 卡密管理系统（天卡/周卡/月卡/永久卡）
+- ✅ 用户权限控制（管理员/普通用户）
+- ✅ 账号续费功能
+- ✅ 用户状态管理（正常/封禁/过期）
+
+### 偷菜过滤增强
+- ✅ 植物黑名单/白名单
+- ✅ 好友黑名单/白名单
+- ✅ 可视化多选界面
+- ✅ 实时配置保存
+
+### 智能自动化
+- ✅ 自动同意好友请求
+- ✅ 60 秒防偷与抢收保护
+- ✅ 两季作物智能识别（不误铲第二季）
+- ✅ 自动领取任务奖励
+
+### 界面优化
+- ✅ 玻璃态UI (Glassmorphism) 全站渲染重构，提供完美沉浸感
+- ✅ GPU 硬件加速的流动网格渐变背景（流畅降耗无闪白）
+- ✅ 全新左下角响应式主题设置侧拉抽屉 
+- ✅ 5 大高定系统变色主题（御农翠绿、赛博紫、黯金黄、深海蓝、猛男粉）
+- ✅ UI/UX 文字全对比度校准，白天与深色模式自适应修正
+- ✅ 修复跨页面/菜单跳转时颜色配置重置失效的深层数据同步缺陷
+- ✅ 修复全站毛玻璃渲染动画闪烁并增加系统性能极简自适应机制
+- ✅ 全新登录/注册页面
+- ✅ 用户信息卡片
+- ✅ 用户管理页面
+- ✅ 卡密管理页面
+- ✅ 帮助中心系统
 
 ---
 
