@@ -359,8 +359,29 @@ function startAdminServer(dataProvider) {
             return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
         }
         try {
+            const body = req.body || {};
+            // 偷采过滤配置使用独立存储方法
+            const stealFilterKeys = ['stealFilterEnabled', 'stealFilterMode', 'stealFilterPlantIds'];
+            const stealFriendFilterKeys = ['stealFriendFilterEnabled', 'stealFriendFilterMode', 'stealFriendFilterIds'];
+            if (store.setStealFilterConfig && stealFilterKeys.some(k => body[k] !== undefined)) {
+                const cur = store.getStealFilterConfig ? store.getStealFilterConfig(id) : { enabled: false, mode: 'blacklist', plantIds: [] };
+                store.setStealFilterConfig(id, {
+                    enabled: body.stealFilterEnabled !== undefined ? !!body.stealFilterEnabled : cur.enabled,
+                    mode: body.stealFilterMode !== undefined ? (body.stealFilterMode === 'whitelist' ? 'whitelist' : 'blacklist') : cur.mode,
+                    plantIds: Array.isArray(body.stealFilterPlantIds) ? body.stealFilterPlantIds.map(String) : (cur.plantIds || []),
+                });
+            }
+            if (store.setStealFriendFilterConfig && stealFriendFilterKeys.some(k => body[k] !== undefined)) {
+                const cur = store.getStealFriendFilterConfig ? store.getStealFriendFilterConfig(id) : { enabled: false, mode: 'blacklist', friendIds: [] };
+                store.setStealFriendFilterConfig(id, {
+                    enabled: body.stealFriendFilterEnabled !== undefined ? !!body.stealFriendFilterEnabled : cur.enabled,
+                    mode: body.stealFriendFilterMode !== undefined ? (body.stealFriendFilterMode === 'whitelist' ? 'whitelist' : 'blacklist') : cur.mode,
+                    friendIds: Array.isArray(body.stealFriendFilterIds) ? body.stealFriendFilterIds.map(String) : (cur.friendIds || []),
+                });
+            }
             let lastData = null;
-            for (const [k, v] of Object.entries(req.body)) {
+            for (const [k, v] of Object.entries(body)) {
+                if (stealFilterKeys.includes(k) || stealFriendFilterKeys.includes(k)) continue;
                 lastData = await provider.setAutomation(id, k, v);
             }
             res.json({ ok: true, data: lastData || {} });
@@ -572,6 +593,7 @@ function startAdminServer(dataProvider) {
             if (req.body.loginBackground !== undefined) uiUpdates.loginBackground = req.body.loginBackground;
             if (req.body.colorTheme !== undefined) uiUpdates.colorTheme = req.body.colorTheme;
             if (req.body.performanceMode !== undefined) uiUpdates.performanceMode = req.body.performanceMode;
+            if (req.body.timestamp !== undefined) uiUpdates.timestamp = req.body.timestamp;
 
             if (Object.keys(uiUpdates).length > 0) {
                 store.applyConfigSnapshot({ ui: uiUpdates });
@@ -603,7 +625,19 @@ function startAdminServer(dataProvider) {
             const strategy = store.getPlantingStrategy(id);
             const preferredSeed = store.getPreferredSeed(id);
             const friendQuietHours = store.getFriendQuietHours(id);
-            const automation = store.getAutomation(id);
+            const automationRaw = store.getAutomation(id);
+            const stealFilter = store.getStealFilterConfig ? store.getStealFilterConfig(id) : { enabled: false, mode: 'blacklist', plantIds: [] };
+            const stealFriendFilter = store.getStealFriendFilterConfig ? store.getStealFriendFilterConfig(id) : { enabled: false, mode: 'blacklist', friendIds: [] };
+            // 前端期望 automation 内包含偷菜/偷好友过滤字段，合并后返回
+            const automation = {
+                ...automationRaw,
+                stealFilterEnabled: stealFilter.enabled,
+                stealFilterMode: stealFilter.mode,
+                stealFilterPlantIds: stealFilter.plantIds || [],
+                stealFriendFilterEnabled: stealFriendFilter.enabled,
+                stealFriendFilterMode: stealFriendFilter.mode,
+                stealFriendFilterIds: stealFriendFilter.friendIds || [],
+            };
             const ui = store.getUI();
             const offlineReminder = store.getOfflineReminder
                 ? store.getOfflineReminder()
@@ -657,6 +691,23 @@ function startAdminServer(dataProvider) {
     app.post('/api/accounts', (req, res) => {
         try {
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
+
+            // 如果是新增请求，拦截并检查是否已存在相同 UIN 和 platform 的账号，如果是，则转为更新操作以避免重复创建
+            if (!body.id && body.uin && body.platform) {
+                const existingAccounts = store.getAccounts();
+                const duplicateEntry = (existingAccounts.accounts || []).find(
+                    a => String(a.uin) === String(body.uin) && a.platform === body.platform
+                );
+                if (duplicateEntry) {
+                    console.log(`[API /api/accounts] 拦截重复创建: UIN ${body.uin} 已存在，转为更新 (ID: ${duplicateEntry.id})`);
+                    body.id = duplicateEntry.id;
+                    // 保留原本的名字，除非用户这次明确输入了名字
+                    if (!body.name || body.name === '扫码账号' || body.name === body.uin) {
+                        body.name = duplicateEntry.name;
+                    }
+                }
+            }
+
             const isUpdate = !!body.id;
             const resolvedUpdateId = isUpdate ? resolveAccId(body.id) : '';
             const payload = isUpdate ? { ...body, id: resolvedUpdateId || String(body.id) } : body;
@@ -1068,12 +1119,10 @@ function startAdminServer(dataProvider) {
             if (platform === 'wx') {
                 const wxCtrl = new AbortController();
                 const wxTimer = setTimeout(() => wxCtrl.abort(), 15000);
-                // 从环境变量读取微信 API 密钥，默认值仅用于演示
-                const WX_API_KEY = process.env.WX_QR_API_KEY || 'YOUR_WX_API_KEY_HERE';
-                const wxRes = await fetch('https://api.aineishe.com/api/wxnc', {
+                const wxRes = await fetch(`${CONFIG.wxApiUrl}?api_key=${encodeURIComponent(CONFIG.wxApiKey)}&action=getqr`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getqr', api_key: WX_API_KEY }),
+                    body: JSON.stringify({}),
                     signal: wxCtrl.signal,
                 }).then(r => r.json()).finally(() => clearTimeout(wxTimer));
 
@@ -1082,7 +1131,7 @@ function startAdminServer(dataProvider) {
                     if (qrcodeData && !qrcodeData.startsWith('data:')) {
                         qrcodeData = `data:image/png;base64,${qrcodeData}`;
                     }
-                    res.json({ ok: true, data: { qrcode: qrcodeData, code: wxRes.data.uuid, platform: 'wx' } });
+                    res.json({ ok: true, data: { qrcode: qrcodeData, code: wxRes.data.Uuid || wxRes.data.uuid, platform: 'wx' } });
                 } else {
                     res.json({ ok: false, error: wxRes.msg || '获取微信二维码失败' });
                 }
@@ -1105,38 +1154,79 @@ function startAdminServer(dataProvider) {
             if (platform === 'wx') {
                 const checkCtrl = new AbortController();
                 const checkTimer = setTimeout(() => checkCtrl.abort(), 10000);
-                // 从环境变量读取微信 API 密钥
-                const WX_API_KEY = process.env.WX_QR_API_KEY || 'YOUR_WX_API_KEY_HERE';
-                const wxCheckRes = await fetch('https://api.aineishe.com/api/wxnc', {
+                const wxCheckRes = await fetch(`${CONFIG.wxApiUrl}?api_key=${encodeURIComponent(CONFIG.wxApiKey)}&action=checkqr`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'checkqr', uuid: code, api_key: WX_API_KEY }),
+                    body: JSON.stringify({ uuid: code }),
                     signal: checkCtrl.signal,
                 }).then(r => r.json()).finally(() => clearTimeout(checkTimer));
 
-                if (wxCheckRes.code === 0) {
-                    // 已扫码并确认
-                    const loginCtrl = new AbortController();
-                    const loginTimer = setTimeout(() => loginCtrl.abort(), 10000);
-                    // 从环境变量读取微信 API 密钥
-                    const WX_API_KEY = process.env.WX_QR_API_KEY || 'YOUR_WX_API_KEY_HERE';
-                    const wxLoginRes = await fetch('https://api.aineishe.com/api/wxnc', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'jslogin', uuid: code, api_key: WX_API_KEY }),
-                        signal: loginCtrl.signal,
-                    }).then(r => r.json()).finally(() => clearTimeout(loginTimer));
+                console.log(`[WX checkqr] 完整响应:`, JSON.stringify(wxCheckRes));
 
-                    if (wxLoginRes.code === 0 && wxLoginRes.data) {
-                        const { wxid, nickname, raw } = wxLoginRes.data;
-                        const authCode = String(wxLoginRes.data.Code || (raw ? raw.Code : '') || '');
-                        res.json({ ok: true, data: { status: 'OK', code: authCode, uin: wxid, avatar: '', nickname } });
-                    } else if (wxLoginRes.code === 1) { // 极小概率可能仍在确认中
+                if (wxCheckRes.code === 0) {
+                    // 从多个可能的位置提取 wxid（兼容不同 API 版本）
+                    const wxid = (wxCheckRes.data && wxCheckRes.data.wxid)
+                        || (wxCheckRes.raw && wxCheckRes.raw.Data && wxCheckRes.raw.Data.wxid)
+                        || wxCheckRes.wxid
+                        || '';
+                    const nickname = (wxCheckRes.data && wxCheckRes.data.nickname)
+                        || (wxCheckRes.raw && wxCheckRes.raw.Data && wxCheckRes.raw.Data.nickname)
+                        || wxCheckRes.nickname
+                        || '';
+
+                    console.log(`[WX checkqr] 提取到 wxid=${wxid}, nickname=${nickname}`);
+
+                    if (!wxid) {
+                        // checkqr 返回 code=0 但无 wxid，可能 API 结构变化，返回原始数据帮助调试
+                        console.error('[WX checkqr] code=0 但 wxid 为空! 完整 data:', JSON.stringify(wxCheckRes.data), '完整 raw:', JSON.stringify(wxCheckRes.raw));
                         res.json({ ok: true, data: { status: 'Wait' } });
-                    } else {
-                        res.json({ ok: true, data: { status: 'Error', error: wxLoginRes.msg || '获取微信授权失败' } });
+                        return;
                     }
-                } else if (wxCheckRes.code === 1) {
+
+                    // 第二步：用 wxid 调用 jslogin 获取小程序 code（最多重试 3 次）
+                    let wxLoginRes = null;
+                    let lastError = null;
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            const loginCtrl = new AbortController();
+                            const loginTimer = setTimeout(() => loginCtrl.abort(), 10000);
+                            wxLoginRes = await fetch(`${CONFIG.wxApiUrl}?api_key=${encodeURIComponent(CONFIG.wxApiKey)}&action=jslogin`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ wxid, appid: CONFIG.wxAppId }),
+                                signal: loginCtrl.signal,
+                            }).then(r => r.json()).finally(() => clearTimeout(loginTimer));
+
+                            console.log(`[WX jslogin] 第 ${attempt} 次响应:`, JSON.stringify(wxLoginRes));
+
+                            if (wxLoginRes && wxLoginRes.code === 0) {
+                                break;
+                            }
+                        } catch (err) {
+                            lastError = err;
+                            console.error(`[WX jslogin] 第 ${attempt} 次失败: ${err.message}`);
+                        }
+                        if (attempt < 3) {
+                            await new Promise(r => setTimeout(r, 1000));
+                        }
+                    }
+
+                    if (wxLoginRes && wxLoginRes.code === 0 && wxLoginRes.data) {
+                        const authCode = String(
+                            wxLoginRes.data.code
+                            || (wxLoginRes.data.raw ? (wxLoginRes.data.raw.code || wxLoginRes.data.raw.Code) : '')
+                            || ''
+                        );
+                        const loginNickname = wxLoginRes.data.nickname || nickname;
+                        const loginWxid = wxLoginRes.data.wxid || wxid;
+                        console.log(`[WX jslogin] 登录成功! wxid=${loginWxid}, code=${authCode}, nickname=${loginNickname}`);
+                        res.json({ ok: true, data: { status: 'OK', code: authCode, uin: loginWxid, avatar: '', nickname: loginNickname } });
+                    } else {
+                        const errMsg = (wxLoginRes && wxLoginRes.msg) || (lastError ? lastError.message : '获取微信授权失败');
+                        console.error(`[WX jslogin] 最终失败: ${errMsg}`);
+                        res.json({ ok: true, data: { status: 'Error', error: errMsg } });
+                    }
+                } else if (wxCheckRes.code === 1 || wxCheckRes.code === -1) {
                     // 等待扫码
                     res.json({ ok: true, data: { status: 'Wait' } });
                 } else if (wxCheckRes.code === 2) {
@@ -1171,6 +1261,7 @@ function startAdminServer(dataProvider) {
                 }
             }
         } catch (e) {
+            console.error('[API /api/qr/check] Error:', e.message);
             res.status(500).json({ ok: false, error: e.message });
         }
     });
