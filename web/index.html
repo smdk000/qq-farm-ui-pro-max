@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QQ农场智能助手</title>
+  <script>
+    (function () {
+      try {
+        var uiThemeRaw = localStorage.getItem('ui_theme');
+        var uiTheme = uiThemeRaw ? uiThemeRaw.replace(/"/g, '') : 'dark';
+        var isDark = uiTheme === 'dark' || (uiTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        }
+
+        var appColorRaw = localStorage.getItem('app_color_theme');
+        var t = appColorRaw ? appColorRaw.replace(/"/g, '') : 'default';
+        if (t !== 'default' && ['cyber', 'elegant', 'ocean', 'sakura'].includes(t)) {
+          document.documentElement.classList.add('theme-' + t);
+        }
+
+        var perfModeRaw = localStorage.getItem('app_performance_mode');
+        // Default performance mode is true
+        if (!perfModeRaw || perfModeRaw === 'true' || perfModeRaw === '"true"') {
+          document.documentElement.classList.add('low-performance-mode');
+        }
+      } catch (e) { }
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

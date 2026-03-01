@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package gamepb.shoppb;
+
+import "corepb.proto";
+
+// ============ 商店类型: 1=道具商店, 2=种子商店, 3=宠物商店 ============
+
+// ============ 商店概览 ============
+message ShopProfile {
+    int64 shop_id = 1;      // 商店ID
+    string shop_name = 2;   // 商店名称
+    int32 shop_type = 3;    // 商店类型
+}
+
+// ============ 商品信息 ============
+message GoodsInfo {
+    int64 id = 1;              // 商品ID (用于购买)
+    int64 bought_num = 2;      // 已购买数量
+    int64 price = 3;           // 价格 (金币)
+    int64 limit_count = 4;     // 限购数量 (0=不限购)
+    bool unlocked = 5;         // 是否已解锁
+    int64 item_id = 6;         // 物品ID (即种子ID)
+    int64 item_count = 7;      // 每次购买获得数量
+    repeated Cond conds = 8;   // 解锁条件
+}
+
+// ============ 解锁条件 ============
+enum CondType {
+    COND_TYPE_UNKNOWN = 0;
+    MIN_LEVEL = 1;     // 最低等级要求
+    UNLOCK_CARD = 2;   // 需要解锁卡
+}
+
+message Cond {
+    int32 type = 1;    // CondType
+    int64 param = 2;   // 参数值 (如等级要求的等级数)
+}
+
+// ============ 请求/回复 ============
+
+// --- 获取商店列表 ---
+message ShopProfilesRequest {}
+
+message ShopProfilesReply {
+    repeated ShopProfile shop_profiles = 1;
+}
+
+// --- 获取商店商品 ---
+message ShopInfoRequest {
+    int64 shop_id = 1;
+}
+
+message ShopInfoReply {
+    repeated GoodsInfo goods_list = 1;
+}
+
+// --- 购买商品 ---
+message BuyGoodsRequest {
+    int64 goods_id = 1;   // 商品ID (GoodsInfo.id)
+    int64 num = 2;        // 购买数量
+    int64 price = 3;      // 单价
+}
+
+message BuyGoodsReply {
+    GoodsInfo goods = 1;                  // 更新后的商品信息
+    repeated corepb.Item get_items = 2;   // 获得的物品
+    repeated corepb.Item cost_items = 3;  // 消耗的物品
+}
+
+// --- 商品解锁推送 ---
+message GoodsUnlockNotify {
+    repeated GoodsInfo goods_list = 1;
+}

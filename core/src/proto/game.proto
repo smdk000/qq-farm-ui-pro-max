@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+// ============ gatepb ============
+// 网关层协议 - 所有WS消息的外壳
+
+package gatepb;
+
+// Meta.Type 枚举
+enum MessageType {
+    None = 0;
+    Request = 1;
+    Response = 2;
+    Notify = 3;
+}
+
+// 消息元信息
+message Meta {
+    string service_name = 1;
+    string method_name = 2;
+    int32 message_type = 3;   // MessageType enum
+    int64 client_seq = 4;
+    int64 server_seq = 5;
+    int64 error_code = 6;
+    string error_message = 7;
+    map<string, bytes> metadata = 8;
+}
+
+// 每个WS帧的结构
+message Message {
+    Meta meta = 1;
+    bytes body = 2;
+}
+
+// 服务器推送事件
+message EventMessage {
+    string message_type = 1;
+    bytes body = 2;
+}
+
+// 被踢下线通知
+message KickoutNotify {
+    int64 reason = 1;
+    string reason_message = 2;
+}

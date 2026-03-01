@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库存储与信息保存优化计划</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --text: #cdd6f4;
+            --accent: #89b4fa;
+            --card: #313244;
+            --border: #45475a;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--accent);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background-color: var(--card);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #cba6f7;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--border);
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #181825;
+        }
+
+        code {
+            background-color: #11111b;
+            padding: 2px 5px;
+            border-radius: 4px;
+            color: #f38ba8;
+        }
+
+        .alert {
+            padding: 10px;
+            background: rgba(243, 139, 168, 0.1);
+            border-left: 4px solid #f38ba8;
+            margin: 10px 0;
+        }
+
+        pre {
+            background: #11111b;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+    </style>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>数据库存储与信息保存优化计划 (Plan)</h1>
+        <p>基于对前后端当前状态的深层检查，特制定本优化升级计划。本计划详细解析了已保存内容，指出了可优化/未考虑到的持久化策略，并拆解了具体的执行任务。</p>
+
+        <div class="card">
+            <h2>1. 当前数据库与缓存现状解析 (As-Is)</h2>
+            <h3>后端 SQLite (`better-sqlite3`)</h3>
+            <table>
+                <tr>
+                    <th>表名</th>
+                    <th>保存的信息内容</th>
+                    <th>状态与优化空间评估</th>
+                </tr>
+                <tr>
+                    <td><code>users</code></td>
+                    <td>系统用户、密码哈希、角色权限。</td>
+                    <td>现状良好。</td>
+                </tr>
+                <tr>
+                    <td><code>cards</code></td>
+                    <td>试用卡/月卡等兑换码信息、有效期、使用人。</td>
+                    <td>现状良好，可定期归档或清理长久过期卡密。</td>
+                </tr>
+                <tr>
+                    <td><code>accounts</code></td>
+                    <td>绑定的QQ账号基础信息、昵称、运行状态(running)。</td>
+                    <td>由于缺乏 Cookie 状态标识（如 <code>status: 'valid'|'expired'</code>），用户仅凭 running 无法直接判断失败原因。</td>
+                </tr>
+                <tr>
+                    <td><code>account_configs</code></td>
+                    <td>全量自动化策略开关（自动种菜、好友偷菜、时间间隔等20+列）。</td>
+                    <td>表过热、过宽。每次新增细分策略都要修改表结构(ALTER TABLE)。应增加 JSON 载体（<code>advanced_settings</code>）提高弹性。</td>
+                </tr>
+                <tr>
+                    <td><code>ui_settings</code></td>
+                    <td>用户界面主题设置。</td>
+                    <td>功能单一，目前部分逻辑被前端 localStorage 完全替代。</td>
+                </tr>
+                <tr>
+                    <td><code>operation_logs</code></td>
+                    <td>所有农场操作日志明细。</td>
+                    <td><span style="color:#f38ba8">致命隐患</span>：仅持续插入而无定期清空机制，长时间挂机必将导致 SQLite 体积剧增，导致 I/O 锁慢。</td>
+                </tr>
+                <tr>
+                    <td><code>*filters/*blacklists</code></td>
+                    <td>植物、好友的偷菜/互助过滤名单。</td>
+                    <td>带有联合主键拦截与层级联删 (ON DELETE CASCADE)，设计良好。</td>
+                </tr>
+            </table>
+
+            <h3>前端本地存储 (`localStorage`)</h3>
+            <ul>
+                <li>已被利用项：<code>admin_token</code> (鉴权), <code>current_account_id</code>, <code>ui_theme</code>,
+                    <code>login_background</code>。</li>
+                <li><strong>遗漏保存内容与缺失策略</strong>:
+                    缺失“各个表格分页大小(pageSize)的记忆记录”，每次重刷恢复 10 条体验不佳；
+                    数据配置与操作日志过滤条件的持久化记录缺失；
+                    基础的字典项枚举没使用持久化导致反复网络请求。
+                </li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>2. 优化与升级策略预判 (To-Be)</h2>
+            <p>系统尚未考虑到或急需优化的策略包含以下五大方向：</p>
+            <ol>
+                <li><strong>引入每日统计快照 (Daily Statistics Snapshot)</strong>：<br>
+                    当前 Dashboard 页面统计强依赖于全量日志查询或进程内计算器。必须补全新表 <code>daily_statistics</code>，每日 23:59
+                    定时快照保存当日获取经验值、金币等数据。</li>
+                <li><strong>建立日志保留轮转策略 (Log Retention Policy)</strong>：<br>
+                    针对 <code>operation_logs</code> 和 <code>config_audit_log</code>，在每次挂机守护循环内，应通过定时任务清理 7 天前的一般操作日志，避免
+                    DB 无限体积暴涨而造成数据库坏块。</li>
+                <li><strong>增强账号节点健康度标记 (Account Health Status)</strong>：<br>
+                    在 <code>accounts</code> 表新增 <code>status</code>(标识有效、失效等待登录) 及 <code>api_error_count</code>
+                    连续错误计数，达到阈值触发软封停而非原地无限报错。</li>
+                <li><strong>平滑扩展 account_configs (JSON Extension)</strong>：<br>
+                    增加 <code>advanced_settings JSON</code> 字段。诸如"设定特定好友不偷只帮"这样边缘的新功能，直接塞入 JSON 对象，可极大避免 schema 更改的维护成本。
+                </li>
+                <li><strong>补齐前端偏好状态的 Local 持久化 (Frontend State Persistence)</strong>：<br>
+                    前端整合 <code>vueuse/core</code> 保存查询条件历史（History Record）、页均数据量和折叠面板状态，实现刷新免除二次操作。</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h2>3. 架构影响与流向改变分析 (Impact Analysis)</h2>
+            <div class="mermaid">
+                graph TD;
+                Frontend[前端 Vue3/Pinia] -->|配置读写 API| Backend[后端 Node/Express];
+                Backend --> DB[(本地 SQLite DB)];
+
+                subgraph 现有写入流
+                Backend -->|高度依赖表头| Configs[account_configs 表];
+                Backend -->|无限堆积插入| Logs[operation_logs 表];
+                end
+
+                subgraph 优化后设计流
+                Backend -.->|核心独立,边缘进 JSON| Configs;
+                Backend -.->|自动轮转删除 N 天前记录| Logs;
+                Backend -.->|凌晨聚合生成只读快照| Stats[daily_statistics 表 <br>提升面板性能];
+                Backend -.->|检测失效标记防封号| Accounts[accounts 状态机];
+                end
+            </div>
+            <div class="alert">
+                <strong>核心风险提示：</strong> 增加统计快照和日志清理需要在后端挂载独立的定时任务处理器，涉及数据迁移 <code>002-optimize.sql</code>
+                时，需确保外键和数据完整不受损。
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>4. 任务拆解与执行工单 (Task Breakdown)</h2>
+            <p>基于 6A 模型，我们将任务严谨拆分为如下执行原子单元：</p>
+
+            <h3>阶段 1：数据库迁移与结构补全 (Atomize 1)</h3>
+            <ul>
+                <li><strong>[TASK-1.1]</strong> 创建 SQLite 迁移脚本
+                    <code>core/src/database/migrations/002-optimize_storage.sql</code>。</li>
+                <li><strong>[TASK-1.2]</strong> 声明 <code>daily_statistics</code> 表模型，索引建立于 Date 和 ID。</li>
+                <li><strong>[TASK-1.3]</strong> 声明针对 <code>accounts</code> 追加 <code>status</code> (varchar) 与
+                    <code>error_count</code>(int) 两列。</li>
+                <li><strong>[TASK-1.4]</strong> 声明针对 <code>account_configs</code> 注入 <code>advanced_settings</code>(text
+                    兼 json) 两列。</li>
+            </ul>
+
+            <h3>阶段 2：后端日志轮转与定时结算逻辑 (Atomize 2)</h3>
+            <ul>
+                <li><strong>[TASK-2.1]</strong> 编写挂载 <code>jobs/logCleanupJob.js</code>，配置执行周期为每天凌晨 2 点，清空 7 天前
+                    <code>operation_logs</code> 数据。</li>
+                <li><strong>[TASK-2.2]</strong> 编写挂载 <code>jobs/dailyStatsJob.js</code>，在每日 23:55 从日志和内存抓取统计收录并写入库中。
+                </li>
+            </ul>
+
+            <h3>阶段 3：前端状态防抖与全局持久化体验 (Atomize 3)</h3>
+            <ul>
+                <li><strong>[TASK-3.1]</strong> 使用 VueUse `useStorage` 封装修饰器，为所有的配置设置分页、过滤筛选添加 localStorage 并绑定至响应式变量。
+                </li>
+                <li><strong>[TASK-3.2]</strong> 修改首页 Dashboard 接口数据挂载逻辑，优先读取新增的 <code>daily_statistics</code>
+                    快照大幅缩减查表渲染全开销时长。</li>
+            </ul>
+        </div>
+    </div>
+</body>
+
+</html>

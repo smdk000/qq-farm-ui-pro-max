@@ -1,0 +1,14 @@
+services:
+  qq-farm-bot-ui:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    container_name: qq-farm-bot-ui
+    restart: unless-stopped
+    environment:
+      ADMIN_PASSWORD: qq007qq008
+      TZ: Asia/Shanghai
+    ports:
+      - "3080:3000"
+    volumes:
+      - ./data:/app/core/data

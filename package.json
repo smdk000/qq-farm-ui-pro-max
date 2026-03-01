@@ -1,0 +1,29 @@
+{
+  "name": "qq-farm-bot-ui",
+  "packageManager": "pnpm@10.30.2",
+  "scripts": {
+    "dev:core": "pnpm -C core dev",
+    "dev:web": "pnpm -C web dev",
+    "dev": "pnpm build:web && pnpm dev:core",
+    "start": "pnpm -C core start",
+    "start:ai": "node ai-autostart.js start",
+    "stop:ai": "node ai-autostart.js stop",
+    "restart:ai": "node ai-autostart.js restart",
+    "status:ai": "node ai-autostart.js status",
+    "test:ai": "node test-autostart.js",
+    "logs:ai": "tail -f logs/ai-services.log",
+    "lint:web": "pnpm -C web lint",
+    "build:web": "pnpm -C web build",
+    "build": "pnpm build:web",
+    "package:win": "pnpm build:web && pnpm -C core build:win",
+    "package:linux": "pnpm build:web && pnpm -C core build:linux",
+    "package:mac": "pnpm build:web && pnpm -C core build:mac",
+    "package:release": "pnpm build:web && pnpm -C core build:release",
+    "install:all": "pnpm install -r"
+  },
+  "pnpm": {
+    "overrides": {
+      "@babel/traverse": "7.26.10"
+    }
+  }
+}

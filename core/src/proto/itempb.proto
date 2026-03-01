@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package gamepb.itempb;
+
+import "corepb.proto";
+
+// ============ 背包/仓库 ============
+
+// 获取背包
+message BagRequest {}
+
+message BagReply {
+    corepb.ItemBag item_bag = 1;  // 与 game 一致，背包数据在 item_bag 里
+}
+
+// ============ 出售物品 ============
+
+message SellRequest {
+    repeated corepb.Item items = 1;  // 要出售的物品列表 (id + count)
+}
+
+message SellReply {
+    repeated corepb.Item sell_items = 1;  // 出售的物品
+    repeated corepb.Item get_items = 2;   // 获得的物品（常见: 1001=金币, 1002=点券）
+}
+
+// ============ 使用物品 ============
+
+message UseRequest {
+    int64 item_id = 1;
+    int64 count = 2;
+    repeated int64 land_ids = 3;
+}
+
+message UseReply {
+    repeated corepb.Item items = 1;
+}
+
+// ============ 批量使用物品 ============
+
+message BatchUseRequest {
+    repeated corepb.Item items = 1;
+}
+
+message BatchUseReply {
+    repeated corepb.Item used_items = 1;
+    repeated corepb.Item items = 2;
+}

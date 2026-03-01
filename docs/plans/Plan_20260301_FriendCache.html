@@ -1,0 +1,116 @@
+<!-- PLAN -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>好友头像及缓存优化计划</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+            --success: #22c55e;
+            --border: #334155;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--accent);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: #818cf8;
+            margin-top: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        code {
+            background: #000;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: monospace;
+            color: #fbbf24;
+        }
+
+        .highlight {
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🌱 好友头像及数据库缓存优化计划</h1>
+    <p>针对“偷菜设置”中头像不显示以及前端频繁拉取好友列表可能给服务器产生压力的痛点，制定以下深层修复与优化计划。</p>
+
+    <div class="card">
+        <h2>1. UI 问题修复 (StealSettings.vue)</h2>
+        <p>目前 <code>StealSettings.vue</code> 使用的 <code>qlogo3.store.qq.com</code> 接口存在较高的无效加载率。我们将：</p>
+        <ul>
+            <li>引入与 <code>Friends.vue</code> 完全一致的高可用 <code>getFriendAvatar</code> 函数机制。</li>
+            <li>如果原生链接或 <code>qlogo3</code> 失败，快速无感降级到 <code>https://q1.qlogo.cn/g?b=qq&nk=${uin}&s=100</code>。</li>
+            <li>匹配全局统一样式的 <code>i-carbon-user</code> 图片加载失败占位符。</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>2. 后端 SQLite 高效缓存建设</h2>
+        <p>前端 <code>Friends.vue</code> 和 <code>StealSettings.vue</code> 打开时会高频请求
+            <code>/api/friends</code>，导致底层不断给腾讯服务器发送 <code>GetAllFriends</code> 协议。为了大幅度降低风控压力与无用请求，我们将构建一层 DB 缓存架构：</p>
+
+        <ol>
+            <li><strong>创建数据表</strong>：在 <code>migrations</code> 目录下新增 <code>003-friends_cache.sql</code>。建立
+                <code>account_friends_cache</code> 表，存储 <code>account_id</code>, <code>friend_gid</code>,
+                <code>friend_uin</code>, <code>name</code>, <code>avatar_url</code> 等信息。</li>
+            <li><strong>智能写入缓存 (Upsert)</strong>：系统内部的自动轮询任务（Worker）天然会在后台周期性运作。每次后台自动刷新完最新的好友列表后，引擎将会**静默同步/更新**至本地
+                SQLite，一天只高频操作一次，缓解数据库压力。</li>
+            <li><strong>每日自然日同步约束</strong>：针对 <code>StealSettings.vue</code>
+                这个只需要用来筛选好友的纯配置页面，将不再触发对腾讯服务器的实时拉取，而是<strong>直接调用新增的接口从 SQLite 读取缓存的好友清单</strong>（极速响应/完全无风控风险）。对于主视图
+                <code>Friends.vue</code> 则依然维持原状，以便展示作物的实时状态（偷、虫、草等）。</li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h2>3. 影响面分析 (Impact Analysis)</h2>
+        <p><strong>修改模块</strong>：</p>
+        <ul>
+            <li><code>web/src/views/StealSettings.vue</code>: 修改 UI 头像绑定逻辑。</li>
+            <li><code>core/src/database/migrations/003-friends_cache.sql</code>: 新增表结构。</li>
+            <li><code>core/src/services/friend.js</code>: 改造 <code>getFriendsList</code> 方法，追加 SQLite 数据库 upsert 逻辑；开放
+                <code>getCachedFriendsList</code> 专供设置页拿取本地名单。</li>
+            <li><code>core/src/controllers/admin.js</code>: 新增 <code>GET /api/friends/cache</code> 提供给设置页调用。</li>
+        </ul>
+    </div>
+
+</body>
+
+</html>

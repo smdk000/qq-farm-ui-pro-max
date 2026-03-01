@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>沉浸式流动主题效果预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            /* 默认主题 (不对流动层生效) */
+            --bg-base: #f8fafc;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(0, 0, 0, 0.05);
+            --orb-1: transparent;
+            --orb-2: transparent;
+            --orb-3: transparent;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        .theme-cyber {
+            --bg-base: #0f172a;
+            --glass-bg: rgba(15, 23, 42, 0.6);
+            --glass-border: rgba(139, 92, 246, 0.3);
+            /* violet border */
+            --orb-1: #c026d3;
+            /* fuchsia */
+            --orb-2: #4f46e5;
+            /* indigo */
+            --orb-3: #06b6d4;
+            /* cyan */
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        .theme-ocean {
+            --bg-base: #082f49;
+            --glass-bg: rgba(8, 47, 73, 0.65);
+            --glass-border: rgba(56, 189, 248, 0.2);
+            --orb-1: #0ea5e9;
+            --orb-2: #0369a1;
+            --orb-3: #2dd4bf;
+            /* teal */
+            --text-main: #f0f9ff;
+            --text-muted: #bae6fd;
+        }
+
+        .theme-sakura {
+            --bg-base: #fff1f2;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(244, 114, 182, 0.3);
+            --orb-1: #fbcfe8;
+            --orb-2: #f472b6;
+            --orb-3: #fecdd3;
+            --text-main: #4c0519;
+            --text-muted: #be185d;
+        }
+
+        .theme-elegant {
+            --bg-base: #18181b;
+            --glass-bg: rgba(24, 24, 27, 0.75);
+            --glass-border: rgba(217, 119, 6, 0.3);
+            --orb-1: #b45309;
+            /* amber 700 */
+            --orb-2: #ca8a04;
+            /* yellow 600 */
+            --orb-3: #78350f;
+            /* amber 900 */
+            --text-main: #fef3c7;
+            --text-muted: #d97706;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            transition: background-color 0.8s ease, color 0.8s ease;
+            overflow-x: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+        }
+
+        /* 背景流变网格动画层 */
+        .mesh-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            pointer-events: none;
+        }
+
+        /* 如果不是 default 主题，则显出流动动画基底 */
+        body:not(.theme-default) .mesh-bg {
+            opacity: 1;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s infinite ease-in-out alternate;
+            transition: background-color 0.8s ease;
+        }
+
+        .orb-1 {
+            background-color: var(--orb-1);
+            width: 50vw;
+            height: 50vw;
+            top: -10vw;
+            left: -10vw;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            background-color: var(--orb-2);
+            width: 45vw;
+            height: 45vw;
+            bottom: -5vw;
+            right: -10vw;
+            animation-duration: 25s;
+        }
+
+        .orb-3 {
+            background-color: var(--orb-3);
+            width: 40vw;
+            height: 40vw;
+            top: 30vh;
+            left: 30vw;
+            animation-duration: 18s;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(8vw, 10vh) scale(1.1);
+            }
+
+            66% {
+                transform: translate(-5vw, 15vh) scale(0.9);
+            }
+
+            100% {
+                transform: translate(-10vw, -5vh) scale(1.05);
+            }
+        }
+
+        /* 毛玻璃核心组件类 */
+        .glass-panel {
+            background-color: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            transition: background-color 0.8s ease, border-color 0.8s ease;
+        }
+
+        /* 自定义文本过渡保护 */
+        h1,
+        h2,
+        h3,
+        p,
+        span,
+        div {
+            transition: color 0.8s ease;
+        }
+    </style>
+</head>
+
+<body class="theme-default h-screen flex">
+
+    <!-- 动态网格渐变层 -->
+    <div class="mesh-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- 模拟侧边栏 -->
+    <aside class="w-64 glass-panel border-r h-full flex flex-col pt-8">
+        <div class="px-6 mb-8">
+            <h1 class="text-2xl font-bold tracking-tight">农场面板</h1>
+            <p class="text-sm mt-1" style="color: var(--text-muted)">QQ Auto Farm Bot</p>
+        </div>
+
+        <nav class="flex-1 px-4 space-y-2">
+            <a href="#" class="block px-4 py-2.5 rounded-lg glass-panel font-medium shadow-sm">
+                Dashboard 概览
+            </a>
+            <a href="#"
+                class="block px-4 py-2.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors font-medium"
+                style="color: var(--text-muted)">
+                Automation 自动化
+            </a>
+            <a href="#"
+                class="block px-4 py-2.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors font-medium"
+                style="color: var(--text-muted)">
+                偷菜设置 (Steal)
+            </a>
+        </nav>
+
+        <div class="p-4 border-t" style="border-color: var(--glass-border)">
+            <p class="text-xs font-semibold mb-3 uppercase tracking-wider" style="color: var(--text-muted)">切换主题体验</p>
+            <div class="flex flex-wrap gap-2">
+                <!-- 主题切换按钮 -->
+                <button onclick="setTheme('theme-default')"
+                    class="w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition bg-green-500 shadow-md"
+                    title="默认不变"></button>
+                <button onclick="setTheme('theme-cyber')"
+                    class="w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition bg-purple-600 shadow-md"
+                    title="全息赛博"></button>
+                <button onclick="setTheme('theme-ocean')"
+                    class="w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition bg-sky-500 shadow-md"
+                    title="深海矩阵"></button>
+                <button onclick="setTheme('theme-sakura')"
+                    class="w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition bg-pink-300 shadow-md"
+                    title="樱花粉黛"></button>
+                <button onclick="setTheme('theme-elegant')"
+                    class="w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition bg-amber-600 shadow-md"
+                    title="尊贵黯金"></button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 模拟主内容区 -->
+    <main class="flex-1 p-8 overflow-y-auto">
+        <header class="flex justify-between items-center mb-8">
+            <h2 class="text-3xl font-bold">工作台 (Workspace)</h2>
+            <div class="flex gap-4">
+                <div class="glass-panel px-4 py-2 rounded-full text-sm font-medium shadow-sm">
+                    当前农场状态: <span class="text-green-500 font-bold ml-1">运行中</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-3 gap-6 mb-6">
+            <!-- 统计卡片 -->
+            <div class="glass-panel rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-medium mb-1" style="color: var(--text-muted)">今日金币收益</h3>
+                <div class="text-4xl font-bold">128,450</div>
+                <div class="mt-4 text-sm font-medium" style="color: var(--text-muted)">↑ 较昨日上涨 12%</div>
+            </div>
+            <div class="glass-panel rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-medium mb-1" style="color: var(--text-muted)">共偷取好友</h3>
+                <div class="text-4xl font-bold">42 <span class="text-xl font-normal"
+                        style="color: var(--text-muted)">/150</span></div>
+                <div class="mt-4 text-sm font-medium" style="color: var(--text-muted)">正在监控冷却列表</div>
+            </div>
+            <div class="glass-panel rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-medium mb-1" style="color: var(--text-muted)">狗粮剩余</h3>
+                <div class="text-4xl font-bold">14 <span class="text-xl font-normal"
+                        style="color: var(--text-muted)">包</span></div>
+                <div class="mt-4 text-sm font-medium text-red-400">电量偏低警告</div>
+            </div>
+        </div>
+
+        <div class="glass-panel rounded-2xl p-8 shadow-sm h-64 flex items-center justify-center">
+            <div class="text-center">
+                <div
+                    class="w-16 h-16 rounded-full glass-panel mx-auto mb-4 flex items-center justify-center shadow-inner">
+                    ✨
+                </div>
+                <h3 class="text-xl font-bold">这是一块大面积的高斯模糊区面板</h3>
+                <p class="mt-2 max-w-md mx-auto" style="color: var(--text-muted)">在此区域，由于底部插入了流动特效的光球 (Mesh
+                    Background)，所以这块白/灰底板从单色变成了玻璃质感，透出了底层的流光溢彩。</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function setTheme(themeClass) {
+            // 清理原有主题类
+            document.body.classList.remove('theme-default', 'theme-cyber', 'theme-ocean', 'theme-sakura', 'theme-elegant');
+            // 添加新选中类
+            document.body.classList.add(themeClass);
+        }
+    </script>
+</body>
+
+</html>

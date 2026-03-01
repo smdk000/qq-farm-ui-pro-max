@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <!-- 背景渐变 -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  
+  <!-- 标题文字 -->
+  <text x="960" y="450" text-anchor="middle" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="white">
+    卡密管理
+  </text>
+  
+  <!-- 副标题 -->
+  <text x="960" y="550" text-anchor="middle" font-family="Arial, sans-serif" font-size="36" fill="rgba(255,255,255,0.9)">
+    QQ 农场智能助手 - 卡密管理页面
+  </text>
+  
+  <!-- 提示文字 -->
+  <text x="960" y="700" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.8)">
+    请在此处放置实际截图
+  </text>
+  
+  <!-- 装饰性图标 -->
+  <g transform="translate(960, 300)">
+    <rect x="-100" y="-100" width="200" height="200" rx="20" fill="rgba(255,255,255,0.1)" stroke="white" stroke-width="4"/>
+    <text x="0" y="40" text-anchor="middle" font-size="80" fill="white">📷</text>
+  </g>
+  
+  <!-- 底部说明 -->
+  <text x="960" y="950" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="rgba(255,255,255,0.6)">
+    QQ 农场智能助手 v3.2.5
+  </text>
+</svg>

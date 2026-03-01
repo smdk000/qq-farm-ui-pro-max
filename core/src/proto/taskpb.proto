@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package gamepb.taskpb;
+
+import "corepb.proto";
+
+// ============ 任务类型 ============
+// 1 = 成长任务 (GROWTH_TASK)
+// 2 = 每日任务 (DAILY_TASK)
+
+// ============ 单个任务 ============
+message Task {
+    int64 id = 1;                    // 任务ID
+    int64 progress = 2;              // 当前进度
+    bool is_claimed = 3;             // 是否已领取
+    bool is_unlocked = 4;            // 是否已解锁
+    repeated corepb.Item rewards = 5; // 奖励列表
+    int64 total_progress = 6;        // 总进度
+    int64 share_multiple = 7;        // 分享倍数 (>1 表示可分享翻倍)
+    repeated string params = 8;      // 参数
+    string desc = 9;                 // 描述
+    int32 task_type = 10;            // 任务类型
+    int64 group = 11;                // 分组
+    int64 cond_type = 12;            // 条件类型
+    int64 is_show_text = 13;         // 是否显示文本
+}
+
+// ============ 活跃度奖励 ============
+// ============ 活跃度类型 ============
+enum ActiveType {
+    ACTIVE_TYPE_UNKNOWN = 0;
+    DAILYACTIVE = 1;    // 日活跃
+    WEEKLYACTIVE = 2;   // 周活跃
+}
+
+// ============ 活跃度状态 ============
+enum ActiveStatus {
+    NONE_UNKNOWN = 0;
+    WAIT = 1;           // 未达标
+    DONE = 2;           // 已达标可领取
+}
+
+// ============ 活跃度奖励项 ============
+message ActiveReward {
+    int64 point_id = 1;              // 奖励档位ID
+    int64 need_progress = 2;         // 所需进度
+    int32 status = 3;                // ActiveStatus
+    repeated corepb.Item rewards = 4; // 奖励物品
+}
+
+// ============ 活跃度 ============
+message Active {
+    int32 type = 1;                       // ActiveType
+    int64 progress = 2;                   // 当前活跃度
+    repeated ActiveReward rewards = 3;    // 各档位奖励
+}
+
+// ============ 任务信息汇总 ============
+message TaskInfo {
+    repeated Task growth_tasks = 1;  // 成长任务列表
+    repeated Task daily_tasks = 2;   // 每日任务列表
+    repeated Task tasks = 3;         // 其他任务
+    repeated Active actives = 4;     // 活跃度奖励
+}
+
+// ============ 请求/回复 ============
+
+// --- 获取任务信息 ---
+message TaskInfoRequest {}
+
+message TaskInfoReply {
+    TaskInfo task_info = 1;
+}
+
+// --- 领取单个任务奖励 ---
+message ClaimTaskRewardRequest {
+    int64 id = 1;           // 任务ID
+    bool do_shared = 2;     // 是否使用分享翻倍 (true=翻倍, false=普通领取)
+}
+
+message ClaimTaskRewardReply {
+    repeated corepb.Item items = 1;              // 获得的物品
+    TaskInfo task_info = 2;                      // 更新后的任务信息
+    repeated corepb.Item compensated_items = 3;  // 补偿物品
+}
+
+// --- 批量领取任务奖励 ---
+message BatchClaimTaskRewardRequest {
+    repeated int64 ids = 1;  // 任务ID列表
+    bool do_shared = 2;      // 是否使用分享翻倍
+}
+
+message BatchClaimTaskRewardReply {
+    repeated corepb.Item items = 1;
+    TaskInfo task_info = 2;
+    repeated corepb.Item compensated_items = 3;
+}
+
+// --- 领取活跃度奖励 ---
+message ClaimDailyRewardRequest {
+    int32 type = 1;                // ActiveType
+    repeated int64 point_ids = 2;  // 要领取的奖励档位ID列表
+}
+
+message ClaimDailyRewardReply {
+    repeated corepb.Item items = 1;
+    TaskInfo task_info = 2;
+    repeated corepb.Item compensated_items = 3;
+}
+
+// --- 客户端上报进度 ---
+message ClientReportProgressRequest {
+    int64 task_id = 1;
+    int64 progress = 2;
+}
+
+message ClientReportProgressReply {
+    TaskInfo task_info = 1;
+}
+
+// ============ 服务器推送 ============
+
+// 任务状态变化通知
+message TaskInfoNotify {
+    TaskInfo task_info = 1;
+}

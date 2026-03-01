@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package corepb;
+
+// ============ 通用物品 ============
+message Item {
+    int64 id = 1;           // 物品ID
+    int64 count = 2;        // 数量
+    int64 expire_time = 3;  // 过期时间
+    // field 4 reserved
+    // google.protobuf.Any detail = 5;  // 详情 (略)
+    int64 uid = 6;          // UID
+    bool is_new = 7;        // 是否新获得
+    repeated int64 mutant_types = 8; // 变异类型
+    // ItemShow show = 100;  // 展示信息 (略)
+}
+
+// 背包（物品列表）
+message ItemBag {
+    repeated Item items = 1;
+}
+
+// ============ 物品变化 ============
+message ItemChg {
+    Item item = 1;          // 物品信息
+    int64 delta = 2;        // 变化量 (正数增加, 负数减少)
+}

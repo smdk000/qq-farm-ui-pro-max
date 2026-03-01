@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统深度版权信息 UI 优化计划</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #e2e8f0;
+            --accent-color: #10b981;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #f8fafc;
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-color);
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-path {
+            font-family: monospace;
+            background: #000;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            color: #38bdf8;
+        }
+
+        .diff-added {
+            color: #4ade80;
+        }
+
+        .mermaid {
+            margin: 1.5rem 0;
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</head>
+
+<body>
+
+    <h1>系统深度版权信息 UI 优化计划 🛡️</h1>
+    <p>为进一步提升系统辨识度与官方权威感，本次旨在全站深度埋入醒目标识：<strong>「作者: smdk000，联系QQ群: 227916149」</strong>，并修复现有首页底部版权过暗的问题。</p>
+
+    <div class="card">
+        <h2>1. 核心视觉改造分发区 (Impact Areas)</h2>
+
+        <h3>📍 【区域一】登录主页防伪底栏 (Login.vue)</h3>
+        <p><strong>现状：</strong> 底部 Footer 颜色过深、被背景玻璃掩盖且不够醒目。</p>
+        <p><strong>方案：</strong>
+        <ul>
+            <li>提亮 Footer 字体颜色（例如提至 <code>text-gray-300</code> 加一定文字阴影），使其在深色动态背景中也能清晰辨认。</li>
+            <li>增加品牌归属感词条：<code>© 2026 御农 System | 架构与开发：smdk000 | 合作QQ：278050013</code>。</li>
+            <li>增加一个精美的链接 Hover 态。</li>
+        </ul>
+        </p>
+
+        <h3>📍 【区域二】应用全局侧边栏 (Sidebar.vue)</h3>
+        <p><strong>现状：</strong> 底部仅显示版本号与网络延迟信息。</p>
+        <p><strong>方案：</strong>
+        <ul>
+            <li>在侧边栏最底部的 <code>Footer Status</code> 区域，位于系统运行时间下方新增一行防伪水印横幅，利用
+                <code>font-mono text-[10px] opacity-70</code> 做精致点缀。
+            </li>
+            <li>内容格式：<code>Made by smdk000 | QQ 278050013</code>。</li>
+        </ul>
+        </p>
+
+        <h3>📍 【区域三】帮助中心开发者铭牌 (HelpCenter.vue / 关于页面)</h3>
+        <p><strong>方案：</strong>
+        <ul>
+            <li>在“帮助与说明”面板最顶部或核心置顶栏，增设一张极简的 <strong>官方授权开发者卡片（Author Badge Card）</strong>。</li>
+            <li>带有小巧闪烁的验证绿勾（Verified 认证标识）、作者名称和通过图标直接跳转快速复制 QQ 的按键。</li>
+            <li>强化防倒卖、防侵权的视觉威慑力。</li>
+        </ul>
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>2. UI 组件流向图 (Mermaid)</h2>
+        <div class="mermaid">
+            graph TD
+            A[全局 UI 架构] --> B[登录屏前端视图]
+            A --> C[系统深层侧边栏视图]
+            A --> D[帮助与支持视图]
+
+            B -->|视觉提亮与重组| E["底部版权 (Copyright Bar) \n 增强文字曝光对比度与立体感"]
+            C -->|系统信息区下挂| F["侧栏微缩水印 (Mini Badge)\n 植入持久存在的制作者签章"]
+            D -->|高层级置顶展现| G["作者数字名片 (Author Card)\n 包含认证标识与QQ一键复制动作"]
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>3. 执行清单 (Task Breakdown)</h2>
+        <ul>
+            <li><span class="tag">UI</span> 修改 <code>web/src/views/Login.vue</code> 的底部 CSS 以增强版权栏显眼度。</li>
+            <li><span class="tag">UI</span> 修改 <code>web/src/components/Sidebar.vue</code>，追加全局侧边防伪声明。</li>
+            <li><span class="tag">Comp</span> 修改 <code>web/src/views/HelpCenter.vue</code>，编写具备复制功能的高级感作者徽章卡片。</li>
+            <li><span class="tag">Doc</span> 更新主库的 <code>说明文档.md</code> 等以对接上述调整。</li>
+        </ul>
+        <p class="text-muted">开发原则：保证视觉设计上的不突兀与系统固有的深色级毛玻璃风格一致。</p>
+    </div>
+
+</body>
+
+</html>

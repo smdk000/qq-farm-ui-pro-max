@@ -1,0 +1,628 @@
+const { Buffer } = require('node:buffer');
+const EventEmitter = require('node:events');
+/**
+ * WebSocket 网络层 - 连接/消息编解码/登录/心跳
+ */
+
+const process = require('node:process');
+const WebSocket = require('ws');
+const { CONFIG } = require('../config/config');
+const { createScheduler } = require('../services/scheduler');
+const { updateStatusFromLogin, updateStatusGold, updateStatusLevel } = require('../services/status');
+const { recordOperation } = require('../services/stats');
+const { types } = require('./proto');
+const { toLong, toNum, syncServerTime, log, logWarn } = require('./utils');
+
+// ============ 事件发射器 (用于推送通知) ============
+const networkEvents = new EventEmitter();
+
+// ============ 内部状态 ============
+let ws = null;
+let clientSeq = 1;
+let serverSeq = 0;
+const pendingCallbacks = new Map();
+let wsErrorState = { code: 0, at: 0, message: '' };
+const networkScheduler = createScheduler('network');
+
+// ============ 用户状态 (登录后设置) ============
+const userState = {
+    gid: 0,
+    name: '',
+    level: 0,
+    gold: 0,
+    exp: 0,
+    coupon: 0, // 点券(ID:1002)
+};
+
+function getUserState() { return userState; }
+function getWsErrorState() { return { ...wsErrorState }; }
+function setWsErrorState(code, message) {
+    wsErrorState = { code: Number(code) || 0, at: Date.now(), message: message || '' };
+}
+function clearWsErrorState() {
+    wsErrorState = { code: 0, at: 0, message: '' };
+}
+function hasOwn(obj, key) {
+    return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+// ============ 消息编解码 ============
+function encodeMsg(serviceName, methodName, bodyBytes) {
+    const msg = types.GateMessage.create({
+        meta: {
+            service_name: serviceName,
+            method_name: methodName,
+            message_type: 1,
+            client_seq: toLong(clientSeq),
+            server_seq: toLong(serverSeq),
+        },
+        body: bodyBytes || Buffer.alloc(0),
+    });
+    const encoded = types.GateMessage.encode(msg).finish();
+    clientSeq++;
+    return encoded;
+}
+
+function sendMsg(serviceName, methodName, bodyBytes, callback) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log('系统', '[WS] 连接未打开');
+        return false;
+    }
+    const seq = clientSeq;
+    const encoded = encodeMsg(serviceName, methodName, bodyBytes);
+    if (callback) pendingCallbacks.set(seq, callback);
+    ws.send(encoded);
+    return true;
+}
+
+// ============ 令牌桶限流器 (Token Bucket Rate Limiter) ============
+// 强制所有异步业务请求按固定速率(3 QPS = 每帧间隔 333ms)依次发出
+// 目的: 防止触发腾讯服务器的高频 QPS 风控检测
+const RATE_LIMIT_INTERVAL_MS = 334; // 每帧最小间隔(ms)，3QPS ≈ 333.3ms，取整 334
+let lastSendTimestamp = 0;          // 上次实际发送时间戳
+const normalQueue = [];             // 常规排队中的发送任务
+const urgentQueue = [];             // 高优紧急通道任务（FIFO有序）
+let drainRunning = false;           // 队列消费循环是否运行中
+
+/**
+ * 将一个发送任务推入令牌桶队列尾部（常规优先级），按 FIFO 顺序限速消费
+ */
+function enqueueSend(task) {
+    normalQueue.push(task);
+    if (!drainRunning) drainQueue();
+}
+
+/**
+ * [紧急通道] 将发送任务推入高优先队列尾部，优先于所有常规请求被消费
+ * 用途：防偷抢收等时效敏感操作，避免被好友巡查等长队列阻塞
+ */
+function enqueueSendUrgent(task) {
+    urgentQueue.push(task);
+    if (!drainRunning) drainQueue();
+}
+
+/**
+ * 队列消费循环 - 确保每两次 ws.send 之间至少间隔 RATE_LIMIT_INTERVAL_MS
+ */
+async function drainQueue() {
+    if (drainRunning) return;
+    drainRunning = true;
+    while (urgentQueue.length > 0 || normalQueue.length > 0) {
+        // P2: 队列深度监控 - 堆积超过 5 帧时打印警告
+        const totalDepth = urgentQueue.length + normalQueue.length;
+        if (totalDepth >= 5) {
+            logWarn('限流', `令牌桶排队深度 = ${totalDepth} (Urgent:${urgentQueue.length})，请求可能延迟`);
+        }
+        const now = Date.now();
+        const elapsed = now - lastSendTimestamp;
+        if (elapsed < RATE_LIMIT_INTERVAL_MS) {
+            await new Promise(r => setTimeout(r, RATE_LIMIT_INTERVAL_MS - elapsed));
+        }
+
+        // 优先消费紧急队列，但防止完全饿死普通队列 (Anti-Starvation)
+        let task = null;
+        if (urgentQueue.length > 0) {
+            if (urgentConsecutiveCount >= MAX_CONSECUTIVE_URGENT && normalQueue.length > 0) {
+                // 强制释放一个普通请求，防止极端阻塞
+                task = normalQueue.shift();
+                urgentConsecutiveCount = 0;
+            } else {
+                task = urgentQueue.shift();
+                urgentConsecutiveCount++;
+            }
+        } else {
+            task = normalQueue.shift();
+            urgentConsecutiveCount = 0; // 只要消费了普通请求，就重置紧急计数
+        }
+
+        if (task) {
+            lastSendTimestamp = Date.now();
+            task();
+        }
+    }
+    drainRunning = false;
+}
+
+/** Promise 版发送 (经过令牌桶限流) */
+function sendMsgAsync(serviceName, methodName, bodyBytes, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        // 检查连接状态
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            reject(new Error(`连接未打开: ${methodName}`));
+            return;
+        }
+
+        // 将实际发送动作推入限流队列
+        enqueueSend(() => {
+            // 再次检查连接（排队期间可能已断开）
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                reject(new Error(`排队期间连接断开: ${methodName}`));
+                return;
+            }
+
+            const seq = clientSeq;
+            const timeoutKey = `request_timeout_${seq}`;
+            networkScheduler.setTimeoutTask(timeoutKey, timeout, () => {
+                pendingCallbacks.delete(seq);
+                const pending = pendingCallbacks.size;
+                reject(new Error(`请求超时: ${methodName} (seq=${seq}, pending=${pending})`));
+            });
+
+            const sent = sendMsg(serviceName, methodName, bodyBytes, (err, body, meta) => {
+                networkScheduler.clear(timeoutKey);
+                if (err) reject(err);
+                else resolve({ body, meta });
+            });
+
+            if (!sent) {
+                networkScheduler.clear(timeoutKey);
+                reject(new Error(`发送失败: ${methodName}`));
+            }
+        });
+    });
+}
+
+/** [紧急通道] Promise 版发送 - 插入队列头部优先处理，用于防偷抢收等时效敏感操作 */
+function sendMsgAsyncUrgent(serviceName, methodName, bodyBytes, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            reject(new Error(`连接未打开: ${methodName}`));
+            return;
+        }
+        enqueueSendUrgent(() => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                reject(new Error(`排队期间连接断开: ${methodName}`));
+                return;
+            }
+            const seq = clientSeq;
+            const timeoutKey = `request_timeout_${seq}`;
+            networkScheduler.setTimeoutTask(timeoutKey, timeout, () => {
+                pendingCallbacks.delete(seq);
+                const pending = pendingCallbacks.size;
+                reject(new Error(`请求超时: ${methodName} (seq=${seq}, pending=${pending})`));
+            });
+            const sent = sendMsg(serviceName, methodName, bodyBytes, (err, body, meta) => {
+                networkScheduler.clear(timeoutKey);
+                if (err) reject(err);
+                else resolve({ body, meta });
+            });
+            if (!sent) {
+                networkScheduler.clear(timeoutKey);
+                reject(new Error(`发送失败: ${methodName}`));
+            }
+        });
+    });
+}
+
+// ============ 消息处理 ============
+function handleMessage(data) {
+    try {
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        const msg = types.GateMessage.decode(buf);
+        const meta = msg.meta;
+        if (!meta) return;
+
+        if (meta.server_seq) {
+            const seq = toNum(meta.server_seq);
+            if (seq > serverSeq) serverSeq = seq;
+        }
+
+        const msgType = meta.message_type;
+
+        // Notify
+        if (msgType === 3) {
+            handleNotify(msg);
+            return;
+        }
+
+        // Response
+        if (msgType === 2) {
+            const errorCode = toNum(meta.error_code);
+            const clientSeqVal = toNum(meta.client_seq);
+
+            const cb = pendingCallbacks.get(clientSeqVal);
+            if (cb) {
+                pendingCallbacks.delete(clientSeqVal);
+                if (errorCode !== 0) {
+                    cb(new Error(`${meta.service_name}.${meta.method_name} 错误: code=${errorCode} ${meta.error_message || ''}`));
+                } else {
+                    cb(null, msg.body, meta);
+                }
+                return;
+            }
+
+            if (errorCode !== 0) {
+                logWarn('错误', `${meta.service_name}.${meta.method_name} code=${errorCode} ${meta.error_message || ''}`);
+            }
+        }
+    } catch (err) {
+        logWarn('解码', err.message);
+    }
+}
+
+function handleNotify(msg) {
+    if (!msg.body || msg.body.length === 0) return;
+    try {
+        const event = types.EventMessage.decode(msg.body);
+        const type = event.message_type || '';
+        const eventBody = event.body;
+
+        // 被踢下线
+        if (type.includes('Kickout')) {
+            log('推送', `被踢下线! ${type}`);
+            try {
+                const notify = types.KickoutNotify.decode(eventBody);
+                log('推送', `原因: ${notify.reason_message || '未知'}`);
+                networkEvents.emit('kickout', {
+                    type,
+                    reason: notify.reason_message || '未知',
+                });
+            } catch { }
+            return;
+        }
+
+        // 土地状态变化 (被放虫/放草/偷菜等)
+        if (type.includes('LandsNotify')) {
+            try {
+                const notify = types.LandsNotify.decode(eventBody);
+                const hostGid = toNum(notify.host_gid);
+                const lands = notify.lands || [];
+                if (lands.length > 0) {
+                    // 如果是自己的农场，触发事件
+                    if (hostGid === userState.gid || hostGid === 0) {
+                        networkEvents.emit('landsChanged', lands);
+                    }
+                }
+            } catch { }
+            return;
+        }
+
+        // 物品变化通知 (经验/金币等)
+        if (type.includes('ItemNotify')) {
+            try {
+                const notify = types.ItemNotify.decode(eventBody);
+                const items = notify.items || [];
+                for (const itemChg of items) {
+                    const item = itemChg.item;
+                    if (!item) continue;
+                    const id = toNum(item.id);
+                    const count = toNum(item.count);
+                    const delta = toNum(itemChg.delta);
+
+                    // 仅使用 ID=1101 作为经验值标准
+                    if (id === 1101) {
+                        // 优先使用总量；若仅有 delta 也可累加
+                        if (count > 0) userState.exp = count;
+                        else if (delta !== 0) userState.exp = Math.max(0, Number(userState.exp || 0) + delta);
+                        // 这里调用 updateStatusLevel 会触发 status.js -> worker.js -> stats.js 的更新流程
+                        updateStatusLevel(userState.level, userState.exp);
+                    } else if (id === 1 || id === 1001) {
+                        // 金币通知有时只有 delta 没有总量，避免把未提供总量误当 0 覆盖
+                        if (count > 0) {
+                            userState.gold = count;
+                        } else if (delta !== 0) {
+                            userState.gold = Math.max(0, Number(userState.gold || 0) + delta);
+                        }
+                        updateStatusGold(userState.gold);
+                    } else if (id === 1002) {
+                        // 点券
+                        if (count > 0) {
+                            userState.coupon = count;
+                        } else if (delta !== 0) {
+                            userState.coupon = Math.max(0, Number(userState.coupon || 0) + delta);
+                        }
+                    }
+                }
+            } catch { }
+            return;
+        }
+
+        // 基本信息变化 (升级等)
+        if (type.includes('BasicNotify')) {
+            try {
+                const notify = types.BasicNotify.decode(eventBody);
+                if (notify.basic) {
+                    const oldLevel = userState.level;
+                    if (hasOwn(notify.basic, 'level')) {
+                        const nextLevel = toNum(notify.basic.level);
+                        if (Number.isFinite(nextLevel) && nextLevel > 0) userState.level = nextLevel;
+                    }
+                    let shouldUpdateGoldView = false;
+                    if (hasOwn(notify.basic, 'gold')) {
+                        const nextGold = toNum(notify.basic.gold);
+                        if (Number.isFinite(nextGold) && nextGold >= 0) {
+                            userState.gold = nextGold;
+                            shouldUpdateGoldView = true;
+                        }
+                    }
+                    if (hasOwn(notify.basic, 'exp')) {
+                        const exp = toNum(notify.basic.exp);
+                        if (Number.isFinite(exp) && exp >= 0) {
+                            userState.exp = exp;
+                            updateStatusLevel(userState.level, exp);
+                        }
+                    }
+                    if (shouldUpdateGoldView) {
+                        updateStatusGold(userState.gold);
+                    }
+                    if (userState.level !== oldLevel) {
+                        recordOperation('levelUp', 1);
+                    }
+                }
+            } catch { }
+            return;
+        }
+
+        // 好友申请通知 (微信同玩)
+        if (type.includes('FriendApplicationReceivedNotify')) {
+            try {
+                const notify = types.FriendApplicationReceivedNotify.decode(eventBody);
+                const applications = notify.applications || [];
+                if (applications.length > 0) {
+                    networkEvents.emit('friendApplicationReceived', applications);
+                }
+            } catch { }
+            return;
+        }
+
+        // 好友添加成功通知
+        if (type.includes('FriendAddedNotify')) {
+            try {
+                const notify = types.FriendAddedNotify.decode(eventBody);
+                const friends = notify.friends || [];
+                if (friends.length > 0) {
+                    const names = friends.map(f => f.name || f.remark || `GID:${toNum(f.gid)}`).join(', ');
+                    log('好友', `新好友: ${names}`);
+                }
+            } catch { }
+            return;
+        }
+
+        // 商品解锁通知 (升级后解锁新种子等)
+        if (type.includes('GoodsUnlockNotify')) {
+            try {
+                const notify = types.GoodsUnlockNotify.decode(eventBody);
+                const goods = notify.goods_list || [];
+                if (goods.length > 0) {
+                    networkEvents.emit('goodsUnlockNotify', goods);
+                }
+            } catch { }
+            return;
+        }
+
+        // 任务状态变化通知
+        if (type.includes('TaskInfoNotify')) {
+            try {
+                const notify = types.TaskInfoNotify.decode(eventBody);
+                if (notify.task_info) {
+                    networkEvents.emit('taskInfoNotify', notify.task_info);
+                }
+            } catch { }
+
+        }
+
+        // 其他未处理的推送类型 (调试用)
+        // log('推送', `未处理类型: ${type}`);
+    } catch (e) {
+        logWarn('推送', `解码失败: ${e.message}`);
+    }
+}
+
+// ============ 登录 ============
+function sendLogin(onLoginSuccess) {
+    const body = types.LoginRequest.encode(types.LoginRequest.create({
+        sharer_id: toLong(0),
+        sharer_open_id: '',
+        device_info: {
+            client_version: CONFIG.clientVersion,
+            sys_software: 'iOS 26.2.1',
+            network: 'wifi',
+            memory: '7672',
+            device_id: 'iPhone X<iPhone18,3>',
+        },
+        share_cfg_id: toLong(0),
+        scene_id: '1256',
+        report_data: {
+            callback: '', cd_extend_info: '', click_id: '', clue_token: '',
+            minigame_channel: 'other', minigame_platid: 2, req_id: '', trackid: '',
+        },
+    })).finish();
+
+    sendMsg('gamepb.userpb.UserService', 'Login', body, (err, bodyBytes, _meta) => {
+        if (err) {
+            log('登录', `失败: ${err.message}`);
+            // 如果是验证失败，直接退出进程
+            if (err.message.includes('code=')) {
+                log('系统', '账号验证失败，即将停止运行...');
+                networkScheduler.setTimeoutTask('login_error_exit', 1000, () => process.exit(0));
+            }
+            return;
+        }
+        try {
+            const reply = types.LoginReply.decode(bodyBytes);
+            if (reply.basic) {
+                clearWsErrorState();
+                userState.gid = toNum(reply.basic.gid);
+                userState.name = reply.basic.name || '未知';
+                userState.level = toNum(reply.basic.level);
+                userState.gold = toNum(reply.basic.gold);
+                userState.exp = toNum(reply.basic.exp);
+
+                // 更新状态栏
+                updateStatusFromLogin({
+                    name: userState.name,
+                    level: userState.level,
+                    gold: userState.gold,
+                    exp: userState.exp,
+                });
+
+                log('系统', `登录成功: ${userState.name} (Lv${userState.level})`);
+
+                console.warn('');
+                console.warn('========== 登录成功 ==========');
+                console.warn(`  GID:    ${userState.gid}`);
+                console.warn(`  昵称:   ${userState.name}`);
+                console.warn(`  等级:   ${userState.level}`);
+                console.warn(`  金币:   ${userState.gold}`);
+                if (reply.time_now_millis) {
+                    syncServerTime(toNum(reply.time_now_millis));
+                    console.warn(`  时间:   ${new Date(toNum(reply.time_now_millis)).toLocaleString()}`);
+                }
+                console.warn('===============================');
+                console.warn('');
+            }
+
+            startHeartbeat();
+            if (onLoginSuccess) onLoginSuccess();
+        } catch (e) {
+            log('登录', `解码失败: ${e.message}`);
+        }
+    });
+}
+
+// ============ 心跳 ============
+let lastHeartbeatResponse = Date.now();
+let heartbeatMissCount = 0;
+
+function startHeartbeat() {
+    networkScheduler.clear('heartbeat_interval');
+    lastHeartbeatResponse = Date.now();
+    heartbeatMissCount = 0;
+
+    networkScheduler.setIntervalTask('heartbeat_interval', CONFIG.heartbeatInterval, () => {
+        if (!userState.gid) return;
+
+        // 检查上次心跳响应时间，超过 60 秒没响应说明连接有问题
+        const timeSinceLastResponse = Date.now() - lastHeartbeatResponse;
+        if (timeSinceLastResponse > 60000) {
+            heartbeatMissCount++;
+            logWarn('心跳', `连接可能已断开 (${Math.round(timeSinceLastResponse / 1000)}s 无响应, pending=${pendingCallbacks.size})`);
+            if (heartbeatMissCount >= 2) {
+                log('心跳', '尝试重连...');
+                // 清理待处理的回调，避免堆积
+                pendingCallbacks.forEach((cb, _seq) => {
+                    try { cb(new Error('连接超时，已清理')); } catch { }
+                });
+                pendingCallbacks.clear();
+            }
+        }
+
+        const body = types.HeartbeatRequest.encode(types.HeartbeatRequest.create({
+            gid: toLong(userState.gid),
+            client_version: CONFIG.clientVersion,
+        })).finish();
+        sendMsg('gamepb.userpb.UserService', 'Heartbeat', body, (err, replyBody) => {
+            if (err || !replyBody) return;
+            lastHeartbeatResponse = Date.now();
+            heartbeatMissCount = 0;
+            try {
+                const reply = types.HeartbeatReply.decode(replyBody);
+                if (reply.server_time) syncServerTime(toNum(reply.server_time));
+            } catch { }
+        });
+    });
+}
+
+// ============ WebSocket 连接 ============
+let savedLoginCallback = null;
+let savedCode = null;
+
+function connect(code, onLoginSuccess) {
+    savedLoginCallback = onLoginSuccess;
+    if (code) savedCode = code;
+    const url = `${CONFIG.serverUrl}?platform=${CONFIG.platform}&os=${CONFIG.os}&ver=${CONFIG.clientVersion}&code=${savedCode}&openID=`;
+
+    ws = new WebSocket(url, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13)',
+            'Origin': 'https://gate-obt.nqf.qq.com',
+        },
+    });
+
+    ws.binaryType = 'arraybuffer';
+
+    ws.on('open', () => {
+        sendLogin(onLoginSuccess);
+    });
+
+    ws.on('message', (data) => {
+        handleMessage(Buffer.isBuffer(data) ? data : Buffer.from(data));
+    });
+
+    ws.on('close', (code, _reason) => {
+        console.warn(`[WS] 连接关闭 (code=${code})`);
+        cleanup();
+        // 自动重连：延迟 5s 后重试，复用已保存的登录回调
+        if (savedLoginCallback) {
+            networkScheduler.setTimeoutTask('auto_reconnect', 5000, () => {
+                log('系统', '[WS] 尝试自动重连...');
+                reconnect(null);
+            });
+        }
+    });
+
+    ws.on('error', (err) => {
+        const message = err && err.message ? String(err.message) : '';
+        logWarn('系统', `[WS] 错误: ${message}`);
+        const match = message.match(/Unexpected server response:\s*(\d+)/i);
+        if (match) {
+            const code = Number.parseInt(match[1], 10) || 0;
+            if (code) {
+                setWsErrorState(code, message);
+                networkEvents.emit('ws_error', { code, message });
+            }
+        }
+    });
+}
+
+function cleanup() {
+    networkScheduler.clearAll();
+    pendingCallbacks.clear();
+    // 清空令牌桶排队队列，避免残留请求被发到新连接
+    normalQueue.length = 0;
+    urgentQueue.length = 0;
+    drainRunning = false;
+    lastSendTimestamp = 0; // Reset last send timestamp
+    urgentConsecutiveCount = 0; // Reset urgent consecutive count
+}
+
+function reconnect(newCode) {
+    cleanup();
+    if (ws) {
+        ws.removeAllListeners();
+        ws.close();
+        ws = null;
+    }
+    userState.gid = 0;
+    connect(newCode || savedCode, savedLoginCallback);
+}
+
+function getWs() { return ws; }
+
+module.exports = {
+    connect, reconnect, cleanup, getWs,
+    sendMsg, sendMsgAsync, sendMsgAsyncUrgent,
+    getUserState,
+    getWsErrorState,
+    networkEvents,
+};

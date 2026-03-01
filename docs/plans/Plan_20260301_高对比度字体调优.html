@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高阶全局主题对比度与留白适配计划</title>
+    <style>
+        :root {
+            --bg-base: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --accent: #8b5cf6;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .tag.issue {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+
+        .tag.solution {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+        }
+
+        ul {
+            list-style-type: none;
+            margin-left: 0;
+        }
+
+        li {
+            margin-bottom: 0.75rem;
+            position: relative;
+            padding-left: 1.5rem;
+        }
+
+        li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        code {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            color: #cbd5e1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🎨 全局高对比度与留白主题融合计划</h1>
+
+        <div class="card">
+            <h2>1. 字体验色与对比度重灾区修复</h2>
+            <span class="tag issue">痛点分析</span>
+            <p>从最新截图中看到，虽然我们引入了 <code>glass-text-main</code> 等样式，但在数据分析、用户管理等次子页面中，大量说明性文本和表格表头依然因为写死了
+                <code>text-gray-500</code> 或 <code>text-primary-500</code>，导致在「樱花粉」等亮色主题变体下对比度严重不足（粉底+灰字 或 粉底+粉字），根本看不清。
+            </p>
+
+            <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">🛠️ 实施方案</h3>
+            <span class="tag solution">解决手段</span>
+            <ul>
+                <li><b>全局洗量替换</b>：在整个 <code>src/views/</code> 目录下，大规模排查并清理硬编码的
+                    <code>text-gray-400</code>、<code>text-gray-500</code>、<code>text-gray-600</code>，全部替换为具备暗黑与主题自适应算法的
+                    <code>glass-text-muted</code>。</li>
+                <li><b>表头与高亮文本加强</b>：将表格头部文字统一提权为 <code>glass-text-main</code> 加
+                    <code>font-medium</code>，废弃那些与主色调冲突的低对比度颜色。</li>
+                <li><b>特定彩色状态适配</b>：诸如“正常”、“永久”等状态词，不再使用固定的绿色或灰色，使用主题主级变体（如
+                    <code>text-primary-600 dark:text-primary-400</code>）保证无论啥主题都清晰不瞎眼。</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>2. 留白区域色感融合</h2>
+            <span class="tag issue">痛点分析</span>
+            <p>截图中，系统卡片虽然成了毛玻璃，但里面的一些内部边框、表头分割线、斑马纹选区（如表格每一行）还遗留着纯白背景或固定灰色边框（例如
+                <code>border-gray-200</code>），这割裂了主题一体沉浸感。</p>
+
+            <h3 style="margin-top: 1.5rem; font-size: 1.1rem;">🛠️ 实施方案</h3>
+            <span class="tag solution">解决手段</span>
+            <ul>
+                <li><b>无界化表框</b>：将所有次级卡片及容器内部的硬骨架 <code>border-gray-100/200</code> 变更为动态半透明色
+                    <code>border-primary-500/10 dark:border-white/10</code>，使其沾染各自对应主题的光泽。</li>
+                <li><b>交互层穿透</b>：对按钮、Hover 高亮、表格列行鼠标滑过状态进行处理，不再使用 <code>hover:bg-gray-50</code>，改用
+                    <code>hover:bg-primary-500/5</code> 的动态调色板。</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>3. 核心基建强化</h2>
+            <ul>
+                <li>在 `style.css` 内调教各个主题的 <code>--text-main</code> 及 <code>--text-muted</code>
+                    原生变量，比如「樱花粉」亮色模式下的文字需要加深至 <code>#4c0519</code> 或更深，不能太浅。</li>
+                <li>优化默认 body color 为全局响应。</li>
+            </ul>
+        </div>
+
+    </div>
+</body>
+
+</html>

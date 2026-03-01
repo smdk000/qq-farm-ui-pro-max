@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package gamepb.sharepb;
+
+import "corepb.proto";
+
+// ============ 分享服务 ============
+
+// --- 检查是否可以分享 ---
+message CheckCanShareRequest {}
+
+message CheckCanShareReply {
+    bool can_share = 1;  // 是否可以分享
+}
+
+// --- 报告分享 ---
+message ReportShareRequest {
+    bool shared = 1;  // 是否已分享
+}
+
+message ReportShareReply {
+    bool success = 1;  // 是否成功
+}
+
+// --- 领取分享奖励 ---
+message ClaimShareRewardRequest {
+    bool claimed = 1;  // 请求领取
+}
+
+message ClaimShareRewardReply {
+    bool success = 1;           // 是否成功
+    bool has_reward = 2;        // 是否有奖励
+    repeated corepb.Item items = 3;  // 奖励物品列表
+}

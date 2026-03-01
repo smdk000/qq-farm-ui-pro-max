@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package gamepb.mallpb;
+
+import "corepb.proto";
+
+// 商场服务
+service MallService {
+  rpc GetMallListBySlotType(GetMallListBySlotTypeRequest) returns (GetMallListBySlotTypeResponse);
+  rpc Purchase(PurchaseRequest) returns (PurchaseResponse);
+  rpc GetMonthCardInfos(GetMonthCardInfosRequest) returns (GetMonthCardInfosReply);
+  rpc ClaimMonthCardReward(ClaimMonthCardRewardRequest) returns (ClaimMonthCardRewardReply);
+}
+
+// 获取商场列表请求
+message GetMallListBySlotTypeRequest {
+  int32 slot_type = 1;  // 商场类型
+}
+
+// 获取商场列表响应
+message GetMallListBySlotTypeResponse {
+  repeated bytes goods_list = 1;  // 商品列表（每个是序列化的MallGoods）
+  int64 timestamp = 2;  // 时间戳
+}
+
+// 商品信息
+message MallGoods {
+  int32 goods_id = 1;        // 商品ID
+  string name = 2;           // 商品名称
+  int32 type = 3;            // 商品类型
+  bytes item_ids = 4;        // 物品ID列表（序列化数据）
+  bytes price = 5;           // 价格（序列化数据）
+  bool is_free = 6;          // 是否免费
+  bytes limit = 7;           // 限购信息（序列化数据）
+  bool is_limited = 8;       // 是否限购
+  string discount = 10;      // 折扣信息
+}
+
+// 购买请求
+message PurchaseRequest {
+  int32 goods_id = 1;  // 商品ID
+  int32 count = 2;     // 购买数量
+}
+
+// 购买响应
+message PurchaseResponse {
+  int32 goods_id = 1;     // 商品ID
+  int32 count = 2;        // 购买数量
+  bytes reward_info = 3;  // 奖励信息
+  bytes result = 5;       // 购买结果
+}
+
+// 月卡信息
+message GetMonthCardInfosRequest {}
+
+message MonthCardInfo {
+  int32 goods_id = 1;
+  corepb.Item reward = 2;
+  bool can_claim = 3;
+}
+
+message GetMonthCardInfosReply {
+  repeated MonthCardInfo infos = 1;
+}
+
+// 领取月卡奖励
+message ClaimMonthCardRewardRequest {
+  int32 goods_id = 1;
+}
+
+message ClaimMonthCardRewardReply {
+  repeated corepb.Item items = 1;
+}

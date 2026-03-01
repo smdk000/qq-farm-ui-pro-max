@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package gamepb.itempb;
+
+import "corepb.proto";
+
+// ============ 物品变化通知 ============
+message ItemNotify {
+    repeated corepb.ItemChg items = 1;
+}

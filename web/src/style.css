@@ -1,0 +1,381 @@
+/* Global Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  /* slate-300 */
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+  /* slate-400 */
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  /* slate-600 */
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
+  /* slate-500 */
+}
+
+/* Base styles to reset some defaults if needed though UnoCSS reset handles most */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  /* App handles scrolling */
+}
+
+/* NProgress Customization */
+#nprogress .bar {
+  background: #10b981 !important;
+  /* emerald-500 */
+  height: 3px !important;
+}
+
+#nprogress .peg {
+  box-shadow:
+    0 0 10px #10b981,
+    0 0 5px #10b981 !important;
+}
+
+/* ================= THEMES ================= */
+:root {
+  /* Theme 1: Default Emerald (御农翠绿) #22c55e */
+  --color-primary-50: 240 253 244;
+  --color-primary-100: 220 252 231;
+  --color-primary-200: 187 247 208;
+  --color-primary-300: 134 239 172;
+  --color-primary-400: 74 222 128;
+  --color-primary-500: 34 197 94;
+  --color-primary-600: 22 163 74;
+  --color-primary-700: 21 128 61;
+  --color-primary-800: 22 101 52;
+  --color-primary-900: 20 83 45;
+  --color-primary-950: 5 46 22;
+
+  /* Environment Background */
+  --theme-bg: #f9fafb;
+  --theme-dark-bg: #111827;
+}
+
+/* Theme 2: Neon Cyber (全息赛博) #8b5cf6 */
+.theme-cyber {
+  --color-primary-50: 245 243 255;
+  --color-primary-100: 237 233 254;
+  --color-primary-200: 221 214 254;
+  --color-primary-300: 196 181 253;
+  --color-primary-400: 167 139 250;
+  --color-primary-500: 139 92 246;
+  --color-primary-600: 124 58 237;
+  --color-primary-700: 109 40 217;
+  --color-primary-800: 91 33 182;
+  --color-primary-900: 76 29 149;
+  --color-primary-950: 46 16 101;
+
+  /* Environment Background */
+  --theme-bg: #f5f3ff;
+  --theme-dark-bg: #0f0f23;
+}
+
+/* Theme 3: Elegant Gold (尊贵黯金) #eab308 */
+.theme-elegant {
+  --color-primary-50: 254 252 232;
+  --color-primary-100: 254 249 195;
+  --color-primary-200: 254 240 138;
+  --color-primary-300: 253 224 71;
+  --color-primary-400: 250 204 21;
+  --color-primary-500: 234 179 8;
+  --color-primary-600: 202 138 4;
+  --color-primary-700: 161 98 7;
+  --color-primary-800: 133 77 14;
+  --color-primary-900: 113 63 18;
+  --color-primary-950: 66 32 6;
+
+  /* Environment Background */
+  --theme-bg: #fefce8;
+  --theme-dark-bg: #18181b;
+}
+
+/* Theme 4: Ocean Blue (深海矩阵) #0ea5e9 */
+.theme-ocean {
+  --color-primary-50: 240 249 255;
+  --color-primary-100: 224 242 254;
+  --color-primary-200: 186 230 253;
+  --color-primary-300: 125 211 252;
+  --color-primary-400: 56 189 248;
+  --color-primary-500: 14 165 233;
+  --color-primary-600: 2 132 199;
+  --color-primary-700: 3 105 161;
+  --color-primary-800: 7 89 133;
+  --color-primary-900: 12 74 110;
+  --color-primary-950: 8 47 73;
+
+  /* Environment Background */
+  --theme-bg: #f0f9ff;
+  --theme-dark-bg: #083344;
+}
+
+/* Theme 5: Sakura Pink (樱花粉黛) #ffc0cb / tailwind f43f5e core */
+.theme-sakura {
+  --color-primary-50: 255 245 247;
+  --color-primary-100: 255 235 239;
+  --color-primary-200: 255 215 223;
+  --color-primary-300: 255 204 213;
+  --color-primary-400: 255 196 208;
+  --color-primary-500: 255 192 203;
+  --color-primary-600: 230 160 178;
+  --color-primary-700: 200 130 150;
+  --color-primary-800: 170 100 120;
+  --color-primary-900: 140 80 95;
+  --color-primary-950: 95 45 60;
+
+  /* Environment Background */
+  --theme-bg: #fff0f3;
+  --theme-dark-bg: #3f1a2e;
+}
+
+/* ================= DYNAMIC MESH GRADIENT & GLASSMORPHISM ================= */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.05);
+  --orb-1: transparent;
+  --orb-2: transparent;
+  --orb-3: transparent;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+}
+
+.dark {
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(51, 65, 85, 0.5);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+}
+
+/* Theme Options Override */
+.theme-cyber {
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(139, 92, 246, 0.2);
+  --orb-1: #c026d3;
+  --orb-2: #4f46e5;
+  --orb-3: #06b6d4;
+  --text-main: #1e1b4b;
+  --text-muted: #5b21b6;
+}
+
+.dark.theme-cyber {
+  --glass-bg: rgba(15, 23, 42, 0.75);
+  --glass-border: rgba(139, 92, 246, 0.3);
+  --text-main: #f5f3ff;
+  --text-muted: #c4b5fd;
+}
+
+.theme-ocean {
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(14, 165, 233, 0.2);
+  --orb-1: #0ea5e9;
+  --orb-2: #0369a1;
+  --orb-3: #2dd4bf;
+  --text-main: #082f49;
+  --text-muted: #0369a1;
+}
+
+.dark.theme-ocean {
+  --glass-bg: rgba(8, 47, 73, 0.75);
+  --glass-border: rgba(56, 189, 248, 0.2);
+  --text-main: #f0f9ff;
+  --text-muted: #7dd3fc;
+}
+
+.theme-sakura {
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(244, 114, 182, 0.25);
+  --orb-1: #fbcfe8;
+  --orb-2: #f472b6;
+  --orb-3: #fecdd3;
+  --text-main: #4c0519;
+  --text-muted: #9f1239;
+}
+
+.dark.theme-sakura {
+  --glass-bg: rgba(63, 26, 46, 0.75);
+  --glass-border: rgba(244, 114, 182, 0.3);
+  --text-main: #fdf2f8;
+  --text-muted: #fbcfe8;
+}
+
+.theme-elegant {
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(234, 179, 8, 0.2);
+  --orb-1: #b45309;
+  --orb-2: #ca8a04;
+  --orb-3: #78350f;
+  --text-main: #422006;
+  --text-muted: #854d0e;
+}
+
+.dark.theme-elegant {
+  --glass-bg: rgba(24, 24, 27, 0.8);
+  --glass-border: rgba(217, 119, 6, 0.3);
+  --text-main: #fefce8;
+  --text-muted: #fde047;
+}
+
+/* Glass Panel Component */
+.glass-panel {
+  background-color: var(--glass-bg) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border) !important;
+  transition: background-color 0.8s ease, border-color 0.8s ease;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  /* 使用 contain 替代 will-change 以避免 Chrome 重绘风暴 */
+  contain: layout style paint;
+  isolation: isolate;
+}
+
+.glass-text-main {
+  color: var(--text-main) !important;
+  transition: color 0.8s ease;
+}
+
+.glass-text-muted {
+  color: var(--text-muted) !important;
+  transition: color 0.8s ease;
+}
+
+/* Mesh Background Animations */
+.mesh-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
+}
+
+/* Show mesh background only when a non-default theme is active */
+html[class*="theme-"] .mesh-bg {
+  opacity: 1;
+}
+
+.mesh-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.4;
+  animation: floatOrb 20s infinite ease-in-out alternate;
+  transition: background-color 0.8s ease;
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.orb-1 {
+  background-color: var(--orb-1);
+  width: 50vw;
+  height: 50vw;
+  top: -10vw;
+  left: -10vw;
+  animation-delay: 0s;
+}
+
+.orb-2 {
+  background-color: var(--orb-2);
+  width: 45vw;
+  height: 45vw;
+  bottom: -5vw;
+  right: -10vw;
+  animation-duration: 25s;
+}
+
+.orb-3 {
+  background-color: var(--orb-3);
+  width: 40vw;
+  height: 40vw;
+  top: 30vh;
+  left: 30vw;
+  animation-duration: 18s;
+  animation-delay: -5s;
+}
+
+/* Hardware Accelerated Animation */
+@keyframes floatOrb {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate3d(8vw, 10vh, 0) scale(1.1);
+  }
+
+  66% {
+    transform: translate3d(-5vw, 15vh, 0) scale(0.9);
+  }
+
+  100% {
+    transform: translate3d(-10vw, -5vh, 0) scale(1.05);
+  }
+}
+
+/* ================= PERFORMANCE MODE (LOW-END DEVICES) ================= */
+html.low-performance-mode .glass-panel,
+html.low-performance-mode body .glass-panel {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: var(--theme-bg) !important;
+  will-change: auto !important;
+  contain: none !important;
+}
+
+html.low-performance-mode.dark .glass-panel,
+html.low-performance-mode.dark body .glass-panel {
+  background-color: var(--theme-dark-bg) !important;
+}
+
+html.low-performance-mode .mesh-bg {
+  display: none !important;
+}
+
+/* 性能模式：全局禁止无限动画与过渡 */
+html.low-performance-mode *,
+html.low-performance-mode *::before,
+html.low-performance-mode *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+/* ================= 3RD PARTY COMPONENT OVERRIDES ================= */
+/* 避免因透明继承带来的第三方组件例如 ant-design / element-plus 等内部泛白问题 */
+.ant-table-wrapper,
+.ant-table,
+.ant-table-cell,
+.ant-modal-content,
+.ant-card {
+  background: transparent !important;
+}

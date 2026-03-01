@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package gamepb.userpb;
+
+// ============ 登录请求 ============
+message LoginRequest {
+    // 字段 1,2 保留未使用
+    int64 sharer_id = 3;
+    string sharer_open_id = 4;
+    DeviceInfo device_info = 5;
+    int64 share_cfg_id = 6;
+    string scene_id = 7;
+    ReportData report_data = 8;
+}
+
+// 设备信息
+message DeviceInfo {
+    string client_version = 1;    // e.g. "1.6.0.8_20251224"
+    string sys_software = 2;      // e.g. "Windows Unknown x64"
+    string sys_hardware = 3;
+    string telecom_oper = 4;
+    string network = 5;           // e.g. "wifi"
+    int64 screen_width = 6;
+    int64 screen_height = 7;
+    float density = 8;
+    string cpu = 9;               // e.g. "microsoft"
+    int64 memory = 10;
+    string gl_render = 11;
+    string gl_version = 12;
+    string device_id = 13;
+    string android_oaid = 14;
+    string ios_caid = 15;
+}
+
+// 上报数据
+message ReportData {
+    string callback = 1;
+    string cd_extend_info = 2;
+    string click_id = 3;
+    string clue_token = 4;
+    string minigame_channel = 5;
+    int32 minigame_platid = 6;
+    string req_id = 7;
+    string trackid = 8;
+}
+
+// ============ 登录回复 ============
+message LoginReply {
+    BasicInfo basic = 1;
+    // ItemBag item_bag = 2;         // corepb.ItemBag, 复杂结构先跳过
+    int64 time_now_millis = 3;
+    bool is_first_login = 4;
+    // GuideInfo guide_info = 5;
+    repeated QQGroupInfo qq_group_infos = 6;
+    // Illustrated illustrated = 7;
+    // repeated SystemUnlockItem unlocked_items = 8;
+    VersionInfo version_info = 9;
+    // MallMsg mall_msg = 10;
+    int64 qq_friend_recommend_authorized = 11;
+}
+
+// 用户基本信息
+message BasicInfo {
+    int64 gid = 1;
+    string name = 2;
+    int64 level = 3;
+    int64 exp = 4;
+    int64 gold = 5;
+    string open_id = 6;
+    string avatar_url = 7;
+    string remark = 8;
+    string signature = 9;
+    int32 gender = 10;
+    // repeated AvatarFrame equip_avatar_frames = 11;
+    // map<int64, ShareInfo> share_infos = 12;
+    int32 authorized_status = 13;
+    bool disable_nudge = 14;
+}
+
+// QQ群信息
+message QQGroupInfo {
+    string qq_group_id = 1;
+    string qq_group_name = 2;
+}
+
+// 版本信息
+message VersionInfo {
+    int32 status = 1;
+    string version_recommend = 2;
+    string version_force = 3;
+    string res_version = 4;
+}
+
+// ============ 心跳 ============
+message HeartbeatRequest {
+    int64 gid = 1;
+    string client_version = 2;
+}
+
+message HeartbeatReply {
+    int64 server_time = 1;
+    VersionInfo version_info = 2;
+}
+
+// ============ 上报分享点击 ============
+// 用于已登录状态下处理分享链接（触发好友申请）
+message ReportArkClickRequest {
+    int64 sharer_id = 1;
+    string sharer_open_id = 2;
+    int64 share_cfg_id = 3;
+    string scene_id = 4;
+}
+
+message ReportArkClickReply {
+    // 通常为空响应
+}
+
+// ============ 服务器推送通知 ============
+
+// 基本信息变化通知 (升级/金币变化等)
+message BasicNotify {
+    BasicInfo basic = 1;
+}

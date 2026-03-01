@@ -1,0 +1,52 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 敏感数据
+.env
+.env.local
+.env.*.local
+*.db
+*.db-wal
+*.db-shm
+data/*.json
+data/*.db
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# AI 历史
+.llm-chat-history/
+.specstory/
+.agent/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.cursor/
+
+# 构建产物
+dist/
+build/
+*.exe
+*.app
+*.dmg
+
+# 临时文件
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# 特定敏感文件
+openviking-service/.env
+core/.env.ai
+core/data/*.json
+core/data/*.db

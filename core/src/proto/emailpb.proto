@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package gamepb.emailpb;
+
+import "corepb.proto";
+
+message GetEmailListRequest {
+    int32 box_type = 1;
+}
+
+message EmailItem {
+    string id = 1;
+    int32 mail_type = 2;
+    string title = 3;
+    bool claimed = 4;
+    bool has_reward = 5;
+    string subtitle = 7;
+}
+
+message GetEmailListReply {
+    repeated EmailItem emails = 1;
+}
+
+message ReadEmailRequest {
+    int32 box_type = 1;
+    string email_id = 2;
+}
+
+message ReadEmailReply {}
+
+message ClaimEmailRequest {
+    int32 box_type = 1;
+    string email_id = 2;
+}
+
+message ClaimEmailReply {
+    repeated corepb.Item items = 1;
+}
+
+message BatchClaimEmailRequest {
+    int32 box_type = 1;
+    string email_id = 2;
+}
+
+message BatchClaimEmailReply {
+    repeated corepb.Item items = 1;
+}
