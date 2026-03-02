@@ -3,16 +3,24 @@ const { createModuleLogger } = require('./logger');
 
 const logger = createModuleLogger('mysql-db');
 
+// 从环境变量读取配置，兼容 docker-compose 和本地开发
+const DB_HOST = process.env.MYSQL_HOST || '127.0.0.1';
+const DB_PORT = parseInt(process.env.MYSQL_PORT || '4409', 10);
+const DB_USER = process.env.MYSQL_USER || 'root';
+const DB_PASS = process.env.MYSQL_PASSWORD || '123456';
+const DB_NAME = process.env.MYSQL_DATABASE || 'qq_farm_bot';
+const DB_LIMIT = parseInt(process.env.MYSQL_POOL_LIMIT || '100', 10);
+
 // MySQL 连接池配置 — Phase 2 扩容
 // connectionLimit: 100 可支撑数百账号的 Worker 并发 + UI 面板查询
 const pool = mysql.createPool({
-    host: '127.0.0.1',
-    port: 4409,
-    user: 'root',
-    password: '123456',
-    database: 'qq_farm_bot',
+    host: DB_HOST,
+    port: DB_PORT,
+    user: DB_USER,
+    password: DB_PASS,
+    database: DB_NAME,
     waitForConnections: true,
-    connectionLimit: 100,
+    connectionLimit: DB_LIMIT,
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
@@ -33,10 +41,10 @@ function getPoolStatus() {
             activeConnections: p._allConnections ? p._allConnections.length : 0,
             idleConnections: p._freeConnections ? p._freeConnections.length : 0,
             waitingQueue: p._connectionQueue ? p._connectionQueue.length : 0,
-            connectionLimit: 100,
+            connectionLimit: DB_LIMIT,
         };
     } catch (e) {
-        return { activeConnections: -1, idleConnections: -1, waitingQueue: -1, connectionLimit: 100 };
+        return { activeConnections: -1, idleConnections: -1, waitingQueue: -1, connectionLimit: DB_LIMIT };
     }
 }
 
@@ -58,17 +66,17 @@ async function initMysql() {
     try {
         // 先测试连接并创建数据库（若不存在）
         const tempPool = mysql.createPool({
-            host: '127.0.0.1',
-            port: 4409,
-            user: 'root',
-            password: '123456',
+            host: DB_HOST,
+            port: DB_PORT,
+            user: DB_USER,
+            password: DB_PASS,
         });
-        await tempPool.query('CREATE DATABASE IF NOT EXISTS `qq_farm_bot` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;');
+        await tempPool.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
         await tempPool.end();
 
         // 测试主池的连通性
         const connection = await pool.getConnection();
-        logger.info('✅ MySQL 数据库连接池初始化成功 (127.0.0.1:4409, 上限=100)');
+        logger.info(`✅ MySQL 数据库连接池初始化成功 (${DB_HOST}:${DB_PORT}, 上限=${DB_LIMIT})`);
         connection.release();
     } catch (e) {
         logger.error('❌ MySQL 初始化失败:', e.message);

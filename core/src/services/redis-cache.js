@@ -4,11 +4,16 @@ const circuitBreaker = require('./circuit-breaker');
 
 const logger = createModuleLogger('redis-cache');
 
+// 从环境变量读取配置，兼容 docker-compose 和本地开发
+const REDIS_HOST = process.env.REDIS_HOST || '127.0.0.1';
+const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
+const REDIS_PASSWORD = process.env.REDIS_PASSWORD || '1234abcd';
+
 // Redis 实例
 const redis = new Redis({
-    host: '127.0.0.1',
-    port: 6379,
-    password: '1234abcd',
+    host: REDIS_HOST,
+    port: REDIS_PORT,
+    password: REDIS_PASSWORD,
     commandTimeout: 5000,
     retryStrategy(times) {
         // 重连策略: 延迟重试，最大不超过 2 秒
@@ -20,7 +25,7 @@ const redis = new Redis({
 // === Redis 连接事件 → 同步更新熔断器状态 ===
 
 redis.on('connect', () => {
-    logger.info('✅ Redis 连接成功 (127.0.0.1:6379)');
+    logger.info(`✅ Redis 连接成功 (${REDIS_HOST}:${REDIS_PORT})`);
     circuitBreaker.recordSuccess();
 });
 
@@ -141,4 +146,3 @@ module.exports = {
     acquireLock,
     releaseLock
 };
-
