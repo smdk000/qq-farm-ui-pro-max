@@ -3,8 +3,8 @@ web/node_modules/
 core/node_modules/
 .git/
 .github/
-data/
-logs/
+/data/
+/logs/
 .env*
 !*.example
 .DS_Store
