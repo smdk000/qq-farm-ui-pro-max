@@ -44,15 +44,15 @@ body {
 
 /* NProgress Customization */
 #nprogress .bar {
-  background: #10b981 !important;
+  background: rgb(var(--color-primary-500)) !important;
   /* emerald-500 */
   height: 3px !important;
 }
 
 #nprogress .peg {
   box-shadow:
-    0 0 10px #10b981,
-    0 0 5px #10b981 !important;
+    0 0 10px rgb(var(--color-primary-500)),
+    0 0 5px rgb(var(--color-primary-500)) !important;
 }
 
 /* ================= THEMES ================= */
@@ -247,8 +247,8 @@ body {
   transition: background-color 0.8s ease, border-color 0.8s ease;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
-  /* 使用 contain 替代 will-change 以避免 Chrome 重绘风暴 */
-  contain: layout style paint;
+  /* 使用 contain 替代 will-change 以避免 Chrome 重绘风暴，移除 paint 避免悬浮下拉等被遮挡 */
+  contain: layout style;
   isolation: isolate;
 }
 

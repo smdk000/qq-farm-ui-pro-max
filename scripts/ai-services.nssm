@@ -1,0 +1,14 @@
+[Unit]
+Description=QQ Farm AI Services
+
+[Service]
+Type=forking
+WorkingDirectory=%CD%
+ExecStart=node "%CD%\ai-services-daemon.js"
+Restart=always
+RestartSec=5
+StandardOutput=append:%CD%\logs\ai-services.log
+StandardError=append:%CD%\logs\ai-services-error.log
+
+[Install]
+WantedBy=MultiUserStartup

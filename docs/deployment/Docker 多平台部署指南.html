@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="QQ 农场助手 Docker 多平台构建与部署完整指南">
+  <title>QQ 农场助手 - Docker 多平台部署指南</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      line-height: 1.8;
+      color: #1f2937;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 60px;
+      padding: 40px 20px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    header h1 {
+      font-size: 2.8rem;
+      margin-bottom: 15px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header .version {
+      display: inline-block;
+      padding: 8px 20px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 1rem;
+      margin: 10px 5px;
+    }
+
+    header .platforms {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .platform-badge {
+      padding: 6px 16px;
+      background: rgba(102, 126, 234, 0.1);
+      color: #667eea;
+      border-radius: 15px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 2px solid #667eea;
+    }
+
+    .section {
+      background: rgba(255, 255, 255, 0.98);
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 40px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(10px);
+    }
+
+    .section h2 {
+      font-size: 2rem;
+      margin-bottom: 30px;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      padding-bottom: 15px;
+      border-bottom: 3px solid #667eea;
+    }
+
+    .section h2::before {
+      content: '';
+      width: 8px;
+      height: 36px;
+      background: linear-gradient(180deg, #667eea, #764ba2);
+      border-radius: 4px;
+    }
+
+    .subsection {
+      margin: 30px 0;
+      padding: 25px;
+      background: #f9fafb;
+      border-radius: 12px;
+      border-left: 4px solid #667eea;
+    }
+
+    .subsection h3 {
+      font-size: 1.4rem;
+      margin-bottom: 15px;
+      color: #667eea;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .code-block {
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 25px;
+      border-radius: 12px;
+      overflow-x: auto;
+      margin: 20px 0;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .code-block .comment {
+      color: #6b7280;
+    }
+
+    .code-block .command {
+      color: #10b981;
+    }
+
+    .code-block .keyword {
+      color: #f59e0b;
+    }
+
+    .code-block .string {
+      color: #3b82f6;
+    }
+
+    .alert {
+      padding: 20px;
+      border-radius: 12px;
+      margin: 20px 0;
+      display: flex;
+      gap: 15px;
+      align-items: flex-start;
+    }
+
+    .alert-warning {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+
+    .alert-success {
+      background: #d1fae5;
+      border-left: 4px solid #10b981;
+      color: #065f46;
+    }
+
+    .alert-error {
+      background: #fee2e2;
+      border-left: 4px solid #ef4444;
+      color: #991b1b;
+    }
+
+    .alert-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .checklist {
+      list-style: none;
+      margin: 20px 0;
+    }
+
+    .checklist li {
+      padding: 12px 16px;
+      margin: 8px 0;
+      background: #f9fafb;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .checklist li::before {
+      content: '✓';
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: #10b981;
+      color: white;
+      border-radius: 50%;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .checklist li.pending::before {
+      content: '○';
+      background: #f59e0b;
+    }
+
+    .step {
+      display: flex;
+      gap: 20px;
+      margin: 25px 0;
+      padding: 25px;
+      background: white;
+      border-radius: 12px;
+      border: 2px solid #e5e7eb;
+    }
+
+    .step-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-content h4 {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+      color: #111827;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin: 20px 0;
+    }
+
+    .card {
+      padding: 25px;
+      background: white;
+      border-radius: 12px;
+      border: 2px solid #e5e7eb;
+      transition: all 0.3s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      border-color: #667eea;
+    }
+
+    .card h4 {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      color: #667eea;
+    }
+
+    .quick-links {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin: 30px 0;
+    }
+
+    .quick-link {
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .quick-link:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+
+    .quick-link-icon {
+      font-size: 2rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 15px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      font-weight: 600;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover {
+      background: #f9fafb;
+    }
+
+    footer {
+      text-align: center;
+      padding: 40px 20px;
+      color: white;
+      margin-top: 60px;
+    }
+
+    footer a {
+      color: #fbbf24;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 768px) {
+      header h1 {
+        font-size: 2rem;
+      }
+
+      .section {
+        padding: 25px;
+      }
+
+      .code-block {
+        padding: 15px;
+        font-size: 0.85rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <h1>🚀 QQ 农场助手 Docker 部署指南</h1>
+      <div class="version">版本 v3.3.3</div>
+      <div class="platforms">
+        <span class="platform-badge">🖥️ AMD64/x86_64</span>
+        <span class="platform-badge">📱 ARM64</span>
+      </div>
+      <p style="margin-top: 20px; font-size: 1.1rem; color: #6b7280;">
+        多平台构建 · 一键部署 · 数据保护 · 版本管理
+      </p>
+    </header>
+
+    <!-- Section 1: 快速开始 -->
+    <div class="section">
+      <h2>🎯 快速开始</h2>
+      
+      <div class="quick-links">
+        <a href="#arm-deploy" class="quick-link">
+          <span class="quick-link-icon">📱</span>
+          <div>
+            <strong>ARM 服务器部署</strong>
+            <div style="font-size: 0.9rem; opacity: 0.9;">树莓派 / 鲲鹏 / 飞腾</div>
+          </div>
+        </a>
+        <a href="#x86-deploy" class="quick-link">
+          <span class="quick-link-icon">🖥️</span>
+          <div>
+            <strong>x86 服务器部署</strong>
+            <div style="font-size: 0.9rem; opacity: 0.9;">Intel / AMD 处理器</div>
+          </div>
+        </a>
+        <a href="#build-image" class="quick-link">
+          <span class="quick-link-icon">🏗️</span>
+          <div>
+            <strong>构建 Docker 镜像</strong>
+            <div style="font-size: 0.9rem; opacity: 0.9;">多平台构建推送</div>
+          </div>
+        </a>
+        <a href="#data-protection" class="quick-link">
+          <span class="quick-link-icon">🛡️</span>
+          <div>
+            <strong>数据库保护</strong>
+            <div style="font-size: 0.9rem; opacity: 0.9;">数据备份与恢复</div>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Section 2: Docker 多平台构建 -->
+    <div class="section" id="build-image">
+      <h2>🏗️ Docker 多平台构建与推送</h2>
+      
+      <div class="subsection">
+        <h3>📋 构建前准备</h3>
+        <ul class="checklist">
+          <li>安装 Docker 和 Docker Buildx</li>
+          <li>登录 Docker Hub 账号</li>
+          <li>确认项目代码已更新到最新版本</li>
+          <li>检查 Update.log 文件内容</li>
+        </ul>
+      </div>
+
+      <div class="subsection">
+        <h3>🔧 构建步骤</h3>
+        
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>环境检查与登录</h4>
+            <div class="code-block"><span class="comment"># 检查 Docker 版本</span>
+docker --version
+
+<span class="comment"># 检查 Buildx 是否可用</span>
+docker buildx version
+
+<span class="comment"># 登录 Docker Hub</span>
+docker login
+<span class="comment"># 输入用户名 smdk000 和密码</span></div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>创建 Buildx Builder</h4>
+            <div class="code-block"><span class="comment"># 创建专用 builder</span>
+docker buildx create --use --name qq-farm-builder
+
+<span class="comment"># 启动 builder</span>
+docker buildx inspect --bootstrap qq-farm-builder</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>方案 A: 使用脚本构建（推荐）</h4>
+            <div class="code-block"><span class="comment"># 赋予执行权限</span>
+chmod +x scripts/docker-build-multiarch.sh
+
+<span class="comment"># 执行构建（版本 3.3.3）</span>
+./scripts/docker-build-multiarch.sh 3.3.3
+
+<span class="comment"># 或使用最新版本号</span>
+./scripts/docker-build-multiarch.sh</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h4>方案 B: 手动构建（灵活控制）</h4>
+            <div class="code-block"><span class="comment"># 单独构建 AMD64 版本</span>
+docker buildx build \
+  --platform linux/amd64 \
+  -t smdk000/qq-farm-bot-ui:3.3.3-amd64 \
+  -t smdk000/qq-farm-bot-ui:latest-amd64 \
+  -f core/Dockerfile . \
+  --push
+
+<span class="comment"># 单独构建 ARM64 版本</span>
+docker buildx build \
+  --platform linux/arm64 \
+  -t smdk000/qq-farm-bot-ui:3.3.3-arm64 \
+  -t smdk000/qq-farm-bot-ui:latest-arm64 \
+  -f core/Dockerfile . \
+  --push
+
+<span class="comment"># 创建多平台镜像清单</span>
+docker manifest create smdk000/qq-farm-bot-ui:3.3.3 \
+  smdk000/qq-farm-bot-ui:3.3.3-amd64 \
+  smdk000/qq-farm-bot-ui:3.3.3-arm64
+
+docker manifest annotate smdk000/qq-farm-bot-ui:3.3.3 \
+  smdk000/qq-farm-bot-ui:3.3.3-arm64 --arch arm64 --os linux
+
+<span class="comment"># 创建 latest 多平台清单</span>
+docker manifest create smdk000/qq-farm-bot-ui:latest \
+  smdk000/qq-farm-bot-ui:latest-amd64 \
+  smdk000/qq-farm-bot-ui:latest-arm64
+
+docker manifest annotate smdk000/qq-farm-bot-ui:latest \
+  smdk000/qq-farm-bot-ui:latest-arm64 --arch arm64 --os linux
+
+<span class="comment"># 推送清单</span>
+docker manifest push smdk000/qq-farm-bot-ui:3.3.3
+docker manifest push smdk000/qq-farm-bot-ui:latest</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <h4>验证构建结果</h4>
+            <div class="code-block"><span class="comment"># 查看镜像信息</span>
+docker manifest inspect smdk000/qq-farm-bot-ui:3.3.3
+
+<span class="comment"># 在 Docker Hub 查看</span>
+<span class="comment"># https://hub.docker.com/r/smdk000/qq-farm-bot-ui/tags</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-warning">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          <strong>注意事项：</strong>
+          <ul style="margin-top: 10px; padding-left: 20px;">
+            <li>构建多平台镜像需要较长时间（约 10-20 分钟）</li>
+            <li>确保 Docker Hub 账号有足够的存储空间</li>
+            <li>构建过程中保持网络连接稳定</li>
+            <li>构建完成后在 Docker Hub 验证两个架构的镜像都存在</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: ARM 服务器部署 -->
+    <div class="section" id="arm-deploy">
+      <h2>📱 ARM 服务器一键部署</h2>
+      
+      <p style="font-size: 1.1rem; color: #4b5563; margin-bottom: 20px;">
+        适用于树莓派、鲲鹏、飞腾等 ARM64 架构服务器
+      </p>
+
+      <div class="subsection">
+        <h3>方法 1: 使用一键部署脚本</h3>
+        <div class="code-block"><span class="comment"># 1. 下载部署脚本</span>
+curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-arm.sh
+
+<span class="comment"># 2. 赋予执行权限</span>
+chmod +x deploy-arm.sh
+
+<span class="comment"># 3. 执行部署（使用默认密码）</span>
+./deploy-arm.sh
+
+<span class="comment"># 4. 或自定义密码和端口</span>
+ADMIN_PASSWORD=YourStrongPassword123! PORT=3080 ./deploy-arm.sh</div>
+      </div>
+
+      <div class="subsection">
+        <h3>方法 2: 手动部署</h3>
+        <div class="code-block"><span class="comment"># 1. 拉取 ARM64 镜像</span>
+docker pull smdk000/qq-farm-bot-ui:3.3.3
+
+<span class="comment"># 2. 创建数据目录</span>
+mkdir -p ./data ./logs ./backup
+
+<span class="comment"># 3. 启动容器</span>
+docker run -d \
+  --name qq-farm-bot-ui \
+  --restart unless-stopped \
+  -p 3080:3000 \
+  -v ./data:/app/core/data \
+  -v ./logs:/app/core/logs \
+  -v ./backup:/app/core/backup \
+  -e ADMIN_PASSWORD=YourPassword \
+  -e TZ=Asia/Shanghai \
+  -e LOG_LEVEL=info \
+  smdk000/qq-farm-bot-ui:3.3.3
+
+<span class="comment"># 4. 查看运行状态</span>
+docker ps
+
+<span class="comment"># 5. 查看日志</span>
+docker logs -f qq-farm-bot-ui</div>
+      </div>
+
+      <div class="subsection">
+        <h3>方法 3: Docker Compose 部署</h3>
+        <div class="code-block"><span class="comment"># 1. 创建 docker-compose.yml</span>
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  qq-farm-bot-ui:
+    image: smdk000/qq-farm-bot-ui:3.3.3
+    container_name: qq-farm-bot-ui
+    restart: unless-stopped
+    ports:
+      - "3080:3000"
+    environment:
+      - ADMIN_PASSWORD=YourPassword
+      - TZ=Asia/Shanghai
+      - LOG_LEVEL=info
+    volumes:
+      - ./data:/app/core/data
+      - ./logs:/app/core/logs
+      - ./backup:/app/core/backup
+EOF
+
+<span class="comment"># 2. 启动服务</span>
+docker-compose up -d
+
+<span class="comment"># 3. 查看状态</span>
+docker-compose ps
+
+<span class="comment"># 4. 查看日志</span>
+docker-compose logs -f</div>
+      </div>
+
+      <div class="alert alert-success">
+        <span class="alert-icon">✅</span>
+        <div>
+          <strong>部署成功验证：</strong>
+          <ul style="margin-top: 10px; padding-left: 20px;">
+            <li>访问 <code>http://localhost:3080</code> 能正常打开登录页面</li>
+            <li>使用默认密码 <code>admin</code> 或自定义密码登录成功</li>
+            <li>Dashboard 页面显示正常，无报错</li>
+            <li>日志输出正常，无错误信息</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: x86 服务器部署 -->
+    <div class="section" id="x86-deploy">
+      <h2>🖥️ x86 服务器一键部署</h2>
+      
+      <p style="font-size: 1.1rem; color: #4b5563; margin-bottom: 20px;">
+        适用于 Intel、AMD 等 x86_64 架构服务器
+      </p>
+
+      <div class="subsection">
+        <h3>方法 1: 使用一键部署脚本</h3>
+        <div class="code-block"><span class="comment"># 1. 下载部署脚本</span>
+curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-x86.sh
+
+<span class="comment"># 2. 赋予执行权限</span>
+chmod +x deploy-x86.sh
+
+<span class="comment"># 3. 执行部署</span>
+./deploy-x86.sh
+
+<span class="comment"># 4. 或自定义密码和端口</span>
+ADMIN_PASSWORD=YourStrongPassword123! PORT=3080 ./deploy-x86.sh</div>
+      </div>
+
+      <div class="subsection">
+        <h3>方法 2: 手动部署</h3>
+        <div class="code-block"><span class="comment"># 1. 拉取 AMD64 镜像</span>
+docker pull smdk000/qq-farm-bot-ui:3.3.3
+
+<span class="comment"># 2. 创建数据目录</span>
+mkdir -p ./data ./logs ./backup
+
+<span class="comment"># 3. 启动容器</span>
+docker run -d \
+  --name qq-farm-bot-ui \
+  --restart unless-stopped \
+  -p 3080:3000 \
+  -v ./data:/app/core/data \
+  -v ./logs:/app/core/logs \
+  -v ./backup:/app/core/backup \
+  -e ADMIN_PASSWORD=YourPassword \
+  -e TZ=Asia/Shanghai \
+  -e LOG_LEVEL=info \
+  smdk000/qq-farm-bot-ui:3.3.3
+
+<span class="comment"># 4. 查看运行状态</span>
+docker ps
+
+<span class="comment"># 5. 查看日志</span>
+docker logs -f qq-farm-bot-ui</div>
+      </div>
+
+      <div class="alert alert-success">
+        <span class="alert-icon">✅</span>
+        <div>
+          <strong>部署成功验证：</strong>
+          <ul style="margin-top: 10px; padding-left: 20px;">
+            <li>访问 <code>http://localhost:3080</code> 能正常打开登录页面</li>
+            <li>使用默认密码 <code>admin</code> 或自定义密码登录成功</li>
+            <li>Dashboard 页面显示正常，无报错</li>
+            <li>日志输出正常，无错误信息</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 5: 数据库保护 -->
+    <div class="section" id="data-protection">
+      <h2>🛡️ 数据库保护与版本管理</h2>
+      
+      <div class="subsection">
+        <h3>数据库备份策略</h3>
+        
+        <div class="grid">
+          <div class="card">
+            <h4>📦 定期备份</h4>
+            <div class="code-block" style="font-size: 0.85rem;"><span class="comment"># 每天凌晨 2 点备份</span>
+0 2 * * * tar -czf /backup/farm-bot-$(date +\%Y\%m\%d).tar.gz ./data</div>
+          </div>
+          
+          <div class="card">
+            <h4>🔄 升级前备份</h4>
+            <div class="code-block" style="font-size: 0.85rem;"><span class="comment"># 升级前手动备份</span>
+tar -czf farm-bot-backup-$(date +\%Y\%m\%d).tar.gz ./data</div>
+          </div>
+          
+          <div class="card">
+            <h4>💾 恢复备份</h4>
+            <div class="code-block" style="font-size: 0.85rem;"><span class="comment"># 从备份恢复</span>
+tar -xzf farm-bot-backup-20260301.tar.gz -C ./data</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h3>版本更新内容保护</h3>
+        <div class="alert alert-success">
+          <span class="alert-icon">✅</span>
+          <div>
+            <strong>Update.log 文件保护机制：</strong>
+            <ul style="margin-top: 10px; padding-left: 20px;">
+              <li>✅ <code>Update.log</code> 已包含在 Docker 镜像中（位置：<code>/app/Update.log</code>）</li>
+              <li>✅ 每次构建 Docker 镜像前更新 <code>Update.log</code> 文件</li>
+              <li>✅ 版本更新内容自动保留在镜像中</li>
+              <li>✅ 容器启动后可通过日志查看更新内容</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h3>数据卷挂载说明</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>宿主机路径</th>
+              <th>容器内路径</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>./data</code></td>
+              <td><code>/app/core/data</code></td>
+              <td>核心数据库目录（账号配置、用户数据等）</td>
+            </tr>
+            <tr>
+              <td><code>./logs</code></td>
+              <td><code>/app/core/logs</code></td>
+              <td>日志文件目录（运行日志、操作日志等）</td>
+            </tr>
+            <tr>
+              <td><code>./backup</code></td>
+              <td><code>/app/core/backup</code></td>
+              <td>备份文件目录（数据库备份、配置备份等）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="alert alert-warning">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          <strong>重要提醒：</strong>
+          <ul style="margin-top: 10px; padding-left: 20px;">
+            <li>❌ <strong>不要删除</strong> <code>./data</code> 目录，否则所有账号配置和用户数据将丢失</li>
+            <li>❌ <strong>不要手动修改</strong> 数据库文件，可能导致数据损坏</li>
+            <li>✅ <strong>定期备份</strong> 数据到安全位置（云存储、外部硬盘等）</li>
+            <li>✅ <strong>升级前备份</strong>，升级失败可快速回滚</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 6: 常用命令速查 -->
+    <div class="section">
+      <h2>📋 常用命令速查</h2>
+      
+      <div class="grid">
+        <div class="card">
+          <h4>🔍 查看状态</h4>
+          <div class="code-block" style="font-size: 0.85rem;">docker ps
+docker stats qq-farm-bot-ui
+docker inspect qq-farm-bot-ui</div>
+        </div>
+        
+        <div class="card">
+          <h4>📜 查看日志</h4>
+          <div class="code-block" style="font-size: 0.85rem;">docker logs -f qq-farm-bot-ui
+docker logs --tail 100 qq-farm-bot-ui
+docker logs --since 1h qq-farm-bot-ui</div>
+        </div>
+        
+        <div class="card">
+          <h4>🔄 重启容器</h4>
+          <div class="code-block" style="font-size: 0.85rem;">docker restart qq-farm-bot-ui
+docker stop qq-farm-bot-ui
+docker start qq-farm-bot-ui</div>
+        </div>
+        
+        <div class="card">
+          <h4>🗑️ 清理旧版本</h4>
+          <div class="code-block" style="font-size: 0.85rem;">docker rm qq-farm-bot-ui
+docker rmi smdk000/qq-farm-bot-ui:old-version</div>
+        </div>
+        
+        <div class="card">
+          <h4>📥 更新镜像</h4>
+          <div class="code-block" style="font-size: 0.85rem;">docker pull smdk000/qq-farm-bot-ui:latest
+docker-compose pull
+docker-compose up -d</div>
+        </div>
+        
+        <div class="card">
+          <h4>🔧 进入容器</h4>
+          <div class="code-block" style="font-size: 0.85rem;">docker exec -it qq-farm-bot-ui /bin/sh
+docker exec -it qq-farm-bot-ui ls -la /app/core/data</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 7: 故障排查 -->
+    <div class="section">
+      <h2>🔧 故障排查指南</h2>
+      
+      <div class="subsection">
+        <h3>常见问题与解决方案</h3>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>问题</th>
+              <th>可能原因</th>
+              <th>解决方案</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>容器无法启动</td>
+              <td>端口冲突 / 配置错误</td>
+              <td>
+                <code>docker logs qq-farm-bot-ui</code><br>
+                检查端口占用：<code>lsof -i :3080</code>
+              </td>
+            </tr>
+            <tr>
+              <td>无法访问网页</td>
+              <td>防火墙 / 端口未映射</td>
+              <td>
+                检查防火墙设置<br>
+                确认端口映射正确
+              </td>
+            </tr>
+            <tr>
+              <td>数据库丢失</td>
+              <td>数据卷未挂载</td>
+              <td>
+                检查 <code>-v</code> 参数<br>
+                从备份恢复数据
+              </td>
+            </tr>
+            <tr>
+              <td>内存不足</td>
+              <td>容器内存限制过小</td>
+              <td>
+                <code>docker update --memory="2g" qq-farm-bot-ui</code>
+              </td>
+            </tr>
+            <tr>
+              <td>架构不匹配</td>
+              <td>镜像平台错误</td>
+              <td>
+                确认服务器架构<br>
+                拉取正确的镜像版本
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="alert alert-error">
+        <span class="alert-icon">🆘</span>
+        <div>
+          <strong>获取帮助：</strong>
+          <ul style="margin-top: 10px; padding-left: 20px;">
+            <li>查看完整文档：<a href="https://github.com/smdk000/qq-farm-bot-ui" target="_blank" style="color: #667eea;">GitHub 仓库</a></li>
+            <li>提交 Issue：<a href="https://github.com/smdk000/qq-farm-bot-ui/issues" target="_blank" style="color: #667eea;">GitHub Issues</a></li>
+            <li>QQ 群：227916149</li>
+            <li>查看日志：<code>docker logs -f qq-farm-bot-ui</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 8: 最佳实践 -->
+    <div class="section">
+      <h2>✨ 最佳实践建议</h2>
+      
+      <div class="grid">
+        <div class="card">
+          <h4>🔐 安全配置</h4>
+          <ul class="checklist">
+            <li>修改默认管理密码</li>
+            <li>使用强密码（12 位以上）</li>
+            <li>定期更换密码</li>
+            <li>限制访问 IP 范围</li>
+          </ul>
+        </div>
+        
+        <div class="card">
+          <h4>💾 数据备份</h4>
+          <ul class="checklist">
+            <li>每天自动备份</li>
+            <li>升级前手动备份</li>
+            <li>备份到云存储</li>
+            <li>定期测试恢复</li>
+          </ul>
+        </div>
+        
+        <div class="card">
+          <h4>📊 监控告警</h4>
+          <ul class="checklist">
+            <li>配置健康检查</li>
+            <li>监控资源使用</li>
+            <li>设置日志告警</li>
+            <li>定期检查状态</li>
+          </ul>
+        </div>
+        
+        <div class="card">
+          <h4>🔄 版本管理</h4>
+          <ul class="checklist">
+            <li>关注版本更新</li>
+            <li>测试后升级</li>
+            <li>保留旧版本</li>
+            <li>记录升级日志</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p><strong>QQ 农场助手 - Docker 多平台部署指南</strong></p>
+      <p>版本 v3.3.3 | 最后更新：2026-03-01</p>
+      <p style="margin-top: 15px;">
+        <a href="https://github.com/smdk000/qq-farm-bot-ui" target="_blank">GitHub 仓库</a> • 
+        <a href="https://hub.docker.com/r/smdk000/qq-farm-bot-ui" target="_blank">Docker Hub</a> • 
+        <a href="https://github.com/smdk000/qq-farm-bot-ui/issues" target="_blank">问题反馈</a>
+      </p>
+      <p style="margin-top: 15px; font-size: 0.9rem;">
+        QQ 群：227916149 | 作者：smdk000
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    // 平滑滚动
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

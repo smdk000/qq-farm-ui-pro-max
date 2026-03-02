@@ -77,7 +77,7 @@ defineExpose({ fetchNotifications })
         v-for="(entry, idx) in entries"
         :key="entry.date + idx"
         class="overflow-hidden border border-gray-200 rounded-lg transition-all dark:border-gray-700"
-        :class="expandedIdx === idx ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'bg-white dark:bg-gray-800'"
+        :class="expandedIdx === idx ? 'bg-primary-500/10 dark:bg-primary-500/20' : 'glass-panel'"
       >
         <!-- 条目头部（可点击展开） -->
         <button

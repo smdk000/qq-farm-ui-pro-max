@@ -254,7 +254,7 @@ function getStatusText(user: User) {
                 <input
                   type="checkbox"
                   :checked="selectedUsers.length === users.length && users.length > 0"
-                  class="h-4 w-4 border-white/30 rounded bg-white/50 text-primary-600 dark:bg-black/30 focus:ring-primary-500"
+                  class="h-4 w-4 border-black/10 rounded bg-black/5 text-primary-600 dark:border-white/20 dark:bg-black/40 focus:ring-primary-500"
                   @change="toggleSelectAll"
                 >
               </th>
@@ -289,7 +289,7 @@ function getStatusText(user: User) {
                   v-model="selectedUsers"
                   type="checkbox"
                   :value="user.username"
-                  class="h-4 w-4 border-white/30 rounded bg-white/50 text-primary-600 dark:bg-black/30 focus:ring-primary-500"
+                  class="h-4 w-4 border-black/10 rounded bg-black/5 text-primary-600 dark:border-white/20 dark:bg-black/40 focus:ring-primary-500"
                 >
               </td>
               <td class="whitespace-nowrap px-6 py-4">

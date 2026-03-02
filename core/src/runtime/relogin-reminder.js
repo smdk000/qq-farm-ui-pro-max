@@ -20,11 +20,11 @@ function createReloginReminderService(options) {
         return sec * 1000;
     }
 
-    function applyReloginCode({ accountId = '', accountName = '', authCode = '', uin = '' }) {
+    async function applyReloginCode({ accountId = '', accountName = '', authCode = '', uin = '' }) {
         const code = String(authCode || '').trim();
         if (!code) return;
 
-        const data = getAccounts();
+        const data = await getAccounts();
         const list = Array.isArray(data.accounts) ? data.accounts : [];
         const found = list.find(a => String(a.id) === String(accountId));
         const avatar = uin ? `https://q1.qlogo.cn/g?b=qq&nk=${uin}&s=640` : '';
@@ -33,7 +33,7 @@ function createReloginReminderService(options) {
         const restartWorker = typeof controls.restartWorker === 'function' ? controls.restartWorker : null;
 
         if (found) {
-            addOrUpdateAccount({
+            await addOrUpdateAccount({
                 id: found.id,
                 name: found.name,
                 code,
@@ -56,7 +56,7 @@ function createReloginReminderService(options) {
             return;
         }
 
-        const created = addOrUpdateAccount({
+        const created = await addOrUpdateAccount({
             name: accountName || (uin ? String(uin) : '重登录账号'),
             code,
             platform: 'qq',
@@ -116,7 +116,7 @@ function createReloginReminderService(options) {
                             stop();
                             return;
                         }
-                        applyReloginCode({ accountId, accountName, authCode, uin });
+                        await applyReloginCode({ accountId, accountName, authCode, uin });
                         stop();
                         return;
                     }

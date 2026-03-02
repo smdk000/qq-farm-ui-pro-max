@@ -5,10 +5,11 @@ const logger = createModuleLogger('job-log-cleanup');
 async function runLogCleanup() {
     try {
         const db = getDb();
-        const info1 = db.prepare(`DELETE FROM operation_logs WHERE created_at < datetime('now', '-7 days')`).run();
-        const info2 = db.prepare(`DELETE FROM config_audit_log WHERE changed_at < datetime('now', '-7 days')`).run();
+        if (!db) return;
+        const [info1] = await db.query(`DELETE FROM operation_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
+        const [info2] = await db.query(`DELETE FROM config_audit_log WHERE changed_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
 
-        logger.info(`日志清理完成: 删除了 ${info1.changes} 条操作日志, ${info2.changes} 条配置审计日志`);
+        logger.info(`日志清理完成: 删除了 ${info1.affectedRows} 条操作日志, ${info2.affectedRows} 条配置审计日志`);
     } catch (err) {
         logger.error('执行日志清理任务失败', { error: err.message });
     }

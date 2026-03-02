@@ -125,8 +125,9 @@ function createRuntimeEngine(options = {}) {
     }
   }
 
-  function startAllAccounts() {
-    const accounts = (store.getAccounts().accounts || [])
+  async function startAllAccounts() {
+    const data = await store.getAccounts()
+    const accounts = (data.accounts || [])
     if (accounts.length > 0) {
       log('系统', `发现 ${accounts.length} 个账号，正在启动...`)
       accounts.forEach(acc => startWorker(acc))
@@ -145,7 +146,7 @@ function createRuntimeEngine(options = {}) {
     }
 
     if (shouldAutoStartAccounts) {
-      startAllAccounts()
+      await startAllAccounts()
     }
   }
 

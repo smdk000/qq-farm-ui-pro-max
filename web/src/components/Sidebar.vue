@@ -29,6 +29,15 @@ const showNotificationModal = ref(false)
 const accountToEdit = ref<any>(null)
 const wsErrorNotifiedAt = ref<Record<string, number>>({})
 const hasUnread = ref(false)
+// 防抖标志：弹窗刚关闭后一段时间内忽略 wsError 触发的自动弹窗
+// 解决扫码成功后因 restartWorker 异步过程触发 wsError 导致弹窗再次打开的问题
+let justClosedModal = false
+let justClosedTimer: ReturnType<typeof setTimeout> | null = null
+// 结构化防抖：记录最近一次成功保存账号的时间戳，用于 wsError 过滤
+let lastAccountSavedAt = 0
+// QR 登录进行中标志：保存账号后 15 秒内忽略所有 wsError
+let qrLoginInProgress = false
+let qrLoginTimer: ReturnType<typeof setTimeout> | null = null
 
 const systemConnected = ref(true)
 const serverUptimeBase = ref(0)
@@ -75,6 +84,25 @@ async function handleAccountSaved() {
   await refreshStatusFallback()
   showAccountModal.value = false
   showRemarkModal.value = false
+  accountToEdit.value = null
+  // 记录保存时间戳（结构化防抖，用于 wsError 过滤）
+  lastAccountSavedAt = Date.now()
+  // 扫码成功后设置全局冷却，15 秒内完全忽略 wsError（覆盖 restartWorker 的完整异步过程 + WS 400 重试窗口）
+  qrLoginInProgress = true
+  if (qrLoginTimer) clearTimeout(qrLoginTimer)
+  qrLoginTimer = setTimeout(() => { qrLoginInProgress = false }, 15000)
+  // 设置防抖，8 秒内忽略 wsError 弹窗（覆盖 restartWorker 的 stop+start+connect+login 异步过程）
+  justClosedModal = true
+  if (justClosedTimer) clearTimeout(justClosedTimer)
+  justClosedTimer = setTimeout(() => { justClosedModal = false }, 8000)
+}
+
+function closeAccountModal() {
+  showAccountModal.value = false
+  accountToEdit.value = null
+  justClosedModal = true
+  if (justClosedTimer) clearTimeout(justClosedTimer)
+  justClosedTimer = setTimeout(() => { justClosedModal = false }, 8000)
 }
 
 function openRemarkModal(acc: any) {
@@ -114,6 +142,15 @@ watch(() => currentAccount.value?.id || currentAccount.value?.uin || '', () => {
 watch(() => status.value?.wsError, (wsError: any) => {
   if (!wsError || Number(wsError.code) !== 400 || !currentAccount.value)
     return
+
+  // 防抖：弹窗刚关闭后的 8 秒内不自动弹出，避免扫码成功后重复弹窗
+  if (justClosedModal) return
+  // QR 登录冷却期内忽略所有 wsError（15 秒全局冷却，覆盖 restartWorker + WS 重连窗口）
+  if (qrLoginInProgress) return
+  // 结构化防抖：距离上次保存账号 < 10 秒，忽略 wsError（覆盖 restartWorker 的完整异步过程）
+  if (lastAccountSavedAt > 0 && (Date.now() - lastAccountSavedAt) < 10000) return
+  // 如果弹窗已经打开，不重复触发
+  if (showAccountModal.value) return
 
   const errAt = Number(wsError.at) || 0
   const accId = String(currentAccount.value.id || currentAccount.value.uin || '')
@@ -271,21 +308,35 @@ watch(
   () => route.path,
   () => {
     // Close sidebar on route change (mobile only)
-    if (window.innerWidth < 1024)
+    if (window.innerWidth < 1280)
       appStore.closeSidebar()
   },
 )
+
+function onNavClick() {
+  if (window.innerWidth < 1280) {
+    appStore.closeSidebar()
+  }
+}
 </script>
 
 <template>
   <aside
-    class="glass-panel fixed inset-y-0 left-0 z-50 h-full w-64 flex flex-col border-r border-gray-200/50 transition-transform duration-300 lg:static lg:translate-x-0 dark:border-gray-700/50"
+    class="glass-panel fixed inset-y-0 left-0 z-50 h-full w-64 flex flex-col border-r border-gray-200/50 transition-transform duration-300 xl:static xl:translate-x-0 dark:border-gray-700/50"
     :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
   >
     <!-- Brand -->
-    <div class="h-16 flex items-center justify-between border-b border-gray-100 px-6 dark:border-gray-700/50">
-      <div class="flex items-center gap-3">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="h-7 w-7">
+    <div class="h-16 flex items-center justify-between border-b border-gray-100 px-4 dark:border-gray-700/50">
+      <div class="flex items-center gap-2">
+        <!-- 窄屏关闭按钮 (移至最左侧) -->
+        <button
+          class="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-gray-500 xl:hidden hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+          @click="appStore.closeSidebar"
+        >
+          <div class="i-carbon-close text-lg" />
+          <span class="text-xs font-semibold">收起</span>
+        </button>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="h-7 w-7 xl:ml-2">
           <defs>
             <linearGradient id="sidebarGrad" x1="0" y1="1" x2="0.3" y2="0">
               <stop offset="0%" stop-color="#15803d" />
@@ -303,19 +354,14 @@ watch(
           🌌 御农
         </span>
       </div>
-      <!-- Mobile Close Button -->
-      <button
-        class="rounded-lg p-1 text-gray-500 lg:hidden hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        @click="appStore.closeSidebar"
-      >
-        <div class="i-carbon-close text-xl" />
-      </button>
+      <!-- 右侧占位，保持整体平衡 -->
+      <div class="w-8 xl:hidden"></div>
     </div>
     <!-- Account Selector -->
     <div class="border-b border-gray-100 p-4 dark:border-gray-700/50">
       <div class="group relative">
         <button
-          class="w-full flex items-center justify-between border border-transparent rounded-xl bg-white/50 px-4 py-2.5 outline-none backdrop-blur-sm transition-all duration-200 hover:border-white/40 dark:bg-black/20 hover:bg-white/80 focus:ring-2 focus:ring-primary-500/20 dark:hover:border-white/20 dark:hover:bg-black/40"
+          class="w-full flex items-center justify-between border border-transparent rounded-xl bg-black/5 px-4 py-2.5 outline-none backdrop-blur-sm transition-all duration-200 hover:border-black/10 dark:bg-black/20 hover:bg-black/10 focus:ring-2 focus:ring-primary-500/20 dark:hover:border-white/20 dark:hover:bg-black/40"
           @click="showAccountDropdown = !showAccountDropdown"
         >
           <div class="flex items-center gap-3 overflow-hidden">
@@ -353,7 +399,7 @@ watch(
               <button
                 v-for="acc in accounts"
                 :key="acc.id || acc.uin"
-                class="w-full flex items-center gap-3 px-4 py-2 transition-colors hover:bg-white/50 dark:hover:bg-white/10"
+                class="w-full flex items-center gap-3 px-4 py-2 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                 :class="{ 'bg-primary-50/50 dark:bg-primary-500/20': currentAccount?.id === acc.id }"
                 @click="selectAccount(acc)"
               >
@@ -418,6 +464,7 @@ watch(
         class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-gray-600 transition-all duration-200 hover:bg-gray-50 dark:text-gray-400 hover:text-primary-600 dark:hover:bg-gray-700/50 dark:hover:text-primary-400"
         :active-class="item.path === '/' ? '' : 'bg-primary-50 dark:bg-primary-900/10 text-primary-600 dark:text-primary-400 font-medium shadow-sm ring-1 ring-primary-500/10'"
         :exact-active-class="item.path === '/' ? 'bg-primary-50 dark:bg-primary-900/10 text-primary-600 dark:text-primary-400 font-medium shadow-sm ring-1 ring-primary-500/10' : ''"
+        @click="onNavClick"
       >
         <div class="text-xl transition-transform duration-200 group-hover:scale-110" :class="[item.icon]" />
         <span>{{ item.label }}</span>
@@ -428,7 +475,7 @@ watch(
     <div class="px-3 pb-2">
       <button
         class="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-gray-600 transition-all duration-200 hover:bg-amber-50 dark:text-gray-400 hover:text-amber-600 dark:hover:bg-amber-900/10 dark:hover:text-amber-400"
-        @click="openNotifications"
+        @click="() => { onNavClick(); openNotifications(); }"
       >
         <div class="relative">
           <div class="i-carbon-notification text-xl" />
@@ -446,6 +493,7 @@ watch(
       <router-link
         to="/help"
         class="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-gray-600 transition-all duration-200 hover:bg-blue-50 dark:text-gray-400 hover:text-blue-600 dark:hover:bg-blue-900/10 dark:hover:text-blue-400"
+        @click="onNavClick"
       >
         <div class="i-carbon-book text-xl" />
         <span>帮助中心</span>
@@ -494,7 +542,7 @@ watch(
   <AccountModal
     :show="showAccountModal"
     :edit-data="accountToEdit"
-    @close="showAccountModal = false; accountToEdit = null"
+    @close="closeAccountModal"
     @saved="handleAccountSaved"
   />
 

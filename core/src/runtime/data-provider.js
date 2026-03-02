@@ -20,28 +20,30 @@ function createDataProvider(options) {
         restartWorker,
     } = options;
 
-    function getStoredAccountsList() {
-        const data = getAccounts();
+    async function getStoredAccountsList() {
+        const data = await getAccounts();
         return Array.isArray(data.accounts) ? data.accounts : [];
     }
 
-    function resolveAccountRefId(accountRef) {
+    async function resolveAccountRefId(accountRef) {
         const raw = normalizeAccountRef(accountRef);
         if (!raw) return '';
-        const resolved = resolveAccountIdByList(getStoredAccountsList(), raw);
+        const list = await getStoredAccountsList();
+        const resolved = resolveAccountIdByList(list, raw);
         return resolved || raw;
     }
 
-    function findAccountByAnyRef(accountRef) {
-        return findAccountByRef(getStoredAccountsList(), accountRef);
+    async function findAccountByAnyRef(accountRef) {
+        const list = await getStoredAccountsList();
+        return findAccountByRef(list, accountRef);
     }
 
     return {
-        resolveAccountId: (accountRef) => resolveAccountRefId(accountRef),
+        resolveAccountId: async (accountRef) => await resolveAccountRefId(accountRef),
 
         // 获取指定账号的状态 (如果 accountId 为空，返回概览?)
-        getStatus: (accountRef) => {
-            const accountId = resolveAccountRefId(accountRef);
+        getStatus: async (accountRef) => {
+            const accountId = await resolveAccountRefId(accountRef);
             if (!accountId) return buildDefaultStatus('');
             const w = workers[accountId];
             if (!w || !w.status) return buildDefaultStatus(accountId);
@@ -52,11 +54,11 @@ function createDataProvider(options) {
             };
         },
 
-        getLogs: (accountRef, optionsOrLimit) => {
+        getLogs: async (accountRef, optionsOrLimit) => {
             const opts = (typeof optionsOrLimit === 'object' && optionsOrLimit) ? optionsOrLimit : { limit: optionsOrLimit };
             const max = Math.max(1, Number(opts.limit) || 100);
             const rawRef = normalizeAccountRef(accountRef);
-            const accountId = resolveAccountRefId(accountRef);
+            const accountId = await resolveAccountRefId(accountRef);
             if (!rawRef) {
                 return filterLogs(globalLogs, opts).slice(-max);
             }
@@ -69,16 +71,16 @@ function createDataProvider(options) {
         addAccountLog: (action, msg, accountId, accountName, extra) => addAccountLog(action, msg, accountId, accountName, extra),
 
         // 透传方法
-        getLands: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getLands'),
-        getFriends: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriends'),
-        getFriendLands: (accountRef, gid) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriendLands', gid),
-        doFriendOp: (accountRef, gid, opType) => callWorkerApi(resolveAccountRefId(accountRef), 'doFriendOp', gid, opType),
-        getBag: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getBag'),
-        getDailyGifts: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getDailyGiftOverview'),
-        getSeeds: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getSeeds'),
+        getLands: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getLands'),
+        getFriends: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getFriends'),
+        getFriendLands: async (accountRef, gid) => callWorkerApi(await resolveAccountRefId(accountRef), 'getFriendLands', gid),
+        doFriendOp: async (accountRef, gid, opType) => callWorkerApi(await resolveAccountRefId(accountRef), 'doFriendOp', gid, opType),
+        getBag: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getBag'),
+        getDailyGifts: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getDailyGiftOverview'),
+        getSeeds: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getSeeds'),
 
         setAutomation: async (accountRef, key, value) => {
-            const accountId = resolveAccountRefId(accountRef);
+            const accountId = await resolveAccountRefId(accountRef);
             if (!accountId) {
                 throw new Error('Missing x-account-id');
             }
@@ -88,10 +90,10 @@ function createDataProvider(options) {
             return { automation: store.getAutomation(accountId), configRevision: rev };
         },
 
-        doFarmOp: (accountRef, opType) => callWorkerApi(resolveAccountRefId(accountRef), 'doFarmOp', opType),
-        doAnalytics: (accountRef, sortBy) => callWorkerApi(resolveAccountRefId(accountRef), 'getAnalytics', sortBy),
+        doFarmOp: async (accountRef, opType) => callWorkerApi(await resolveAccountRefId(accountRef), 'doFarmOp', opType),
+        doAnalytics: async (accountRef, sortBy) => callWorkerApi(await resolveAccountRefId(accountRef), 'getAnalytics', sortBy),
         saveSettings: async (accountRef, payload) => {
-            const accountId = resolveAccountRefId(accountRef);
+            const accountId = await resolveAccountRefId(accountRef);
             if (!accountId) {
                 throw new Error('Missing x-account-id');
             }
@@ -112,6 +114,9 @@ function createDataProvider(options) {
             }
             if (body.stealFriendFilter !== undefined) {
                 snapshot.stealFriendFilter = body.stealFriendFilter;
+            }
+            if (body.stakeoutSteal !== undefined) {
+                snapshot.stakeoutSteal = body.stakeoutSteal;
             }
             store.applyConfigSnapshot(snapshot, { accountId });
             const rev = nextConfigRevision();
@@ -134,8 +139,8 @@ function createDataProvider(options) {
             broadcastConfigToWorkers(accountId);
         },
 
-        setRuntimeAccountName: (accountRef, accountName) => {
-            const accountId = resolveAccountRefId(accountRef);
+        setRuntimeAccountName: async (accountRef, accountName) => {
+            const accountId = await resolveAccountRefId(accountRef);
             if (!accountId) return;
             const worker = workers[accountId];
             if (worker) {
@@ -144,8 +149,8 @@ function createDataProvider(options) {
         },
 
         // 账号管理直接操作 store
-        getAccounts: () => {
-            const data = getAccounts();
+        getAccounts: async () => {
+            const data = await getAccounts();
             data.accounts.forEach((a) => {
                 const worker = workers[a.id];
                 a.running = !!worker;
@@ -156,37 +161,44 @@ function createDataProvider(options) {
             return data;
         },
 
-        startAccount: (accountRef) => {
-            const accountId = resolveAccountRefId(accountRef);
-            const acc = findAccountByAnyRef(accountId || accountRef);
+        startAccount: async (accountRef) => {
+            const accountId = await resolveAccountRefId(accountRef);
+            let acc = await findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
+            // 解决精简版数据遗漏 code 字段导致连接 websocket 时抛出 400 失败的问题
+            if (store && typeof store.getAccountFull === 'function') {
+                const fullAcc = await store.getAccountFull(acc.id);
+                if (fullAcc) {
+                    acc = { ...acc, ...fullAcc };
+                }
+            }
             startWorker(acc);
             return true;
         },
 
-        stopAccount: (accountRef) => {
-            const accountId = resolveAccountRefId(accountRef);
-            const acc = findAccountByAnyRef(accountId || accountRef);
+        stopAccount: async (accountRef) => {
+            const accountId = await resolveAccountRefId(accountRef);
+            const acc = await findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
             if (accountId) stopWorker(accountId);
             return true;
         },
 
-        restartAccount: (accountRef) => {
-            const accountId = resolveAccountRefId(accountRef);
-            const acc = findAccountByAnyRef(accountId || accountRef);
+        restartAccount: async (accountRef) => {
+            const accountId = await resolveAccountRefId(accountRef);
+            const acc = await findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
             restartWorker(acc);
             return true;
         },
 
-        isAccountRunning: (accountRef) => {
-            const accountId = resolveAccountRefId(accountRef);
+        isAccountRunning: async (accountRef) => {
+            const accountId = await resolveAccountRefId(accountRef);
             return !!(accountId && workers[accountId]);
         },
 
         getSchedulerStatus: async (accountRef) => {
-            const accountId = resolveAccountRefId(accountRef);
+            const accountId = await resolveAccountRefId(accountRef);
             const runtime = getSchedulerRegistrySnapshot();
             let worker = null;
             let workerError = '';

@@ -1,0 +1,84 @@
+# 依赖
+node_modules/
+.pnpm-store/
+vendor/
+
+# 构建产物
+dist/
+build/
+*.local
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 运行时数据
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# 数据库
+*.db
+*.db-shm
+*.db-wal
+data/backup/
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 配置文件
+*.local.json
+*.local.js
+config.local.*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# 测试
+coverage/
+.nyc_output/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.bak
+*.cache
+
+# 证书
+*.pem
+*.key
+*.crt
+*.p12
+
+# 备份
+*.backup
+*.bak
+backups/
+
+# 截图
+pic/*.png
+pic/*.jpg
+!pic/.gitkeep
+
+# 文档（可选）
+# docs/*.md
+# !docs/README.md

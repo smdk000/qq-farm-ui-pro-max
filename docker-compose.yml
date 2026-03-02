@@ -1,14 +1,80 @@
+version: '3.8'
+
 services:
-  qq-farm-bot-ui:
-    build:
-      context: .
-      dockerfile: core/Dockerfile
-    container_name: qq-farm-bot-ui
+  app:
+    image: smdk000/qq-farm-ui-pro-max:latest
+    container_name: qq-farm-app
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_PORT:-3000}:3000"
+    environment:
+      - ADMIN_PORT=3000
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - WX_API_KEY=${WX_API_KEY:-YOUR_WX_API_KEY_HERE}
+      - MULTI_USER=true
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=farm_user
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-farm_password}
+      - MYSQL_DATABASE=farm_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_password}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mysql:
+    image: mysql:8.0
+    container_name: qq-farm-mysql
     restart: unless-stopped
     environment:
-      ADMIN_PASSWORD: qq007qq008
-      TZ: Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+      - MYSQL_DATABASE=farm_db
+      - MYSQL_USER=farm_user
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-farm_password}
     ports:
-      - "3080:3000"
+      - "3306:3306"
     volumes:
-      - ./data:/app/core/data
+      - ./mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: qq-farm-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password} --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

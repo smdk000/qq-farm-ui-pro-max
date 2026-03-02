@@ -195,7 +195,7 @@ function handleFriendAvatarError(friend: any) {
           v-model="searchQuery"
           type="text"
           placeholder="搜索好友昵称/备注..."
-          class="glass-text-main block h-[38px] w-full border border-gray-300/50 rounded-lg bg-white/50 py-2 pl-10 pr-3 text-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:bg-black/40 placeholder-gray-500 dark:placeholder-gray-400"
+          class="glass-text-main block h-[38px] w-full border border-gray-300/50 rounded-lg bg-black/5 py-2 pl-10 pr-3 text-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:bg-black/40 placeholder-gray-500 dark:placeholder-gray-400"
         >
       </div>
     </div>

@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps<{
   label?: string
-  options?: { label: string, value: string | number, disabled?: boolean }[]
+  options?: { label: string, value: string | number, disabled?: boolean, description?: string }[]
   disabled?: boolean
   placeholder?: string
 }>()
@@ -57,7 +57,7 @@ onUnmounted(() => {
     <div class="relative">
       <!-- Trigger -->
       <div
-        class="glass-text-main w-full flex cursor-pointer items-center justify-between border border-gray-200/50 rounded-lg bg-white/50 px-3 py-2 shadow-sm outline-none backdrop-blur-sm transition-all duration-200 dark:border-white/10 dark:bg-black/20 hover:bg-white/80 dark:hover:bg-black/40"
+        class="glass-text-main w-full flex cursor-pointer items-center justify-between border border-gray-200/50 rounded-lg bg-black/5 px-3 py-2 shadow-sm outline-none backdrop-blur-sm transition-all duration-200 dark:border-white/10 dark:bg-black/20 hover:bg-black/10 dark:hover:bg-black/40"
         :class="{
           'bg-gray-50/50 text-gray-400 cursor-not-allowed dark:bg-black/40 hover:bg-gray-50/50 dark:hover:bg-black/40': disabled,
           'ring-2 ring-primary-500/20 border-primary-500 dark:focus:border-primary-500': isOpen,
@@ -86,7 +86,7 @@ onUnmounted(() => {
             <div
               v-for="opt in options"
               :key="opt.value"
-              class="cursor-pointer px-3 py-2 text-sm transition-colors hover:bg-white/50 dark:hover:bg-white/10"
+              class="cursor-pointer px-3 py-2 text-sm transition-colors hover:bg-black/5 dark:hover:bg-white/10"
               :class="{
                 'bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400': model === opt.value,
                 'text-gray-400 cursor-not-allowed hover:bg-transparent dark:text-gray-500': opt.disabled,
@@ -95,7 +95,12 @@ onUnmounted(() => {
               @click="!opt.disabled && selectOption(opt.value)"
             >
               <slot name="option" :option="opt" :selected="model === opt.value">
-                {{ opt.label }}
+                <div class="flex flex-col">
+                  <span>{{ opt.label }}</span>
+                  <span v-if="opt.description" class="mt-0.5 text-[10px] leading-tight opacity-60 dark:opacity-50">
+                    {{ opt.description }}
+                  </span>
+                </div>
               </slot>
             </div>
           </template>

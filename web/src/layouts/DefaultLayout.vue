@@ -17,7 +17,7 @@ const showThemeDrawer = ref(false)
     <!-- Mobile Sidebar Overlay -->
     <div
       v-if="sidebarOpen"
-      class="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm transition-opacity lg:hidden"
+      class="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm transition-opacity xl:hidden"
       @click="appStore.closeSidebar"
     />
 
@@ -25,16 +25,18 @@ const showThemeDrawer = ref(false)
 
     <main class="relative h-full min-w-0 flex flex-1 flex-col overflow-hidden">
       <!-- Top Bar (Mobile/Tablet only or for additional actions) -->
-      <header class="glass-panel h-16 flex shrink-0 items-center justify-between border-b border-gray-100/50 px-6 lg:hidden dark:border-gray-700/50">
-        <div class="text-lg font-bold">
-          QQ 农场智能助手
-        </div>
+      <header class="glass-panel h-14 flex shrink-0 items-center justify-between border-b border-gray-100/50 px-4 xl:hidden dark:border-gray-700/50">
         <button
           class="flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100/50 dark:text-gray-400 dark:hover:bg-gray-700/50"
           @click="appStore.toggleSidebar"
         >
           <div class="i-carbon-menu text-xl" />
         </button>
+        <div class="text-sm font-semibold truncate">
+          QQ 农场智能助手
+        </div>
+        <!-- 右侧占位，保持标题居中 -->
+        <div class="w-9" />
       </header>
 
       <!-- Main Content Area -->

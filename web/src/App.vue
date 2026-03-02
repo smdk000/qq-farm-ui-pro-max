@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { useStorage } from '@vueuse/core'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, defineAsyncComponent } from 'vue'
 import { RouterView } from 'vue-router'
-import NotificationModal from '@/components/NotificationModal.vue'
-import ToastContainer from '@/components/ToastContainer.vue'
 import { useAppStore } from '@/stores/app'
+
+// Async lazy load heavy components
+const NotificationModal = defineAsyncComponent(() => import('@/components/NotificationModal.vue'))
+const ToastContainer = defineAsyncComponent(() => import('@/components/ToastContainer.vue'))
 
 const appStore = useAppStore()
 

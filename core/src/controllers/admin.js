@@ -130,7 +130,7 @@ function startAdminServer(dataProvider) {
     };
 
     // 账号所有权验证中间件
-    const accountOwnershipRequired = (req, res, next) => {
+    const accountOwnershipRequired = async (req, res, next) => {
         const accountId = req.headers['x-account-id'] || req.params.id;
         if (!accountId) {
             return res.status(400).json({ ok: false, error: 'Missing account ID' });
@@ -141,15 +141,15 @@ function startAdminServer(dataProvider) {
             return next();
         }
 
-        const allAccounts = store.getAccounts();
+        const allAccounts = await await store.getAccounts();
         const account = allAccounts.accounts.find(a => String(a.id) === String(accountId));
 
         if (!account) {
             return res.status(404).json({ ok: false, error: '账号不存在' });
         }
 
-        // 验证所有权
-        if (account.username && account.username !== req.currentUser.username) {
+        // 没有 username 的属于管理员公共财产，或者必须与当前用户名一致
+        if (!account.username || account.username !== req.currentUser.username) {
             return res.status(403).json({ ok: false, error: '无权操作此账号' });
         }
 
@@ -174,7 +174,7 @@ function startAdminServer(dataProvider) {
     app.use('/game-config', express.static(getResourcePath('gameConfig')));
 
     // 登录与鉴权 - 支持多用户
-    app.post('/api/login', (req, res) => {
+    app.post('/api/login', async (req, res) => {
         const { username, password } = req.body || {};
 
         // 兼容旧版：如果没有用户名，使用单管理员模式
@@ -228,7 +228,7 @@ function startAdminServer(dataProvider) {
         return authRequired(req, res, next);
     });
 
-    app.post('/api/admin/change-password', (req, res) => {
+    app.post('/api/admin/change-password', async (req, res) => {
         const body = req.body || {};
         const oldPassword = String(body.oldPassword || '');
         const newPassword = String(body.newPassword || '');
@@ -249,16 +249,16 @@ function startAdminServer(dataProvider) {
         res.json({ ok: true });
     });
 
-    app.get('/api/ping', (req, res) => {
+    app.get('/api/ping', async (req, res) => {
         res.json({ ok: true, data: { ok: true, uptime: process.uptime(), version } });
     });
 
-    app.get('/api/auth/validate', (req, res) => {
+    app.get('/api/auth/validate', async (req, res) => {
         res.json({ ok: true, data: { valid: true } });
     });
 
     // 公开 API: 获取 UI 配置 (用于登录页背景等)
-    app.get('/api/ui-config', (req, res) => {
+    app.get('/api/ui-config', async (req, res) => {
         const ui = store.getUI();
         res.json({ ok: true, data: ui });
     });
@@ -266,7 +266,7 @@ function startAdminServer(dataProvider) {
     // API: 调度任务快照（用于调度收敛排查）
     app.get('/api/scheduler', async (req, res) => {
         try {
-            const id = getAccId(req);
+            const id = await getAccId(req);
             if (provider && typeof provider.getSchedulerStatus === 'function') {
                 const data = await provider.getSchedulerStatus(id);
                 return res.json({ ok: true, data });
@@ -277,7 +277,7 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    app.post('/api/logout', (req, res) => {
+    app.post('/api/logout', async (req, res) => {
         const token = req.adminToken;
         if (token) {
             tokens.delete(token);
@@ -292,16 +292,16 @@ function startAdminServer(dataProvider) {
         res.json({ ok: true });
     });
 
-    const getAccountList = () => {
+    const getAccountList = async () => {
         try {
             if (provider && typeof provider.getAccounts === 'function') {
-                const data = provider.getAccounts();
+                const data = await provider.getAccounts();
                 if (data && Array.isArray(data.accounts)) return data.accounts;
             }
         } catch {
             // ignore provider failures
         }
-        const data = store.getAccounts ? store.getAccounts() : { accounts: [] };
+        const data = store.getAccounts ? await store.getAccounts() : { accounts: [] };
         return Array.isArray(data.accounts) ? data.accounts : [];
     };
 
@@ -317,27 +317,27 @@ function startAdminServer(dataProvider) {
         return res.status(500).json({ ok: false, error: err.message });
     }
 
-    const resolveAccId = (rawRef) => {
+    const resolveAccId = async (rawRef) => {
         const input = normalizeAccountRef(rawRef);
         if (!input) return '';
 
         if (provider && typeof provider.resolveAccountId === 'function') {
-            const resolvedByProvider = normalizeAccountRef(provider.resolveAccountId(input));
+            const resolvedByProvider = normalizeAccountRef(await provider.resolveAccountId(input));
             if (resolvedByProvider) return resolvedByProvider;
         }
 
-        const resolved = resolveAccountId(getAccountList(), input);
+        const resolved = resolveAccountId(await getAccountList(), input);
         return resolved || input;
     };
 
     // Helper to get account ID from header
-    function getAccId(req) {
-        return resolveAccId(req.headers['x-account-id']);
+    async function getAccId(req) {
+        return await resolveAccId(req.headers['x-account-id']);
     }
 
     // API: 完整状态
-    app.get('/api/status', async (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/status', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.json({ ok: false, error: 'Missing x-account-id' });
 
         try {
@@ -353,8 +353,8 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    app.post('/api/automation', async (req, res) => {
-        const id = getAccId(req);
+    app.post('/api/automation', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) {
             return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
         }
@@ -391,8 +391,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 农田详情
-    app.get('/api/lands', async (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/lands', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const data = await provider.getLands(id);
@@ -403,8 +403,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 好友列表
-    app.get('/api/friends', async (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/friends', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const data = await provider.getFriends(id);
@@ -415,8 +415,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 好友缓存列表 (专供配置页面读取，无风控请求)
-    app.get('/api/friends/cache', (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/friends/cache', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const { getCachedFriends } = require('../services/database');
@@ -431,8 +431,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 好友农田详情
-    app.get('/api/friend/:gid/lands', async (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/friend/:gid/lands', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const data = await provider.getFriendLands(id, req.params.gid);
@@ -443,8 +443,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 对指定好友执行单次操作（偷菜/浇水/除草/捣乱）
-    app.post('/api/friend/:gid/op', async (req, res) => {
-        const id = getAccId(req);
+    app.post('/api/friend/:gid/op', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
         try {
             const opType = String((req.body || {}).opType || '');
@@ -456,15 +456,15 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 好友黑名单
-    app.get('/api/friend-blacklist', (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/friend-blacklist', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
         const list = store.getFriendBlacklist ? store.getFriendBlacklist(id) : [];
         res.json({ ok: true, data: list });
     });
 
-    app.post('/api/friend-blacklist/toggle', (req, res) => {
-        const id = getAccId(req);
+    app.post('/api/friend-blacklist/toggle', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
         const gid = Number((req.body || {}).gid);
         if (!gid) return res.status(400).json({ ok: false, error: 'Missing gid' });
@@ -484,8 +484,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 种子列表
-    app.get('/api/seeds', async (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/seeds', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const data = await provider.getSeeds(id);
@@ -496,8 +496,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 背包物品
-    app.get('/api/bag', async (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/bag', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const data = await provider.getBag(id);
@@ -508,8 +508,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 每日礼包状态总览
-    app.get('/api/daily-gifts', async (req, res) => {
-        const id = getAccId(req);
+    app.get('/api/daily-gifts', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const data = await provider.getDailyGifts(id);
@@ -520,9 +520,9 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 启动账号
-    app.post('/api/accounts/:id/start', (req, res) => {
+    app.post('/api/accounts/:id/start', accountOwnershipRequired, async (req, res) => {
         try {
-            const ok = provider.startAccount(resolveAccId(req.params.id));
+            const ok = await provider.startAccount(req.params.id);
             if (!ok) {
                 return res.status(404).json({ ok: false, error: 'Account not found' });
             }
@@ -533,9 +533,9 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 停止账号
-    app.post('/api/accounts/:id/stop', (req, res) => {
+    app.post('/api/accounts/:id/stop', accountOwnershipRequired, async (req, res) => {
         try {
-            const ok = provider.stopAccount(resolveAccId(req.params.id));
+            const ok = await provider.stopAccount(req.params.id);
             if (!ok) {
                 return res.status(404).json({ ok: false, error: 'Account not found' });
             }
@@ -546,8 +546,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 农场一键操作
-    app.post('/api/farm/operate', async (req, res) => {
-        const id = getAccId(req);
+    app.post('/api/farm/operate', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
             const { opType } = req.body; // 'harvest', 'clear', 'plant', 'all'
@@ -571,8 +571,8 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 设置页统一保存（单次写入+单次广播）
-    app.post('/api/settings/save', async (req, res) => {
-        const id = getAccId(req);
+    app.post('/api/settings/save', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
         if (!id) {
             return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
         }
@@ -587,6 +587,11 @@ function startAdminServer(dataProvider) {
     // API: 设置面板主题
     app.post('/api/settings/theme', async (req, res) => {
         try {
+            if (req.currentUser && req.currentUser.role !== 'admin') {
+                // 普通用户不参与全局 UI 覆写，静默成功，保障前端逻辑依旧可以跑自身本地 localStorage
+                return res.json({ ok: true, data: store.getUI() });
+            }
+
             await provider.setUITheme((req.body || {}).theme);
 
             const uiUpdates = {};
@@ -605,9 +610,12 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    // API: 保存下线提醒配置
+    // API: 保存下线提醒配置 (全局推送设定)
     app.post('/api/settings/offline-reminder', async (req, res) => {
         try {
+            if (req.currentUser && req.currentUser.role !== 'admin') {
+                return res.json({ ok: true, data: {} });
+            }
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
             const data = store.setOfflineReminder ? store.setOfflineReminder(body) : {};
             res.json({ ok: true, data: data || {} });
@@ -617,9 +625,9 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 获取配置
-    app.get('/api/settings', async (req, res) => {
+    app.get('/api/settings', accountOwnershipRequired, async (req, res) => {
         try {
-            const id = getAccId(req);
+            const id = await getAccId(req);
             // 直接从主进程的 store 读取，确保即使账号未运行也能获取配置
             const intervals = store.getIntervals(id);
             const strategy = store.getPlantingStrategy(id);
@@ -628,6 +636,7 @@ function startAdminServer(dataProvider) {
             const automationRaw = store.getAutomation(id);
             const stealFilter = store.getStealFilterConfig ? store.getStealFilterConfig(id) : { enabled: false, mode: 'blacklist', plantIds: [] };
             const stealFriendFilter = store.getStealFriendFilterConfig ? store.getStealFriendFilterConfig(id) : { enabled: false, mode: 'blacklist', friendIds: [] };
+            const stakeoutSteal = store.getStakeoutStealConfig ? store.getStakeoutStealConfig(id) : { enabled: false, delaySec: 3 };
             // 前端期望 automation 内包含偷菜/偷好友过滤字段，合并后返回
             const automation = {
                 ...automationRaw,
@@ -642,24 +651,34 @@ function startAdminServer(dataProvider) {
             const offlineReminder = store.getOfflineReminder
                 ? store.getOfflineReminder()
                 : { channel: 'webhook', reloginUrlMode: 'none', endpoint: '', token: '', title: '账号下线提醒', msg: '账号下线', offlineDeleteSec: 120 };
-            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, ui, offlineReminder } });
+            // 从完整配置快照中提取工作流编排配置
+            const fullSnapshot = store.getConfigSnapshot(id);
+            const workflowConfig = fullSnapshot.workflowConfig || { farm: { enabled: false, minInterval: 2, maxInterval: 2, nodes: [] }, friend: { enabled: false, minInterval: 10, maxInterval: 10, nodes: [] } };
+            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, stakeoutSteal, workflowConfig, ui, offlineReminder } });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
         }
     });
 
     // API: 账号管理
-    app.get('/api/accounts', (req, res) => {
+    app.get('/api/accounts', async (req, res) => {
         try {
-            const data = provider.getAccounts();
-            res.json({ ok: true, data });
+            const data = await provider.getAccounts();
+            let accountList = [...(data.accounts || [])];
+
+            // 对非 admin 用户进行数据隔离过滤
+            if (req.currentUser && req.currentUser.role !== 'admin') {
+                accountList = accountList.filter(a => a.username === req.currentUser.username);
+            }
+
+            res.json({ ok: true, data: { ...data, accounts: accountList } });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
         }
     });
 
     // API: 更新账号备注（兼容旧接口）
-    app.post('/api/account/remark', (req, res) => {
+    app.post('/api/account/remark', accountOwnershipRequired, async (req, res) => {
         try {
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
             const rawRef = body.id || body.accountId || body.uin || req.headers['x-account-id'];
@@ -675,7 +694,7 @@ function startAdminServer(dataProvider) {
             }
 
             const accountId = String(target.id);
-            const data = addOrUpdateAccount({ id: accountId, name: remark });
+            const data = await addOrUpdateAccount({ id: accountId, name: remark });
             if (provider && typeof provider.setRuntimeAccountName === 'function') {
                 provider.setRuntimeAccountName(accountId, remark);
             }
@@ -688,13 +707,13 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    app.post('/api/accounts', (req, res) => {
+    app.post('/api/accounts', async (req, res) => {
         try {
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
 
             // 如果是新增请求，拦截并检查是否已存在相同 UIN 和 platform 的账号，如果是，则转为更新操作以避免重复创建
             if (!body.id && body.uin && body.platform) {
-                const existingAccounts = store.getAccounts();
+                const existingAccounts = await store.getAccounts();
                 const duplicateEntry = (existingAccounts.accounts || []).find(
                     a => String(a.uin) === String(body.uin) && a.platform === body.platform
                 );
@@ -709,7 +728,7 @@ function startAdminServer(dataProvider) {
             }
 
             const isUpdate = !!body.id;
-            const resolvedUpdateId = isUpdate ? resolveAccId(body.id) : '';
+            const resolvedUpdateId = isUpdate ? await resolveAccId(body.id) : '';
             const payload = isUpdate ? { ...body, id: resolvedUpdateId || String(body.id) } : body;
             let wasRunning = false;
             if (isUpdate && provider.isAccountRunning) {
@@ -718,14 +737,30 @@ function startAdminServer(dataProvider) {
 
             // 体验卡用户账号数限制校验（仅新增时）
             if (!isUpdate && req.currentUser && req.currentUser.maxAccounts > 0) {
-                const allAccounts = store.getAccounts();
+                const allAccounts = await store.getAccounts();
                 const userAccounts = (allAccounts.accounts || []).filter(a => a.username === req.currentUser.username);
                 if (userAccounts.length >= req.currentUser.maxAccounts) {
                     return res.status(400).json({ ok: false, error: `体验卡用户最多绑定 ${req.currentUser.maxAccounts} 个账号` });
                 }
             }
 
-            const data = addOrUpdateAccount(payload);
+            // 更新时的所有权校验及防篡改防御
+            if (isUpdate && req.currentUser && req.currentUser.role !== 'admin') {
+                const allAccounts = await store.getAccounts();
+                const existingAccount = (allAccounts.accounts || []).find(a => String(a.id) === payload.id);
+                if (!existingAccount || existingAccount.username !== req.currentUser.username) {
+                    return res.status(403).json({ ok: false, error: '无权修改此账号' });
+                }
+                // 强制锁定，防止抓包用户在更新时提交 username 字段进行提权或转让
+                payload.username = req.currentUser.username;
+            }
+
+            // 强制将数据与操作者绑定 (admin可以选择不绑定留作公用，但这里简化直接记录创建者)
+            if (!isUpdate && req.currentUser) {
+                payload.username = req.currentUser.username;
+            }
+
+            const data = await addOrUpdateAccount(payload);
             if (provider.addAccountLog) {
                 const accountId = isUpdate ? String(payload.id) : String((data.accounts[data.accounts.length - 1] || {}).id || '');
                 const accountName = payload.name || '';
@@ -739,10 +774,10 @@ function startAdminServer(dataProvider) {
             // 如果是新增，自动启动
             if (!isUpdate) {
                 const newAcc = data.accounts[data.accounts.length - 1];
-                if (newAcc) provider.startAccount(newAcc.id);
+                if (newAcc) await provider.startAccount(newAcc.id);
             } else if (wasRunning) {
                 // 如果是更新，且之前在运行，则重启
-                provider.restartAccount(payload.id);
+                await provider.restartAccount(payload.id);
             }
             res.json({ ok: true, data });
         } catch (e) {
@@ -750,12 +785,12 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    app.delete('/api/accounts/:id', (req, res) => {
+    app.delete('/api/accounts/:id', accountOwnershipRequired, async (req, res) => {
         try {
-            const resolvedId = resolveAccId(req.params.id) || String(req.params.id || '');
-            const before = provider.getAccounts();
+            const resolvedId = await resolveAccId(req.params.id) || String(req.params.id || '');
+            const before = await provider.getAccounts();
             const target = findAccountByRef(before.accounts || [], req.params.id);
-            provider.stopAccount(resolvedId);
+            await provider.stopAccount(resolvedId);
             const data = deleteAccount(resolvedId);
             if (provider.addAccountLog) {
                 provider.addAccountLog('delete', `删除账号: ${(target && target.name) || req.params.id}`, resolvedId, target ? target.name : '');
@@ -769,7 +804,7 @@ function startAdminServer(dataProvider) {
     // ============ 用户管理路由 ============
 
     // 用户注册
-    app.post('/api/auth/register', (req, res) => {
+    app.post('/api/auth/register', async (req, res) => {
         try {
             const { username, password, cardCode } = req.body || {};
 
@@ -820,7 +855,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 用户续费
-    app.post('/api/auth/renew', authRequired, (req, res) => {
+    app.post('/api/auth/renew', authRequired, async (req, res) => {
         try {
             const { cardCode } = req.body || {};
             if (!cardCode) {
@@ -850,7 +885,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 获取用户列表（仅管理员）
-    app.get('/api/users', authRequired, userRequired, (req, res) => {
+    app.get('/api/users', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -858,7 +893,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 更新用户（仅管理员）
-    app.put('/api/users/:username', authRequired, userRequired, (req, res) => {
+    app.put('/api/users/:username', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -866,7 +901,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 删除用户（仅管理员）
-    app.delete('/api/users/:username', authRequired, userRequired, (req, res) => {
+    app.delete('/api/users/:username', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -874,14 +909,14 @@ function startAdminServer(dataProvider) {
     });
 
     // 修改密码
-    app.post('/api/auth/change-password', authRequired, (req, res) => {
+    app.post('/api/auth/change-password', authRequired, async (req, res) => {
         usersController.changePassword(req, res);
     });
 
     // ============ 卡密管理路由 ============
 
     // 获取卡密列表（仅管理员）
-    app.get('/api/cards', authRequired, userRequired, (req, res) => {
+    app.get('/api/cards', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -889,7 +924,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 生成卡密（仅管理员）
-    app.post('/api/cards', authRequired, userRequired, (req, res) => {
+    app.post('/api/cards', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -897,7 +932,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 更新卡密（仅管理员）
-    app.put('/api/cards/:code', authRequired, userRequired, (req, res) => {
+    app.put('/api/cards/:code', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -905,7 +940,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 删除卡密（仅管理员）
-    app.delete('/api/cards/:code', authRequired, userRequired, (req, res) => {
+    app.delete('/api/cards/:code', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -913,7 +948,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 批量删除卡密（仅管理员）
-    app.post('/api/cards/batch-delete', authRequired, userRequired, (req, res) => {
+    app.post('/api/cards/batch-delete', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -957,7 +992,7 @@ function startAdminServer(dataProvider) {
     // ============ 体验卡 API ============
 
     // 公开 API：自助生成体验卡（无需登录）[带防刷限制]
-    app.post('/api/trial-card', trialRateLimiter, (req, res) => {
+    app.post('/api/trial-card', trialRateLimiter, async (req, res) => {
         try {
             const clientIP = getClientIP(req);
             const result = userStore.createTrialCard(clientIP);
@@ -971,7 +1006,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 获取体验卡配置（登录用户可读，管理员看全部，普通用户仅看 userRenewEnabled）
-    app.get('/api/trial-card-config', authRequired, (req, res) => {
+    app.get('/api/trial-card-config', authRequired, async (req, res) => {
         try {
             const config = store.getTrialCardConfig();
             if (req.currentUser && req.currentUser.role === 'admin') {
@@ -985,7 +1020,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 保存体验卡配置（仅管理员）
-    app.post('/api/trial-card-config', authRequired, userRequired, (req, res) => {
+    app.post('/api/trial-card-config', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -999,7 +1034,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 管理员为用户续费体验卡
-    app.post('/api/users/:username/trial-renew', authRequired, userRequired, (req, res) => {
+    app.post('/api/users/:username/trial-renew', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
@@ -1015,7 +1050,7 @@ function startAdminServer(dataProvider) {
     });
 
     // 用户自助续费体验卡
-    app.post('/api/auth/trial-renew', authRequired, (req, res) => {
+    app.post('/api/auth/trial-renew', authRequired, async (req, res) => {
         try {
             const result = userStore.renewTrialUser(req.currentUser.username, 'user');
             if (!result.ok) {
@@ -1031,10 +1066,20 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 账号日志
-    app.get('/api/account-logs', (req, res) => {
+    app.get('/api/account-logs', async (req, res) => {
         try {
             const limit = Number.parseInt(req.query.limit) || 100;
-            const list = provider.getAccountLogs ? provider.getAccountLogs(limit) : [];
+            let list = provider.getAccountLogs ? provider.getAccountLogs(limit) : [];
+
+            // 数据隔离：如果不是 admin，且日志没有明确的 accountId (无法过滤)，或者 accountId 不在允许的列表中，则过滤
+            if (req.currentUser && req.currentUser.role !== 'admin') {
+                const allAccounts = await store.getAccounts();
+                const userOwnedAccountIds = allAccounts.accounts
+                    .filter(a => a.username === req.currentUser.username)
+                    .map(a => String(a.id));
+                list = list.filter(l => l.accountId && userOwnedAccountIds.includes(String(l.accountId)));
+            }
+
             // 与当前 web 前端保持一致：直接返回数组
             res.json(Array.isArray(list) ? list : []);
         } catch (e) {
@@ -1043,9 +1088,30 @@ function startAdminServer(dataProvider) {
     });
 
     // API: 日志
-    app.get('/api/logs', (req, res) => {
+    app.get('/api/logs', async (req, res) => {
         const queryAccountIdRaw = (req.query.accountId || '').toString().trim();
-        const id = queryAccountIdRaw ? (queryAccountIdRaw === 'all' ? '' : resolveAccId(queryAccountIdRaw)) : getAccId(req);
+        const id = queryAccountIdRaw ? (queryAccountIdRaw === 'all' ? '' : await resolveAccId(queryAccountIdRaw)) : await getAccId(req);
+
+        let targetId = id;
+
+        // 数据隔离校验
+        if (req.currentUser && req.currentUser.role !== 'admin') {
+            const allAccounts = await store.getAccounts();
+            const userAccountIds = allAccounts.accounts
+                .filter(a => a.username === req.currentUser.username)
+                .map(a => String(a.id));
+
+            if (targetId) {
+                // 如果查询特定号，检查权限
+                if (!userAccountIds.includes(String(targetId))) {
+                    return res.status(403).json({ ok: false, error: '无权查看此账号日志' });
+                }
+            } else {
+                // 不支持普通用户在一堆混杂中查询所有，如果要查询all，后端底层 provider.getLogs 不太好弄过滤，
+                // 退而求其次，普通用户必须强制带 accountId 或者只能拿到空 (或者我们等会儿从返回的 list 里过滤)
+            }
+        }
+
         const options = {
             limit: Number.parseInt(req.query.limit) || 100,
             tag: req.query.tag || '',
@@ -1056,7 +1122,17 @@ function startAdminServer(dataProvider) {
             timeFrom: req.query.timeFrom || '',
             timeTo: req.query.timeTo || '',
         };
-        const list = provider.getLogs(id, options);
+        let list = provider.getLogs(targetId, options);
+
+        // 兜底过滤: 如果 targetId 为空 (用户查询所有，但其实普通用户应该受限)
+        if (!targetId && req.currentUser && req.currentUser.role !== 'admin') {
+            const allAccounts = await store.getAccounts();
+            const userAccountIds = allAccounts.accounts
+                .filter(a => a.username === req.currentUser.username)
+                .map(a => String(a.id));
+            list = list.filter(l => l.accountId && userAccountIds.includes(String(l.accountId)));
+        }
+
         res.json({ ok: true, data: list });
     });
 
@@ -1101,7 +1177,7 @@ function startAdminServer(dataProvider) {
         return entries;
     }
 
-    app.get('/api/notifications', (req, res) => {
+    app.get('/api/notifications', async (req, res) => {
         try {
             const limit = Number.parseInt(req.query.limit) || 10;
             const entries = parseUpdateLog();
@@ -1127,8 +1203,11 @@ function startAdminServer(dataProvider) {
                 }).then(r => r.json()).finally(() => clearTimeout(wxTimer));
 
                 if (wxRes.code === 0 && wxRes.data) {
-                    let qrcodeData = wxRes.data.QrBase64;
-                    if (qrcodeData && !qrcodeData.startsWith('data:')) {
+                    let qrcodeData = wxRes.data.QrBase64 || '';
+                    if (qrcodeData) {
+                        // 清理可能由于第三方接口格式改变带来的残缺或错误的 MIME 头部 (如把 png 头部错误拼成了 jpg)
+                        // 真正的 png base64 数据通常都以 iVBORw0KGg 开头
+                        qrcodeData = qrcodeData.replace(/^data:image\/(png|jpg|jpeg);base64,/i, '');
                         qrcodeData = `data:image/png;base64,${qrcodeData}`;
                     }
                     res.json({ ok: true, data: { qrcode: qrcodeData, code: wxRes.data.Uuid || wxRes.data.uuid, platform: 'wx' } });
@@ -1266,7 +1345,7 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    app.get('*', (req, res) => {
+    app.get('*', async (req, res) => {
         if (req.path.startsWith('/api') || req.path.startsWith('/game-config')) {
             return res.status(404).json({ ok: false, error: 'Not Found' });
         }
@@ -1277,36 +1356,84 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    const applySocketSubscription = (socket, accountRef = '') => {
+    const applySocketSubscription = async (socket, accountRef = '') => {
         const incoming = String(accountRef || '').trim();
-        const resolved = incoming && incoming !== 'all' ? resolveAccId(incoming) : '';
+        const resolved = incoming && incoming !== 'all' ? await resolveAccId(incoming) : '';
         for (const room of socket.rooms) {
             if (room.startsWith('account:')) socket.leave(room);
         }
+
+        const currentUser = socket.data.currentUser;
+
         if (resolved) {
-            socket.join(`account:${resolved}`);
-            socket.data.accountId = resolved;
+            // 请求订阅特定账号，检查权限
+            let allow = true;
+            if (currentUser && currentUser.role !== 'admin') {
+                const allAccounts = await store.getAccounts();
+                const account = allAccounts.accounts.find(a => String(a.id) === String(resolved));
+                if (!account || account.username !== currentUser.username) {
+                    allow = false; // 无权订阅别人的
+                }
+            }
+            if (allow) {
+                socket.join(`account:${resolved}`);
+                socket.data.accountId = resolved;
+                socket.emit('subscribed', { accountId: resolved });
+            } else {
+                // 如果无权，就不给它加入任何具体的账号房间或者返回一个出错信号
+                socket.data.accountId = '';
+                socket.emit('subscribed', { accountId: '' });
+                return; // 直接退出，不推送状态和日志快照
+            }
         } else {
-            socket.join('account:all');
+            // 请求订阅全量账号
             socket.data.accountId = '';
+            if (!currentUser || currentUser.role === 'admin') {
+                socket.join('account:all');
+                socket.emit('subscribed', { accountId: 'all' });
+            } else {
+                // 普通用户订阅 "all"，实际上只能订阅他名下的所有号
+                const allAccounts = await store.getAccounts();
+                const userOwnedAccountIds = allAccounts.accounts
+                    .filter(a => a.username === currentUser.username)
+                    .map(a => String(a.id));
+                for (const uid of userOwnedAccountIds) {
+                    socket.join(`account:${uid}`);
+                }
+                socket.emit('subscribed', { accountId: 'user_all' });
+            }
         }
-        socket.emit('subscribed', { accountId: socket.data.accountId || 'all' });
 
         try {
             const targetId = socket.data.accountId || '';
             if (targetId && provider && typeof provider.getStatus === 'function') {
-                const currentStatus = provider.getStatus(targetId);
+                const currentStatus = await provider.getStatus(targetId);
                 socket.emit('status:update', { accountId: targetId, status: currentStatus });
             }
             if (provider && typeof provider.getLogs === 'function') {
-                const currentLogs = provider.getLogs(targetId, { limit: 100 });
+                // 这里针对 websocket 连接建立时的初始全量快照也需要过滤
+                let currentLogs = await provider.getLogs(targetId, { limit: 100 });
+                if (!targetId && currentUser && currentUser.role !== 'admin') {
+                    const allAccounts = await store.getAccounts();
+                    const userAccountIds = allAccounts.accounts
+                        .filter(a => a.username === currentUser.username)
+                        .map(a => String(a.id));
+                    currentLogs = currentLogs.filter(l => l.accountId && userAccountIds.includes(String(l.accountId)));
+                }
                 socket.emit('logs:snapshot', {
-                    accountId: targetId || 'all',
+                    accountId: targetId || (currentUser && currentUser.role !== 'admin' ? 'user_all' : 'all'),
                     logs: Array.isArray(currentLogs) ? currentLogs : [],
                 });
             }
             if (provider && typeof provider.getAccountLogs === 'function') {
-                const currentAccountLogs = provider.getAccountLogs(100);
+                let currentAccountLogs = provider.getAccountLogs(100);
+                if (!targetId && currentUser && currentUser.role !== 'admin') {
+                    const allAccounts = await store.getAccounts();
+                    const userAccountIds = allAccounts.accounts
+                        .filter(a => a.username === currentUser.username)
+                        .map(a => String(a.id));
+                    currentAccountLogs = currentAccountLogs.filter(l => l.accountId && userAccountIds.includes(String(l.accountId)));
+                }
                 socket.emit('account-logs:snapshot', {
                     logs: Array.isArray(currentAccountLogs) ? currentAccountLogs : [],
                 });
@@ -1316,7 +1443,7 @@ function startAdminServer(dataProvider) {
         }
     };
 
-    const port = CONFIG.adminPort || 3000;
+    const port = process.env.FARM_PORT || CONFIG.adminPort || 3000;
     server = app.listen(port, '0.0.0.0', () => {
         adminLogger.info('admin panel started', { url: `http://localhost:${port}`, port });
     });
@@ -1342,19 +1469,20 @@ function startAdminServer(dataProvider) {
             return next(new Error('Unauthorized'));
         }
         socket.data.adminToken = token;
+        socket.data.currentUser = tokenUserMap.get(token); // 把 user 信息绑定到 socket
         return next();
     });
 
-    io.on('connection', (socket) => {
+    io.on('connection', async (socket) => {
         const initialAccountRef = (socket.handshake.auth && socket.handshake.auth.accountId)
             || (socket.handshake.query && socket.handshake.query.accountId)
             || '';
-        applySocketSubscription(socket, initialAccountRef);
+        await applySocketSubscription(socket, initialAccountRef);
         socket.emit('ready', { ok: true, ts: Date.now() });
 
-        socket.on('subscribe', (payload) => {
+        socket.on('subscribe', async (payload) => {
             const body = (payload && typeof payload === 'object') ? payload : {};
-            applySocketSubscription(socket, body.accountId || '');
+            await applySocketSubscription(socket, body.accountId || '');
         });
     });
 }

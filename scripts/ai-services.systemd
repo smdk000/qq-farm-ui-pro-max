@@ -1,0 +1,36 @@
+[Unit]
+Description=QQ Farm AI Services (OpenViking + Qwen)
+After=network.target
+
+[Service]
+Type=forking
+User=your-username
+Group=your-group
+
+WorkingDirectory=/home/your-username/qq-farm-bot-ui-main
+
+# 环境变量
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="NODE_ENV=production"
+
+# 启动脚本
+ExecStart=/usr/bin/node /home/your-username/qq-farm-bot-ui-main/ai-services-daemon.js
+
+# 自动重启
+Restart=always
+RestartSec=5
+
+# 资源限制
+Nice=10
+IOSchedulingClass=idle
+
+# 日志
+StandardOutput=append:/home/your-username/qq-farm-bot-ui-main/logs/ai-services.log
+StandardError=append:/home/your-username/qq-farm-bot-ui-main/logs/ai-services-error.log
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

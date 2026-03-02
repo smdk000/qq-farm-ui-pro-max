@@ -1,0 +1,89 @@
+version: '3.8'
+
+# QQ 农场助手 - 生产环境 Docker Compose 配置
+# 使用方法:
+#   启动：docker-compose -f docker-compose.prod.yml up -d
+#   停止：docker-compose -f docker-compose.prod.yml down
+#   查看日志：docker-compose -f docker-compose.prod.yml logs -f
+#   更新：docker-compose -f docker-compose.prod.yml pull && docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  qq-farm-bot-ui:
+    image: smdk000/qq-farm-bot-ui:latest
+    # 或者使用 GitHub Container Registry
+    # image: ghcr.io/smdk000/qq-farm-bot-ui:latest
+    
+    container_name: qq-farm-bot-ui
+    hostname: qq-farm-bot
+    
+    # 重启策略
+    restart: unless-stopped
+    
+    # 端口映射
+    ports:
+      - "3080:3000"
+    
+    # 环境变量
+    environment:
+      # 管理员密码（请修改）
+      - ADMIN_PASSWORD=qq007qq008
+      # 时区
+      - TZ=Asia/Shanghai
+      # Node 环境
+      - NODE_ENV=production
+      # 日志级别（可选：debug, info, warn, error）
+      - LOG_LEVEL=info
+    
+    # 数据卷
+    volumes:
+      # 核心数据（账号配置、数据库等）
+      - ./data:/app/core/data
+      # 日志文件（可选）
+      - ./logs:/app/core/logs
+      # 备份目录（可选）
+      - ./backup:/app/core/backup
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 网络配置
+    networks:
+      - qq-farm-network
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"
+
+# 网络定义
+networks:
+  qq-farm-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# 数据卷定义（可选，用于持久化）
+volumes:
+  qq-farm-data:
+    driver: local
+  qq-farm-logs:
+    driver: local

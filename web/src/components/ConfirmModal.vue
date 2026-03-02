@@ -52,7 +52,7 @@ const emit = defineEmits<{
       <div class="flex items-center gap-3 border-t border-gray-200/50 bg-white/20 px-6 py-4 dark:border-white/10 dark:bg-black/20">
         <button
           v-if="!isAlert"
-          class="glass-text-main flex-1 border border-gray-200/50 rounded-xl bg-white/50 px-4 py-2.5 text-sm font-medium shadow-sm transition-all active:scale-[0.98] dark:border-white/10 dark:bg-black/20 hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:hover:bg-white/10"
+          class="glass-text-main flex-1 border border-gray-200/50 rounded-xl bg-black/5 px-4 py-2.5 text-sm font-medium shadow-sm transition-all active:scale-[0.98] dark:border-white/10 dark:bg-black/20 hover:bg-black/10 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:hover:bg-white/10"
           :disabled="loading"
           @click="emit('cancel')"
         >

@@ -140,7 +140,7 @@ onUnmounted(() => {
           <div class="i-carbon-sprout" />
           <span class="font-medium">生长: {{ summary?.growing || 0 }}</span>
         </div>
-        <div class="glass-text-muted flex items-center gap-1.5 rounded-full bg-white/50 px-3 py-1 dark:bg-white/10">
+        <div class="glass-text-muted flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1 dark:bg-white/10">
           <div class="i-carbon-checkbox" />
           <span class="font-medium">空闲: {{ summary?.empty || 0 }}</span>
         </div>

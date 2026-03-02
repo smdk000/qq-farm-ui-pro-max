@@ -92,6 +92,7 @@ function createWorkerManager(options) {
             config: {
                 code: account.code,
                 platform: account.platform,
+                uin: account.uin,
             },
         });
         child.send({ type: 'config_sync', config: buildConfigSnapshotForAccount(account.id) });
@@ -212,7 +213,7 @@ function createWorkerManager(options) {
                         addOrUpdateAccount({
                             id: accountId,
                             nick: newNick,
-                        });
+                        }).catch(e => console.error('[worker-manager] 自动更新账号昵称失败:', e));
                         // 仅在首次同步或名称变更时记录日志
                         if (oldNick !== newNick) {
                             log('系统', `已同步账号昵称: ${oldNick || 'None'} -> ${newNick}`, { accountId, accountName: worker.name });
@@ -276,6 +277,9 @@ function createWorkerManager(options) {
         } else if (msg.type === 'error') {
             log('错误', `账号[${accountId}]进程报错: ${msg.error}`, { accountId: String(accountId), accountName: worker.name });
         } else if (msg.type === 'ws_error') {
+            // 如果 worker 正在停止中（例如 restartWorker 过程），忽略 ws_error
+            // 避免旧进程的错误状态传播到前端，导致扫码弹窗重新弹出
+            if (worker.stopping) return;
             const code = Number(msg.code) || 0;
             const message = msg.message || '';
             worker.wsError = { code, message, at: Date.now() };

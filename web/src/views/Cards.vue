@@ -292,7 +292,7 @@ function copyAllGenerated() {
                 <input
                   type="checkbox"
                   :checked="selectedCards.length === cards.length && cards.length > 0"
-                  class="h-4 w-4 border-gray-300 rounded text-blue-600 focus:ring-blue-500"
+              class="h-4 w-4 border-black/10 rounded bg-black/5 text-primary-600 dark:border-white/20 dark:bg-black/40 focus:ring-primary-500"
                   @change="toggleSelectAll"
                 >
               </th>
@@ -323,14 +323,14 @@ function copyAllGenerated() {
             <tr
               v-for="card in cards"
               :key="card.code"
-              class="hover:bg-black/5 dark:hover:bg-white/5" :class="[selectedCards.includes(card.code) ? 'bg-blue-50 dark:bg-blue-900/20' : '']"
+              class="hover:bg-black/5 dark:hover:bg-white/5" :class="[selectedCards.includes(card.code) ? 'bg-primary-500/10' : '']"
             >
               <td class="whitespace-nowrap px-6 py-4">
                 <input
                   v-model="selectedCards"
                   type="checkbox"
                   :value="card.code"
-                  class="h-4 w-4 border-gray-300 rounded text-blue-600 focus:ring-blue-500"
+              class="h-4 w-4 border-black/10 rounded bg-black/5 text-primary-600 dark:border-white/20 dark:bg-black/40 focus:ring-primary-500"
                 >
               </td>
               <td class="whitespace-nowrap px-6 py-4">

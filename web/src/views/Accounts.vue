@@ -94,8 +94,8 @@ function handleSaved() {
       <div>加载中...</div>
     </div>
 
-    <div v-else-if="accounts.length === 0" class="rounded-lg bg-white py-12 text-center shadow dark:bg-gray-800">
-      <div i-carbon-user-avatar class="mb-4 inline-block text-4xl text-gray-400 dark:text-gray-300" />
+    <div v-else-if="accounts.length === 0" class="glass-panel rounded-lg py-12 text-center shadow">
+      <div i-carbon-user-avatar class="mb-4 inline-block text-4xl glass-text-muted" />
       <p class="glass-text-muted mb-4">
         暂无账号
       </p>
@@ -111,15 +111,15 @@ function handleSaved() {
       <div
         v-for="acc in accounts"
         :key="acc.id"
-        class="cursor-pointer border rounded-lg bg-white p-4 shadow transition-colors hover:border-blue-500 dark:bg-gray-800"
-        :class="acc.id === accountStore.currentAccountId ? 'border-primary-500 ring-1 ring-primary-500 dark:border-primary-400 dark:ring-primary-400' : 'border-transparent'"
+        class="glass-panel cursor-pointer rounded-lg p-4 shadow transition-all duration-300 border border-transparent hover:border-primary-500/50 hover:shadow-[0_0_15px_rgba(var(--color-primary-500),0.1)]"
+        :class="acc.id === accountStore.currentAccountId ? 'border-primary-500/50 bg-primary-500/[0.03] shadow-[0_0_20px_rgba(var(--color-primary-500),0.15)] dark:border-primary-400/50' : ''"
         @click="accountStore.selectAccount(acc.id)"
       >
         <div class="mb-4 flex items-start justify-between">
           <div class="flex items-center gap-3">
-            <div class="h-12 w-12 flex items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+            <div class="h-12 w-12 flex items-center justify-center overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
               <img v-if="acc.uin" :src="`https://q1.qlogo.cn/g?b=qq&nk=${acc.uin}&s=100`" class="h-full w-full object-cover">
-              <div v-else class="i-carbon-user text-2xl text-gray-400 dark:text-gray-300" />
+              <div v-else class="i-carbon-user text-2xl glass-text-muted" />
             </div>
             <div>
               <h3 class="text-lg font-bold">
@@ -135,7 +135,7 @@ function handleSaved() {
               variant="secondary"
               size="sm"
               class="w-20 border rounded-full shadow-sm transition-all duration-500 ease-in-out active:scale-95"
-              :class="acc.running ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100 focus:ring-red-500 active:border-red-300 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 dark:focus:ring-red-500 dark:active:border-red-700' : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 focus:ring-green-500 active:border-green-300 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 dark:focus:ring-green-500 dark:active:border-green-700'"
+              :class="acc.running ? 'border-red-500/20 bg-red-500/10 text-red-600 hover:bg-red-500/20 focus:ring-red-500/50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20' : 'border-green-500/20 bg-green-500/10 text-green-600 hover:bg-green-500/20 focus:ring-green-500/50 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20'"
               @click.stop="toggleAccount(acc)"
             >
               <div :class="acc.running ? 'i-carbon-stop-filled' : 'i-carbon-play-filled'" class="mr-1" />
@@ -144,7 +144,7 @@ function handleSaved() {
           </div>
         </div>
 
-        <div class="mt-2 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-700">
+        <div class="mt-2 flex items-center justify-between border-t border-gray-100/50 pt-4 dark:border-white/10">
           <div class="glass-text-muted flex items-center gap-2 text-sm">
             <span class="flex items-center gap-1">
               <div class="h-2 w-2 rounded-full" :class="acc.running ? 'bg-green-500' : 'bg-gray-300'" />

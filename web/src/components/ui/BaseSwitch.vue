@@ -25,24 +25,6 @@ const model = defineModel<boolean>()
       <span v-if="label" class="glass-text-main select-none text-sm font-medium">
         {{ label }}
       </span>
-      <!-- Tooltip 提示图标 - 小尺寸 -->
-      <span v-if="hint" class="hint-trigger relative ml-0.5 inline-flex items-center">
-        <span class="h-3.5 w-3.5 inline-flex items-center justify-center rounded-full bg-gray-200/80 text-[9px] text-gray-500 font-bold leading-none transition-colors dark:bg-white/10 hover:bg-blue-100 dark:text-gray-300 hover:text-blue-600 dark:hover:bg-primary-500/20 dark:hover:text-primary-400">?</span>
-        <span class="hint-bubble glass-panel glass-text-main pointer-events-none absolute left-full top-1/2 z-50 ml-3 w-64 border border-gray-200/50 rounded-lg px-3 py-2.5 text-xs leading-relaxed opacity-0 shadow-black/8 shadow-lg transition-all duration-200 -translate-y-1/2 dark:border-white/10 dark:shadow-black/30">
-          <span class="block">{{ hint }}</span>
-          <span v-if="recommend === 'on'" class="recommend-tag recommend-on">
-            <span class="dot" />推荐开启
-          </span>
-          <span v-else-if="recommend === 'off'" class="recommend-tag recommend-off">
-            <span class="dot" />推荐关闭
-          </span>
-          <span v-else-if="recommend === 'conditional'" class="recommend-tag recommend-conditional">
-            <span class="dot" />视情况而定
-          </span>
-          <!-- 气泡箭头（指向左侧问号图标） -->
-          <span class="absolute left-0 top-1/2 -ml-1.5 border-2 border-transparent border-r-white -translate-y-1/2 dark:border-r-gray-800" />
-        </span>
-      </span>
     </label>
     <!-- Hint 文字说明 - 直接显示在开关下方 -->
     <p v-if="hint" class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
@@ -55,16 +37,6 @@ const model = defineModel<boolean>()
 </template>
 
 <style scoped>
-/* 悬浮提示框样式 - 默认隐藏，hover 时显示 */
-.hint-bubble {
-  pointer-events: none;
-}
-
-.hint-trigger:hover .hint-bubble {
-  opacity: 1;
-  transform: translateX(0) translateY(-50%);
-}
-
 /* 下方文字说明中的推荐标签 */
 .recommend-badge {
   display: inline-block;

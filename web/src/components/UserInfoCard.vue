@@ -3,14 +3,12 @@
 <script setup lang="ts">
 import { useStorage } from '@vueuse/core'
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { useAppStore } from '@/stores/app'
 import { useSettingStore } from '@/stores/setting'
 
-const router = useRouter()
 const token = useStorage('admin_token', '')
 const currentUser = ref<any>(null)
 const appStore = useAppStore()
@@ -181,7 +179,9 @@ const tooltip = computed(() => {
 async function handleLogout() {
   token.value = ''
   saveCurrentUser(null)
-  router.push('/login')
+  localStorage.removeItem('current_account_id')
+  // 使用 window.location.href 强制刷新页面，彻底销毁 Pinia 内存残留的所有数据
+  window.location.href = '/login'
 }
 
 // ============ 体验卡一键自助续费 ============

@@ -248,7 +248,7 @@ async function saveAccountSettings() {
 
     const res = await settingStore.saveSettings(selectedAccount.value, fullSettingsToSave)
     if (res.ok) {
-      showAlert('过滤名单已成功同步至云端')
+      showAlert('偷菜设置已成功同步至云端')
     }
     else {
       showAlert(`保存失败: ${res.error}`, 'danger')
@@ -319,8 +319,7 @@ async function saveAccountSettings() {
             v-model="searchQuery"
             type="text"
             :placeholder="activeTab === 'friends' ? '搜索好友昵称/备注...' : '搜索作物名称...'"
-            class="glass-text-main m-0 box-border block h-[36px] w-full border border-gray-300/50 rounded-md bg-white/50 py-1.5 pl-9 pr-3 text-sm font-medium leading-5 transition-colors dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:bg-black/40 placeholder-gray-500 dark:placeholder-gray-400"
-          >
+            class="glass-text-main m-0 box-border block h-[36px] w-full border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-9 pr-3 text-sm font-medium leading-5 transition-colors dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:bg-black/40 placeholder-gray-500 dark:placeholder-gray-400"
         </div>
 
         <!-- Divider -->
@@ -341,24 +340,24 @@ async function saveAccountSettings() {
           <select
             v-if="activeTab === 'friends'"
             v-model="localSettings.automation.stealFriendFilterMode"
-            class="glass-text-main border border-gray-300/50 rounded-md bg-white/50 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/80 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
+            class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
           >
-            <option value="blacklist" class="dark:bg-gray-800">
+            <option value="blacklist" class="bg-white dark:bg-gray-900">
               黑名单
             </option>
-            <option value="whitelist" class="dark:bg-gray-800">
+            <option value="whitelist" class="bg-white dark:bg-gray-900">
               白名单
             </option>
           </select>
           <select
             v-else
             v-model="localSettings.automation.stealFilterMode"
-            class="glass-text-main border border-gray-300/50 rounded-md bg-white/50 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/80 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
+            class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
           >
-            <option value="blacklist" class="dark:bg-gray-800">
+            <option value="blacklist" class="bg-white dark:bg-gray-900">
               黑名单
             </option>
-            <option value="whitelist" class="dark:bg-gray-800">
+            <option value="whitelist" class="bg-white dark:bg-gray-900">
               白名单
             </option>
           </select>
@@ -406,6 +405,7 @@ async function saveAccountSettings() {
           </BaseButton>
         </div>
       </div>
+
 
       <!-- Main Visual Grid Area -->
       <div class="flex-1 p-1">
@@ -491,7 +491,7 @@ async function saveAccountSettings() {
             @click="togglePlant(seed.seedId)"
           >
             <div class="min-w-0 flex flex-1 items-start gap-3">
-              <div class="relative h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-lg bg-white/50 p-1 shadow-sm dark:border-white/10 dark:bg-black/20">
+              <div class="relative h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-lg bg-black/5 p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
                 <img
                   :src="cropAnalytics[seed.seedId]?.image || `https://qzonestyle.gtimg.cn/qzone/sngapp/app/appstore/app_100371286/crop/${seed.seedId}.png`"
                   class="z-10 max-h-full max-w-full object-contain drop-shadow-sm"
@@ -532,7 +532,7 @@ async function saveAccountSettings() {
 
             <div
               class="ml-2 mt-1 h-[22px] w-[22px] flex shrink-0 items-center justify-center border rounded transition-colors"
-              :class="isPlantSelected(seed.seedId) ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-gray-300 bg-gray-50 group-hover:border-indigo-400 dark:border-gray-600 dark:bg-gray-800/50'"
+              :class="isPlantSelected(seed.seedId) ? 'bg-primary-500 border-primary-500 text-white' : 'border-gray-300 bg-black/5 group-hover:border-primary-400 dark:border-white/20 dark:bg-white/5'"
             >
               <div v-if="isPlantSelected(seed.seedId)" class="i-carbon-checkmark text-sm" />
             </div>

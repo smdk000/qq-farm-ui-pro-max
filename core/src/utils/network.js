@@ -546,11 +546,19 @@ function startHeartbeat() {
 // ============ WebSocket 连接 ============
 let savedLoginCallback = null;
 let savedCode = null;
+let savedOpenId = null;
 
-function connect(code, onLoginSuccess) {
+function connect(code, openId, onLoginSuccess) {
+    if (typeof openId === 'function') {
+        onLoginSuccess = openId;
+        openId = null;
+    }
     savedLoginCallback = onLoginSuccess;
     if (code) savedCode = code;
-    const url = `${CONFIG.serverUrl}?platform=${CONFIG.platform}&os=${CONFIG.os}&ver=${CONFIG.clientVersion}&code=${savedCode}&openID=`;
+    if (openId) savedOpenId = openId;
+    const url = `${CONFIG.serverUrl}?platform=${CONFIG.platform}&os=${CONFIG.os}&ver=${CONFIG.clientVersion}&code=${savedCode}&openID=${savedOpenId || ''}`;
+
+    console.log(`[DEBUG WS CONNECT] platform=${CONFIG.platform}, code=${savedCode}, openID=${savedOpenId || ''}, url=${url}`);
 
     ws = new WebSocket(url, {
         headers: {
@@ -572,8 +580,9 @@ function connect(code, onLoginSuccess) {
     ws.on('close', (code, _reason) => {
         console.warn(`[WS] 连接关闭 (code=${code})`);
         cleanup();
-        // 自动重连：延迟 5s 后重试，复用已保存的登录回调
-        if (savedLoginCallback) {
+        // 如果是因为 400 错误关闭的（code 已失效），不自动重连
+        // 自动重连使用旧 code 只会无限循环 400→close→reconnect→400
+        if (savedLoginCallback && wsErrorState.code !== 400) {
             networkScheduler.setTimeoutTask('auto_reconnect', 5000, () => {
                 log('系统', '[WS] 尝试自动重连...');
                 reconnect(null);

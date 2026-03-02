@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信农场登录</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.08); padding: 36px 40px; width: 420px; }
+  h2 { font-size: 20px; color: #1a1a1a; margin-bottom: 24px; text-align: center; }
+  .field { margin-bottom: 16px; }
+  label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
+  input { width: 100%; padding: 9px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; outline: none; transition: border .2s; }
+  input:focus { border-color: #07c160; }
+  .btn { width: 100%; padding: 11px; background: #07c160; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; transition: background .2s; }
+  .btn:hover { background: #06ad56; }
+  .btn:disabled { background: #a8d5b8; cursor: not-allowed; }
+  .qr-wrap { text-align: center; margin: 20px 0 8px; }
+  .qr-wrap img { width: 200px; height: 200px; border: 1px solid #eee; border-radius: 8px; }
+  .status { text-align: center; font-size: 13px; color: #888; margin-bottom: 16px; }
+  .status.ok { color: #07c160; }
+  .status.err { color: #e74c3c; }
+  .result { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; padding: 14px; font-size: 13px; line-height: 1.8; margin-top: 16px; word-break: break-all; }
+  .result .row { display: flex; gap: 8px; }
+  .result .lbl { color: #888; min-width: 70px; }
+  .result .val { color: #1a1a1a; font-weight: 500; }
+  .divider { border: none; border-top: 1px solid #f0f0f0; margin: 24px 0; }
+  .section-title { font-size: 13px; color: #888; margin-bottom: 12px; }
+  #jslogin-result { background: #f0f7ff; border: 1px solid #91caff; border-radius: 6px; padding: 14px; font-size: 13px; margin-top: 16px; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>微信农场登录</h2>
+
+  <!-- API Key 隐藏内置 -->
+
+  <!-- Step 1 -->
+  <button class="btn" id="btn-getqr" onclick="getQR()">获取登录二维码</button>
+
+  <div class="qr-wrap" id="qr-wrap" style="display:none">
+    <img id="qr-img" src="" alt="二维码">
+  </div>
+  <div class="status" id="qr-status"></div>
+
+  <!-- Step 2 轮询 -->
+  <button class="btn" id="btn-check" onclick="startCheck()" style="display:none; margin-top:0; background:#1677ff">开始轮询扫码状态</button>
+
+  <div class="result" id="login-result" style="display:none"></div>
+
+  <hr class="divider">
+
+  <!-- JSLogin -->
+  <div class="section-title">JSLogin — 获取小程序 code</div>
+  <div class="field">
+    <label>wxid</label>
+    <input id="js-wxid" type="text" placeholder="wxid_xxx" readonly>
+  </div>
+  <div class="field">
+    <label>appid</label>
+    <input id="js-appid" type="text" value="wx5306c5978fdb76e4" readonly>
+  </div>
+  <button class="btn" id="btn-jslogin" onclick="jsLogin()" style="background:#722ed1">获取 code</button>
+  <div id="jslogin-result" style="display:none"></div>
+</div>
+
+<script>
+const API     = 'http://api.aineishe.com/api/wxnc';
+const API_KEY = '9GW6RXHCNrp8zIk27GUUz6RP';
+let currentUuid = '';
+let pollTimer   = null;
+
+function apiKey() {
+  return API_KEY;
+}
+
+function url(action) {
+  return `${API}?api_key=${encodeURIComponent(apiKey())}&action=${action}`;
+}
+
+async function post(action, body) {
+  const r = await fetch(url(action), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+async function get(action, params) {
+  const qs = new URLSearchParams({ api_key: apiKey(), action, ...params });
+  const r = await fetch(`${API}?${qs}`);
+  return r.json();
+}
+
+// ── 获取二维码 ──────────────────────────────────────────────
+async function getQR() {
+  stopPoll();
+  setStatus('', '');
+  document.getElementById('login-result').style.display = 'none';
+  document.getElementById('btn-check').style.display = 'none';
+
+  const btn = document.getElementById('btn-getqr');
+  btn.disabled = true; btn.textContent = '获取中...';
+
+  try {
+    let res;
+    if (window.location.origin && window.location.origin.startsWith('http')) {
+      const r = await fetch('/api/qr/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: 'wx' }) });
+      const json = await r.json();
+      if (!json.ok || !json.data) res = { code: 1, msg: json.error || '获取失败' };
+      else res = { code: 0, data: { Uuid: json.data.uuid, QrBase64: json.data.qrcode, ExpiredTime: json.data.expiredTime } };
+    } else {
+      res = await post('getqr', {});
+    }
+    if (res.code !== 0) { setStatus('err', res.msg || '获取失败'); return; }
+
+    currentUuid = res.data.Uuid;
+    const qrSrc = (res.data.QrBase64 && res.data.QrBase64.startsWith('data:')) ? res.data.QrBase64 : ('data:image/png;base64,' + res.data.QrBase64);
+    document.getElementById('qr-img').src = qrSrc;
+    document.getElementById('qr-wrap').style.display = 'block';
+    setStatus('', `有效期至 ${res.data.ExpiredTime}，请用微信扫码`);
+    document.getElementById('btn-check').style.display = 'block';
+    startCheck();
+  } catch(e) {
+    setStatus('err', '请求异常: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '获取登录二维码';
+  }
+}
+
+// ── 轮询扫码 ────────────────────────────────────────────────
+function startCheck() {
+  if (!currentUuid) { alert('请先获取二维码'); return; }
+  stopPoll();
+  setStatus('', '轮询中，等待扫码...');
+  pollTimer = setInterval(checkQR, 2000);
+}
+
+function stopPoll() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function checkQR() {
+  try {
+    let d, ok = false;
+    if (window.location.origin && window.location.origin.startsWith('http')) {
+      const r = await fetch('/api/qr/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: 'wx', uuid: currentUuid }) });
+      const json = await r.json();
+      if (json.ok && json.data && json.data.status === 'OK') {
+        d = json.data; ok = true;
+      } else {
+        setStatus('', json.data && json.data.status === 'Wait' ? '等待扫码...' : ('等待扫码... ' + (json.data && json.data.error || '')));
+      }
+    } else {
+      const res = await post('checkqr', { uuid: currentUuid });
+      if (res.code === 0 && res.data && (res.data.wxid || '').trim()) {
+        d = res.data; ok = true;
+      } else {
+        setStatus('', '等待扫码... (Code: ' + (res.Code ?? res.code) + ')');
+      }
+    }
+    if (ok && d) {
+      stopPoll();
+      setStatus('ok', '登录成功');
+      document.getElementById('btn-check').style.display = 'none';
+      document.getElementById('js-wxid').value = d.wxid || '';
+      document.getElementById('login-result').style.display = 'block';
+      document.getElementById('login-result').innerHTML = `
+        <div class="row"><span class="lbl">wxid</span><span class="val">${d.wxid || '—'}</span></div>
+        <div class="row"><span class="lbl">昵称</span><span class="val">${d.nickname || '—'}</span></div>
+        <div class="row"><span class="lbl">手机号</span><span class="val">${d.mobile || '—'}</span></div>
+        <div class="row"><span class="lbl">code</span><span class="val">${d.code || '—'}</span></div>
+      `;
+    }
+  } catch(e) {
+    stopPoll();
+    setStatus('err', '轮询异常: ' + e.message);
+  }
+}
+
+// ── JSLogin ─────────────────────────────────────────────────
+async function jsLogin() {
+  const wxid  = document.getElementById('js-wxid').value.trim();
+  const appid = document.getElementById('js-appid').value.trim() || 'wx5306c5978fdb76e4';
+  if (!wxid) { alert('请先完成微信扫码登录，获取 wxid'); return; }
+
+  const btn = document.getElementById('btn-jslogin');
+  btn.disabled = true; btn.textContent = '请求中...';
+
+  try {
+    let code, state, err;
+    if (window.location.origin && window.location.origin.startsWith('http')) {
+      const r = await fetch('/api/wx/jslogin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wxid, appid }) });
+      const json = await r.json();
+      if (json.ok && json.data) { code = json.data.code; state = json.data.state; }
+      else err = json.error || '获取失败';
+    } else {
+      const res = await post('jslogin', { wxid, appid });
+      if (res.code === 0 && res.data) { code = res.data.code; state = res.data.state; }
+      else err = res.msg || '获取失败';
+    }
+    const el = document.getElementById('jslogin-result');
+    el.style.display = 'block';
+    if (code !== undefined) {
+      el.innerHTML = `<b>code：</b>${code}<br><b>state：</b>${state || '—'}`;
+
+      // 如果是从面板打开的窗口，将 code 发送回去，便于自动填充账号
+      try {
+        if (window.opener && window.opener.postMessage) {
+          window.opener.postMessage({
+            type: 'WX_FARM_CODE',
+            code,
+            wxid,
+            state: state || '',
+          }, '*');
+        }
+      } catch (e2) {
+        console.warn('postMessage WX_FARM_CODE 失败:', e2);
+      }
+    } else {
+      el.innerHTML = `<span style="color:#e74c3c">${err || '请求失败'}</span>`;
+    }
+  } catch(e) {
+    document.getElementById('jslogin-result').style.display = 'block';
+    document.getElementById('jslogin-result').innerHTML = `<span style="color:#e74c3c">请求异常: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '获取 code';
+  }
+}
+
+function setStatus(type, msg) {
+  const el = document.getElementById('qr-status');
+  el.className = 'status' + (type ? ' ' + type : '');
+  el.textContent = msg;
+}
+</script>
+</body>
+</html>

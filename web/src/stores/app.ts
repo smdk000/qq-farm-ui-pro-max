@@ -123,6 +123,11 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // 端云仲裁时间戳，用来防止多开/网络延迟产生的状态覆写
+  const uiTimestamp = useStorage('app_ui_sync_time', 0)
+
+
+
   /**
    * 尝试获取用户地理位置（用于日出日落计算）
    */
@@ -160,7 +165,18 @@ export const useAppStore = defineStore('app', () => {
     try {
       const res = await api.get('/api/ui-config')
       if (res.data.ok && res.data.data) {
-        const { theme, loginBackground: bg, colorTheme: ct, performanceMode: pm } = res.data.data
+        const { theme, loginBackground: bg, colorTheme: ct, performanceMode: pm, timestamp: svrTimestamp } = res.data.data
+
+        // 仲裁：如果本地快照比云端新，拒绝下发覆盖
+        if (svrTimestamp !== undefined && svrTimestamp < uiTimestamp.value) {
+          return
+        }
+
+        // 更新本地时间戳至服务器维度
+        if (svrTimestamp !== undefined) {
+          uiTimestamp.value = svrTimestamp
+        }
+
         if (['light', 'dark', 'auto'].includes(theme)) {
           themeMode.value = theme
           localStorage.setItem(THEME_KEY, theme)
@@ -184,7 +200,12 @@ export const useAppStore = defineStore('app', () => {
 
   async function setUIConfig(config: { theme?: ThemeMode, loginBackground?: string, colorTheme?: string, performanceMode?: boolean }) {
     try {
-      await api.post('/api/settings/theme', config)
+      const newTimestamp = Date.now()
+      await api.post('/api/settings/theme', { ...config, timestamp: newTimestamp })
+
+      // 更新本地写入时间戳
+      uiTimestamp.value = newTimestamp
+
       if (config.theme) {
         themeMode.value = config.theme
         localStorage.setItem(THEME_KEY, config.theme)

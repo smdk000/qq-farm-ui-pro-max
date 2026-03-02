@@ -10,6 +10,8 @@ export interface AutomationConfig {
   task?: boolean
   sell?: boolean
   fertilizer?: string
+  fertilizer_buy?: boolean
+  fertilizer_buy_limit?: number
   friend_steal?: boolean
   friend_help?: boolean
   friend_bad?: boolean
@@ -55,6 +57,24 @@ export interface UIConfig {
   theme?: string
 }
 
+export interface WorkflowNodeConfig {
+  id: string
+  type: string
+  params?: Record<string, any>
+}
+
+export interface WorkflowLaneConfig {
+  enabled: boolean
+  minInterval: number
+  maxInterval: number
+  nodes: WorkflowNodeConfig[]
+}
+
+export interface WorkflowConfig {
+  farm: WorkflowLaneConfig
+  friend: WorkflowLaneConfig
+}
+
 export interface SettingsState {
   plantingStrategy: string
   preferredSeedId: number
@@ -64,6 +84,7 @@ export interface SettingsState {
   ui: UIConfig
   offlineReminder: OfflineConfig
   trialConfig: TrialCardConfig
+  workflowConfig: WorkflowConfig
 }
 
 export const useSettingStore = defineStore('setting', () => {
@@ -92,6 +113,10 @@ export const useSettingStore = defineStore('setting', () => {
       dailyLimit: 50,
       cooldownMs: 4 * 60 * 60 * 1000,
     },
+    workflowConfig: {
+      farm: { enabled: false, minInterval: 2, maxInterval: 2, nodes: [] },
+      friend: { enabled: false, minInterval: 10, maxInterval: 10, nodes: [] },
+    },
   })
   const loading = ref(false)
 
@@ -111,6 +136,9 @@ export const useSettingStore = defineStore('setting', () => {
         settings.value.friendQuietHours = d.friendQuietHours || { enabled: false, start: '23:00', end: '07:00' }
         settings.value.automation = d.automation || {}
         settings.value.ui = d.ui || {}
+          // 蹲守配置挂到 settings 上层以便 StealSettings.vue 读取
+          ; (settings.value as any).stakeoutSteal = d.stakeoutSteal || { enabled: false, delaySec: 3 }
+        settings.value.workflowConfig = d.workflowConfig || { farm: { enabled: false, minInterval: 2, maxInterval: 2, nodes: [] }, friend: { enabled: false, minInterval: 10, maxInterval: 10, nodes: [] } }
         settings.value.offlineReminder = d.offlineReminder || {
           channel: 'webhook',
           reloginUrlMode: 'none',
@@ -133,11 +161,19 @@ export const useSettingStore = defineStore('setting', () => {
     loading.value = true
     try {
       // 1. Save general settings
-      const settingsPayload = {
+      const settingsPayload: Record<string, any> = {
         plantingStrategy: newSettings.plantingStrategy,
         preferredSeedId: newSettings.preferredSeedId,
         intervals: newSettings.intervals,
         friendQuietHours: newSettings.friendQuietHours,
+      }
+      // 蹲守配置透传
+      // 工作流配置透传
+      if (newSettings.workflowConfig) {
+        settingsPayload.workflowConfig = newSettings.workflowConfig
+      }
+      if (newSettings.stakeoutSteal) {
+        settingsPayload.stakeoutSteal = newSettings.stakeoutSteal
       }
 
       await api.post('/api/settings/save', settingsPayload, {

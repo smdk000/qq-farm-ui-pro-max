@@ -330,7 +330,7 @@ const backgroundStyle = computed(() => {
 
               <div class="flex items-center justify-between">
                 <label class="group flex cursor-pointer items-center gap-2">
-                  <input v-model="rememberUsername" type="checkbox" class="h-4 w-4 cursor-pointer border-gray-300/50 rounded text-blue-600 transition-all focus:ring-blue-500">
+                  <input v-model="rememberUsername" type="checkbox" class="h-4 w-4 cursor-pointer border-black/10 rounded bg-black/5 text-primary-600 transition-all dark:border-white/20 dark:bg-black/40 focus:ring-primary-500">
                   <span class="glass-text-muted text-sm group-hover:glass-text-main">记住用户名</span>
                 </label>
               </div>

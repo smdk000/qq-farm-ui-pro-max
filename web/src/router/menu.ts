@@ -37,6 +37,13 @@ export const menuRoutes: MenuItem[] = [
     component: () => import('@/views/StealSettings.vue'),
   },
   {
+    path: 'workflow',
+    name: 'workflow',
+    label: '策略流程',
+    icon: 'i-carbon-flow',
+    component: () => import('@/views/Workflow.vue'),
+  },
+  {
     path: 'analytics',
     name: 'analytics',
     label: '分析',

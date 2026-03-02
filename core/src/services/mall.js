@@ -93,6 +93,22 @@ function findOrganicFertilizerMallGoods(goodsList) {
 }
 
 async function autoBuyOrganicFertilizerViaMall() {
+    const today = getDateKey();
+    const { getAutomation, getFertilizerBoughtData, recordFertilizerBought } = require('../models/store');
+
+    let boughtData = getFertilizerBoughtData();
+    let dailyBoughtCount = 0;
+    if (boughtData.date === today) {
+        dailyBoughtCount = boughtData.count || 0;
+    }
+
+    const limit = Number((getAutomation() || {}).fertilizer_buy_limit) || 100;
+
+    if (dailyBoughtCount >= limit) {
+        buyDoneDateKey = today; // 视为今日已完成任务
+        return 0;
+    }
+
     const goodsList = await getMallGoodsList(1);
     const goods = findOrganicFertilizerMallGoods(goodsList);
     if (!goods) return 0;
@@ -102,21 +118,38 @@ async function autoBuyOrganicFertilizerViaMall() {
     const singlePrice = parseMallPriceValue(goods.price);
     let ticket = Math.max(0, toNum((getUserState() || {}).ticket));
     let totalBought = 0;
-    let perRound = BUY_PER_ROUND;
+
+    // 最大可买单数，受到配置余额、本身剩余份额和后端购买限制（如每把10单）的三重制约
+    let maxCanBuy = limit - dailyBoughtCount;
     if (singlePrice > 0 && ticket > 0) {
-        perRound = Math.max(1, Math.min(BUY_PER_ROUND, Math.floor(ticket / singlePrice) || 1));
+        maxCanBuy = Math.min(maxCanBuy, Math.floor(ticket / singlePrice) || 1);
     }
+
+    let perRound = Math.min(BUY_PER_ROUND, Math.max(1, maxCanBuy));
 
     for (let i = 0; i < MAX_ROUNDS; i++) {
         if (singlePrice > 0 && ticket > 0 && ticket < singlePrice) {
             buyPausedNoGoldDateKey = getDateKey();
             break;
         }
+
+        if (totalBought >= maxCanBuy) {
+            buyDoneDateKey = getDateKey();
+            break;
+        }
+
+        const thisRoundBuy = Math.min(perRound, maxCanBuy - totalBought);
+        if (thisRoundBuy <= 0) break;
+
         try {
-            await purchaseMallGoods(goodsId, perRound);
-            totalBought += perRound;
+            await purchaseMallGoods(goodsId, thisRoundBuy);
+            totalBought += thisRoundBuy;
+            dailyBoughtCount += thisRoundBuy;
+
+            recordFertilizerBought(null, dailyBoughtCount, getDateKey());
+
             if (singlePrice > 0 && ticket > 0) {
-                ticket = Math.max(0, ticket - (singlePrice * perRound));
+                ticket = Math.max(0, ticket - (singlePrice * thisRoundBuy));
                 if (ticket < singlePrice) break;
             }
             await sleep(120);

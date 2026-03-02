@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useIntervalFn } from '@vueuse/core'
 import { computed, reactive, ref, watch } from 'vue'
 import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -28,29 +27,51 @@ const form = reactive({
 
 const qrPlatform = ref('qq') // qr tab platform
 
+// ========== 串行轮询（彻底杜绝竞态条件） ==========
+// 用 setTimeout 而非 setInterval，确保前一个请求完成后才发下一个
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let pollStopped = true
 
-const { pause: stopQRCheck, resume: startQRCheck } = useIntervalFn(async () => {
-  if (!qrData.value)
-    return
+function stopQRCheck() {
+  pollStopped = true
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
+
+function startQRCheck() {
+  pollStopped = false
+  scheduleNextPoll()
+}
+
+function scheduleNextPoll() {
+  if (pollStopped) return
+  pollTimer = setTimeout(() => doQRCheck(), 1500)
+}
+
+async function doQRCheck() {
+  // 如果已停止或没有数据，不发请求
+  if (pollStopped || !qrData.value) return
+
   try {
     const res = await api.post('/api/qr/check', { code: qrData.value.code, platform: qrPlatform.value })
+    // 再次检查：如果在等待期间已被停止，直接退出
+    if (pollStopped) return
+
     if (res.data.ok) {
       const status = res.data.data.status
       if (status === 'OK') {
-        // Login success
+        // 登录成功 —— 立即停止轮询，不再发任何请求
         stopQRCheck()
         qrStatus.value = '登录成功'
-        // Auto fill form and submit
         const { uin, code: authCode, nickname } = res.data.data
 
-        // Use name from form if provided, otherwise default
         let accName = form.name.trim()
         if (!accName) {
-          // 优先使用 nickname，其次使用 uin
           accName = nickname || (uin ? String(uin) : '扫码账号')
         }
 
-        // We need to add account with this data
         await addAccount({
           id: props.editData?.id,
           uin,
@@ -59,10 +80,12 @@ const { pause: stopQRCheck, resume: startQRCheck } = useIntervalFn(async () => {
           name: props.editData ? (props.editData.name || accName) : accName,
           platform: qrPlatform.value,
         })
+        return // 不再调度下一次
       }
       else if (status === 'Used') {
-        qrStatus.value = '二维码已失效' // Consistent text
+        qrStatus.value = '二维码已失效'
         stopQRCheck()
+        return
       }
       else if (status === 'Wait') {
         qrStatus.value = '等待扫码'
@@ -75,12 +98,18 @@ const { pause: stopQRCheck, resume: startQRCheck } = useIntervalFn(async () => {
   catch (e) {
     console.error(e)
   }
-}, 1000, { immediate: false })
+
+  // 只有在未停止的情况下，才调度下一次轮询
+  if (!pollStopped) {
+    scheduleNextPoll()
+  }
+}
 
 // QR Code Logic
 async function loadQRCode() {
   if (activeTab.value !== 'qr')
     return
+  stopQRCheck() // 先停掉旧的轮询
   loading.value = true
   qrData.value = null
   qrStatus.value = '正在获取二维码'
@@ -296,8 +325,8 @@ watch(() => props.show, (newVal) => {
             </p>
           </div>
 
-          <div v-if="qrData && (qrData.image || qrData.qrcode)" class="border border-white/20 rounded bg-white/50 p-2 backdrop-blur-sm dark:border-white/10 dark:bg-white/10">
-            <img :src="qrData.image || qrData.qrcode" class="h-48 w-48 mix-blend-multiply dark:mix-blend-normal object-contain">
+          <div v-if="qrData && (qrData.image || qrData.qrcode)" class="border border-gray-200 dark:border-white/20 rounded-lg bg-white p-2 flex items-center justify-center">
+            <img :src="qrData.image || qrData.qrcode" class="h-48 w-48 object-contain">
           </div>
           <div v-else class="h-48 w-48 flex items-center justify-center rounded bg-gray-100/50 text-gray-500 backdrop-blur-sm dark:bg-black/20 dark:text-gray-400">
             <div v-if="loading" i-svg-spinners-90-ring-with-bg class="text-3xl" />

@@ -1,0 +1,21 @@
+# OpenViking 数据目录
+openviking-service/openviking_data/
+openviking-service/venv/
+
+# 环境配置（如果需要提交模板，保留 .env.example）
+openviking-service/.env
+core/.env.ai
+
+# 日志文件
+*.log
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Node.js 缓存
+*.pid
+*.seed
+*.pid.lock

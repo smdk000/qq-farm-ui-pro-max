@@ -9,6 +9,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
+import BaseTooltip from '@/components/ui/BaseTooltip.vue'
 import { useAccountStore } from '@/stores/account'
 import { useAppStore } from '@/stores/app'
 import { useFarmStore } from '@/stores/farm'
@@ -124,6 +125,7 @@ const localSettings = ref({
   preferredSeedId: 0,
   intervals: { farmMin: 2, farmMax: 2, friendMin: 10, friendMax: 10 },
   friendQuietHours: { enabled: false, start: '23:00', end: '07:00' },
+  stakeoutSteal: { enabled: false, delaySec: 3 },
   automation: {
     farm: false,
     task: false,
@@ -138,6 +140,7 @@ const localSettings = ref({
     email: false,
     fertilizer_gift: false,
     fertilizer_buy: false,
+    fertilizer_buy_limit: 100,
     free_gifts: false,
     share_reward: false,
     vip_gift: false,
@@ -180,6 +183,7 @@ function syncLocalSettings() {
       preferredSeedId: settings.value.preferredSeedId,
       intervals: settings.value.intervals,
       friendQuietHours: settings.value.friendQuietHours,
+      stakeoutSteal: (settings.value as any).stakeoutSteal || { enabled: false, delaySec: 3 },
       automation: settings.value.automation,
     }))
 
@@ -199,6 +203,7 @@ function syncLocalSettings() {
         email: false,
         fertilizer_gift: false,
         fertilizer_buy: false,
+        fertilizer_buy_limit: 100,
         free_gifts: false,
         share_reward: false,
         vip_gift: false,
@@ -233,6 +238,7 @@ function syncLocalSettings() {
         email: false,
         fertilizer_gift: false,
         fertilizer_buy: false,
+        fertilizer_buy_limit: 100,
         free_gifts: false,
         share_reward: false,
         vip_gift: false,
@@ -254,6 +260,10 @@ function syncLocalSettings() {
         ...defaults,
         ...localSettings.value.automation,
       }
+    }
+
+    if (!localSettings.value.stakeoutSteal) {
+      localSettings.value.stakeoutSteal = { enabled: false, delaySec: 3 }
     }
 
     // Sync offline settings (global)
@@ -365,10 +375,10 @@ watch(() => localSettings.value.automation.stealFriendFilterEnabled, (enabled) =
 })
 
 const fertilizerOptions = [
-  { label: '普通 + 有机', value: 'both' },
-  { label: '仅普通化肥', value: 'normal' },
-  { label: '仅有机化肥', value: 'organic' },
-  { label: '不施肥', value: 'none' },
+  { label: '普通 + 有机', value: 'both', description: '极速成长与改良双管齐下，全包化肥方案。' },
+  { label: '仅普通化肥', value: 'normal', description: '仅在防偷等关键时刻加速生长，节约高阶成本。' },
+  { label: '仅有机化肥', value: 'organic', description: '优先消耗可循环产出的有机肥改善土壤。' },
+  { label: '不施肥', value: 'none', description: '佛系种植，绝不消耗任何额外物资。' },
 ]
 
 const plantingStrategyOptions = [
@@ -572,6 +582,13 @@ async function saveAccountSettings(force: any = false) {
         }
       }
     })
+
+    // 对比蹲守配置
+    const oldStake = (settings.value as any).stakeoutSteal || {}
+    const newStake = localSettings.value.stakeoutSteal || {}
+    if (oldStake.enabled !== newStake.enabled) {
+      changes.push({ label: '精准蹲守偷菜', from: getValLabel('stakeoutSteal', !!oldStake.enabled), to: getValLabel('stakeoutSteal', !!newStake.enabled) })
+    }
 
     if (changes.length > 0) {
       diffItems.value = changes
@@ -790,8 +807,9 @@ async function handleSaveOffline() {
           <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 md:grid-cols-2">
             <!-- 分组 1: 农场基础操作 -->
             <div class="border border-gray-100/50 rounded-2xl bg-transparent p-5 transition-all dark:border-gray-700/50 hover:bg-gray-50/10">
-              <h4 class="glass-text-muted mb-4 flex items-center gap-2 text-xs font-bold tracking-widest uppercase" title="农场自动化的核心控制区，包含种植收获、好友互动、升级土地等基础功能">
-                <div class="i-carbon-Agriculture" /> 农场基础操作
+              <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
+                <div class="i-carbon-Agriculture mr-2" /> 农场基础操作
+                <BaseTooltip text="农场自动化的核心控制区，包含种植收获、好友互动、升级土地等基础功能" />
               </h4>
               <div class="space-y-4">
                 <BaseSwitch v-model="localSettings.automation.farm" label="自动种植收获" hint="核心总开关。自动巡查农场：成熟即收、空地即种、异常即处理（浇水/除草/除虫/铲除枯死）。关闭后所有农场自动化停止。" recommend="on" />
@@ -804,8 +822,9 @@ async function handleSaveOffline() {
 
             <!-- 分组 2: 每日收益领取 -->
             <div class="border border-gray-100/50 rounded-2xl bg-transparent p-5 transition-all dark:border-gray-700/50 hover:bg-gray-50/10">
-              <h4 class="glass-text-muted mb-4 flex items-center gap-2 text-xs font-bold tracking-widest uppercase" title="每日可领取的免费奖励，建议全部开启以最大化日常收益">
-                <div class="i-carbon-gift" /> 每日收益领取
+              <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
+                <div class="i-carbon-gift mr-2" /> 每日收益领取
+                <BaseTooltip text="每日可领取的免费奖励，建议全部开启以最大化日常收益" />
               </h4>
               <div class="space-y-4">
                 <BaseSwitch v-model="localSettings.automation.free_gifts" label="自动商城礼包" hint="每日自动领取商城中的免费礼包（种子/化肥/装饰等），错过后次日才能再领。" recommend="on" />
@@ -822,12 +841,26 @@ async function handleSaveOffline() {
 
             <!-- 分组 3: 化肥与杂项控制 -->
             <div class="border border-gray-100/50 rounded-2xl bg-transparent p-5 transition-all dark:border-gray-700/50 hover:bg-gray-50/10">
-              <h4 class="glass-text-muted mb-4 flex items-center gap-2 text-xs font-bold tracking-widest uppercase" title="化肥管理和高级防盗功能的精细控制区">
-                <div class="i-carbon-tool-box" /> 化肥与精细控制
+              <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
+                <div class="i-carbon-tool-box mr-2" /> 化肥与精细控制
+                <BaseTooltip text="化肥管理和高级防盗功能的精细控制区" />
               </h4>
               <div class="space-y-4">
                 <BaseSwitch v-model="localSettings.automation.fertilizer_gift" label="自动填充化肥" hint="有免费化肥领取机会时自动领取，保证化肥库存不断档。" recommend="on" />
-                <BaseSwitch v-model="localSettings.automation.fertilizer_buy" label="自动购买化肥" hint="化肥库存不足时自动花费金币购买。注意：会持续消耗金币，金币紧张时建议关闭。" recommend="conditional" />
+                <div class="flex flex-col gap-2">
+                  <BaseSwitch v-model="localSettings.automation.fertilizer_buy" label="自动购买化肥" hint="化肥库存不足时自动花费金币购买。注意：会持续消耗金币，金币紧张时建议关闭。" recommend="conditional" />
+                  <div v-show="localSettings.automation.fertilizer_buy" class="ml-7 flex items-center gap-3">
+                     <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">
+                       - 单日最大购买上限 (包)：
+                     </span>
+                     <BaseInput
+                       v-model.number="localSettings.automation.fertilizer_buy_limit"
+                       type="number"
+                       min="1"
+                       class="w-24 !py-1 text-sm shadow-inner"
+                     />
+                  </div>
+                </div>
                 <BaseSwitch v-model="localSettings.automation.fertilizer_60s_anti_steal" label="60秒施肥(防偷)" hint="核心防盗功能。在果实成熟前60秒内自动施肥催熟并瞬间收获，将被偷窗口压缩到接近0。需消耗化肥，主号必开。" recommend="on" />
                 <div class="border-t pt-2 dark:border-gray-700/50">
                   <BaseSelect
@@ -842,12 +875,50 @@ async function handleSaveOffline() {
             </div>
           </div>
 
-          <!-- 好友互动详细控制 (当启用好友互动时显现) -->
-          <div v-if="localSettings.automation.friend" class="border border-blue-100/50 rounded-2xl bg-blue-50/50 p-5 dark:border-blue-800/30 dark:bg-blue-900/10">
-            <h4 class="mb-4 flex items-center gap-2 text-xs text-blue-500 font-bold tracking-widest uppercase">
-              <div class="i-carbon-user-multiple" /> 社交互动详细策略
+          <!-- 好友互动详细控制 (始终显示，关闭时灰化) -->
+          <div class="relative border rounded-2xl p-5 transition-all" :class="localSettings.automation.friend ? 'border-blue-100/50 bg-blue-50/50 dark:border-blue-800/30 dark:bg-blue-900/10' : 'border-gray-200/30 bg-gray-100/20 dark:border-gray-700/30 dark:bg-gray-800/20'">
+            <!-- 灰化遮罩：总开关关闭时覆盖内容区 -->
+            <div v-if="!localSettings.automation.friend" class="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-black/30 backdrop-blur-[1px]">
+              <span class="border border-white/10 rounded-lg bg-black/50 px-4 py-2 text-sm text-gray-300 font-bold shadow-lg">
+                🔒 请先开启上方「自动好友互动」总开关
+              </span>
+            </div>
+            <h4 class="mb-4 flex items-center text-xs font-bold tracking-widest uppercase" :class="localSettings.automation.friend ? 'text-blue-500' : 'text-gray-400'">
+              <div class="i-carbon-user-multiple mr-2" /> 社交互动详细策略
+              <BaseTooltip text="只有在主开关【自动好友互动】开启时此策略组才会生效，控制在好友农场的具体行为。" />
             </h4>
-            <div class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2">
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2" :class="{ 'opacity-40 pointer-events-none select-none': !localSettings.automation.friend }">
+              <!-- 蹲守开关：独立占一格 -->
+              <BaseSwitch v-model="localSettings.stakeoutSteal.enabled" label="精准蹲守偷菜" hint="自动记录好友作物成熟时间，到点精准出击偷取高价值果实。" recommend="conditional" />
+              <!-- 蹲守延迟设置：独立占一格，仅在开启后显示内容 -->
+              <div class="inline-flex flex-col gap-1">
+                <template v-if="localSettings.stakeoutSteal.enabled">
+                  <label class="inline-flex items-center gap-2">
+                    <span class="glass-text-main select-none text-sm font-medium">蹲守延迟</span>
+                    <div class="flex items-center gap-1.5 border border-gray-300/50 rounded-md bg-black/5 px-2 py-1 dark:border-white/10 dark:bg-black/20">
+                      <input
+                        v-model.number="localSettings.stakeoutSteal.delaySec"
+                        type="number"
+                        min="0"
+                        max="60"
+                        class="glass-text-main w-12 bg-transparent text-center text-sm font-bold outline-none"
+                      >
+                      <span class="glass-text-muted text-xs font-bold">秒</span>
+                    </div>
+                  </label>
+                  <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                    成熟后等待几秒再偷，模拟真人操作节奏，推荐 3~10 秒。
+                    <span class="recommend-badge recommend-conditional">推荐 3 秒</span>
+                  </p>
+                </template>
+                <template v-else>
+                  <span class="glass-text-muted select-none text-sm">蹲守延迟设置</span>
+                  <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                    请先开启左侧「精准蹲守偷菜」开关。
+                  </p>
+                </template>
+              </div>
+
               <BaseSwitch v-model="localSettings.automation.friend_steal" label="自动偷菜" hint="访问好友农场时自动偷取成熟果实，是金币收入的重要补充来源。" recommend="on" />
               <BaseSwitch v-model="localSettings.automation.friend_help" label="自动帮忙" hint="访问好友农场时自动帮忙浇水/除草/除虫，可获得经验奖励。" recommend="on" />
               <BaseSwitch v-model="localSettings.automation.friend_bad" label="自动捣乱" hint="访问好友农场时自动放虫/放草。有社交风险，好友可能拉黑你，小号专用。" recommend="off" />

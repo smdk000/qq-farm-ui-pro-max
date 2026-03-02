@@ -487,7 +487,7 @@ async function startBot(config) {
         syncStatus();
     };
 
-    connect(code, onLoginSuccess);
+    connect(code, config.uin, onLoginSuccess);
 
     // 启动定时状态同步
     workerScheduler.setIntervalTask('status_sync', 3000, syncStatus, { preventOverlap: true });

@@ -47,7 +47,7 @@ const emit = defineEmits(['close'])
       </div>
 
       <!-- 底部动作条 -->
-      <div class="shrink-0 border-t border-gray-100 bg-gray-50/50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/50">
+      <div class="glass-panel shrink-0 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
         <!-- 作者信息流水 -->
         <div class="glass-text-muted pointer-events-none mb-4 flex select-none items-center justify-between px-1 text-[10px] font-mono">
           <div class="flex items-center gap-1.5">

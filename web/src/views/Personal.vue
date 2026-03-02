@@ -14,7 +14,7 @@ const currentTab = ref<'farm' | 'bag' | 'task'>('farm')
         class="rounded-lg px-4 py-2 font-medium transition-colors"
         :class="currentTab === 'farm'
           ? 'bg-blue-500 text-white shadow-md'
-          : 'bg-white glass-text-muted hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'"
+          : 'glass-panel glass-text-muted hover:bg-black/5 dark:text-gray-300 dark:hover:bg-white/5'"
         @click="currentTab = 'farm'"
       >
         <div class="flex items-center space-x-2">
@@ -26,7 +26,7 @@ const currentTab = ref<'farm' | 'bag' | 'task'>('farm')
         class="rounded-lg px-4 py-2 font-medium transition-colors"
         :class="currentTab === 'bag'
           ? 'bg-blue-500 text-white shadow-md'
-          : 'bg-white glass-text-muted hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'"
+          : 'glass-panel glass-text-muted hover:bg-black/5 dark:text-gray-300 dark:hover:bg-white/5'"
         @click="currentTab = 'bag'"
       >
         <div class="flex items-center space-x-2">
@@ -38,7 +38,7 @@ const currentTab = ref<'farm' | 'bag' | 'task'>('farm')
         class="rounded-lg px-4 py-2 font-medium transition-colors"
         :class="currentTab === 'task'
           ? 'bg-blue-500 text-white shadow-md'
-          : 'bg-white glass-text-muted hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'"
+          : 'glass-panel glass-text-muted hover:bg-black/5 dark:text-gray-300 dark:hover:bg-white/5'"
         @click="currentTab = 'task'"
       >
         <div class="flex items-center space-x-2">

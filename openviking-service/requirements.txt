@@ -1,0 +1,10 @@
+flask==3.0.0
+flask-cors==4.0.0
+openviking==0.1.0
+python-dotenv==1.0.0
+pydantic>=2.0.0
+openai>=1.0.0
+httpx>=0.25.0
+pyyaml>=6.0
+volcengine>=1.0.212
+pyagfs>=1.4.0
