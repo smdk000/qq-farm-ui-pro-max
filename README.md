@@ -126,7 +126,7 @@
 - 深色 / 浅色主题切换
 - 响应式设计，支持移动端访问
 
-![Dashboard](pic/dashboard.svg)
+![Dashboard](pic/截图1.png)
 
 ### 分析页
 支持按以下维度排序作物：
@@ -134,7 +134,7 @@
 - 净利润效率 / 普通肥净利润效率
 - 等级要求
 
-![分析页面](pic/analytics.svg)
+![分析页面](pic/截图2.png)
 
 ### 帮助中心
 - 新手入门指南
@@ -143,7 +143,7 @@
 - 故障排查指南
 - 配置模板推荐
 
-![帮助中心](pic/help-center.svg)
+![帮助中心](pic/截图3.png)
 
 ---
 
@@ -231,7 +231,7 @@ ADMIN_PASSWORD='你的强密码' pnpm dev:core
 - 本机：`http://localhost:3000`
 - 局域网：`http://<你的 IP>:3000`
 
-![设置页面](pic/settings.svg)
+![设置页面](pic/截图4.png)
 
 ---
 
@@ -306,7 +306,7 @@ docker-compose up -d
 3. 编辑用户（修改到期时间、启用/封禁）
 4. 删除普通用户
 
-![用户管理](pic/users.svg)
+![用户管理](pic/截图5.png)
 
 ### 普通用户操作
 
@@ -322,7 +322,7 @@ docker-compose up -d
 3. 输入新卡密
 4. 确认续费
 
-![卡密管理](pic/cards.svg)
+![卡密管理](pic/截图6.png)
 
 ---
 
@@ -348,7 +348,7 @@ docker-compose up -d
 6. 勾选好友（需先加载好友列表）
 7. 保存设置
 
-![偷菜设置](pic/steal-settings.svg)
+![偷菜设置](pic/截图7.png)
 
 ---
 
