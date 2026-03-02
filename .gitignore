@@ -16,8 +16,8 @@ web/stats.html
 *.tsbuildinfo
 
 # Runtime data
-data/
-core/data/
+/data/
+/core/data/
 
 # Logs
 *.log
