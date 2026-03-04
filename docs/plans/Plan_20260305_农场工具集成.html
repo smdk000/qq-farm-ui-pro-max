@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>农场工具插件化集成计划 (Plan)</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --accent-color: #38bdf8;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: var(--accent-color);
+            margin: 0 0 0.5rem 0;
+        }
+
+        .header p {
+            color: #94a3b8;
+            margin: 0;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            color: var(--accent-color);
+        }
+
+        .mermaid {
+            background: #cbd5e1;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            text-align: center;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .tag.blue {
+            background: rgba(56, 189, 248, 0.2);
+            color: #7dd3fc;
+        }
+
+        .tag.green {
+            background: rgba(34, 197, 94, 0.2);
+            color: #86efac;
+        }
+
+        .tag.orange {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fcd34d;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: rgba(0, 0, 0, 0.2);
+            color: #94a3b8;
+        }
+
+        ul {
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: monospace;
+            color: #7dd3fc;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌾 农场工具插件化集成计划 (Plan)</h1>
+            <p>基于非入侵式设计与跨域降级通讯架构 | 日期: 2026-03-05</p>
+        </div>
+
+        <div class="card">
+            <h2>🎯 目标与核心规范 (Objectives & Specs)</h2>
+            <ul>
+                <li><span class="tag green">非入侵式 (Non-invasive)</span> 通过动态资源探测技术，在不修改原静态文件逻辑的前提下实现“即插即用”（存在即挂载，删除即隐藏）。
+                </li>
+                <li><span class="tag blue">无缝融合 (Seamless UI)</span> Vue 侧页面风格对齐现有帮助中心，右侧以满屏展现 <code>iframe</code>。</li>
+                <li><span class="tag orange">全主题适配 (Theme Sync)</span> 实现跨上下文五大主题色 (默认/赛博/尊金/深海/樱花) 及深浅模式的双向通讯适配。</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>🏗️ 架构概览与实现原理 (Architecture)</h2>
+            <div class="mermaid">
+                graph TD
+                A[用户访问 '概览' 等界面] --> B{挂载/初始化 App}
+                B --> C[在 Sidebar/路由钩子中发 HEAD 请求]
+                C -->|请求 /nc_api_version/index.html 成功| D[动态注入 '农场工具' 侧边栏菜单]
+                C -->|请求 404 (被删除)| E[隐藏 '农场工具' 菜单]
+
+                D --> F[用户点击 '农场工具']
+                F --> G[渲染 FarmTools.vue (模仿 HelpCenter 布局)]
+                G --> H[左侧: 子工具路由/菜单]
+                G --> I[右侧: iframe 全屏挂载原 HTML]
+
+                J[Vue 主题切换库] -->|postMessage| I
+                I -->|监听 message 事件| K[iframe 内部动态插入 CSS 变量/加载 Dark 样式]
+            </div>
+            <p><strong>实现机制：</strong>原资源文件夹 <code>nc_api_version</code> 需映射为静态资源可用目录。在 Vite 的开发/生产环境中，该目录下的文件需可以通过相对 URL
+                被浏览器访问。</p>
+        </div>
+
+        <div class="card">
+            <h2>🔄 数据流与主题同步 (Data Flow & Theme Sync)</h2>
+            <div class="mermaid">
+                sequenceDiagram
+                participant Vue (父容器)
+                participant Iframe (独立上下文)
+
+                Vue->>Vue: 监听到主题/明暗色变化
+                Note over Vue: 获取当前主题 CSS 变量
+                Vue->>Iframe: window.postMessage({ theme: 'cyber', isDark: true })
+                Iframe->>Iframe: window.addEventListener('message')
+                Iframe->>Iframe: 动态向 body 插入样式规则<br>复写 --color-primary-* 背景色与文字色
+                Iframe-->>Vue: 返回 ready / loaded ack
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>💥 影响面分析 (Impact Analysis)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>模块 / 组件</th>
+                        <th>影响类型</th>
+                        <th>修改详情与应对措施</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>web/vite.config.ts</code></td>
+                        <td>配置修改</td>
+                        <td>可能需要配置静态资源服务器 (如 <code>publicDir</code> 或开发代理) 允许访问根目录下的 <code>nc_api_version</code>
+                            文件。若用户直接将其放入根目录，对于打包流程需有 <code>copy</code> 策略或依赖后端 Nginx 静态代理。</td>
+                    </tr>
+                    <tr>
+                        <td><code>web/src/router/menu.ts</code></td>
+                        <td>路由扩展</td>
+                        <td>保留静态结构，但在渲染 <code>Sidebar.vue</code> 的 <code>navItems</code>
+                            时支持异步动态插入。或直接保留该菜单，在无插件时弹窗提示“未安装”。</td>
+                    </tr>
+                    <tr>
+                        <td><code>web/src/components/Sidebar.vue</code></td>
+                        <td>UI 扩展</td>
+                        <td>新增请求健康检查逻辑，控制工具按钮显隐。</td>
+                    </tr>
+                    <tr>
+                        <td><code>web/src/views/FarmTools.vue</code></td>
+                        <td><strong>[NEW]</strong> 新增页面</td>
+                        <td>新建视图，左侧复制 <code>HelpCenter.vue</code> 的导航外观，右侧为一个自适应高度的 <code>iframe</code>。</td>
+                    </tr>
+                    <tr>
+                        <td><code>HelpButton.vue</code></td>
+                        <td>UI 调整</td>
+                        <td>将原悬浮按钮区域进行重构或在展开菜单中额外暴露入口。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>🛠️ 实施步骤任务拆解 (Implementation Steps)</h2>
+            <ol>
+                <li><strong>目录配置阶段：</strong>配置 <code>vite.config.ts</code> 提供 <code>nc_api_version</code> 的开发环境挂载，确保
+                    <code>localhost:2800/nc_api_version/index.html</code> 可访问。</li>
+                <li><strong>探测与路由钩入阶段：</strong>
+                    <ul>
+                        <li>在系统加载时 <code>fetch('/nc_api_version/index.html', { method: 'HEAD' })</code> 判断挂载状态。</li>
+                        <li>动态更新导航栏菜单。</li>
+                    </ul>
+                </li>
+                <li><strong>前端视图开发：</strong>新建 <code>FarmTools.vue</code>，实现与 <code>HelpCenter</code>
+                    高度统一的左侧二级菜单界面。右侧区域移除所有 padding 与 margin （<code>p-0</code> <code>w-full</code>），内部撑满一个隐藏 border 的
+                    <code>iframe</code>。</li>
+                <li><strong>主题桥接 (Theming Bridge) 注入：</strong>
+                    <ul>
+                        <li>原 HTML 无需修改文件源码，前端在 <code>iframe</code> <code>onload</code> 回调中，通过
+                            <code>contentWindow.postMessage</code> 推送样式指令。</li>
+                        <li>同时，可通过动态注入脚本（由于同源策略）直接修改 <code>iframe.contentDocument</code> 以应用颜色替换。对于全局背景和高亮元素（如
+                            <code>bg-green-400</code> -> <code>bg-primary-400</code>），注入匹配当前项目的 CSS。</li>
+                    </ul>
+                </li>
+                <li><strong>自适应审查：</strong>验证 5 套主题在深色、浅色模式下对原生 iframe 内容的视觉覆盖程度。</li>
+            </ol>
+        </div>
+    </div>
+    <script>
+        mermaid.initialize({
+            theme: 'dark',
+            fontFamily: 'Segoe UI, sans-serif'
+        });
+    </script>
+</body>
+
+</html>

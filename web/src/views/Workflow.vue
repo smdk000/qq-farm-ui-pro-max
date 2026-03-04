@@ -9,7 +9,7 @@ import { useAccountStore } from '@/stores/account'
 import { useToastStore } from '@/stores/toast'
 
 const accountStore = useAccountStore()
-const { currentAccountId, currentAccount } = storeToRefs(accountStore)
+const { currentAccountId } = storeToRefs(accountStore)
 const toast = useToastStore()
 
 // ======== 类型定义 ========
@@ -576,7 +576,8 @@ onMounted(() => {
   loadData()
 })
 
-watch(() => currentAccount.value, () => {
+// 【修复闪烁】监听 accountId 字符串值而非 currentAccount 对象引用
+watch(() => currentAccountId.value, () => {
   loadData()
 })
 </script>

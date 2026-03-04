@@ -92,7 +92,7 @@ const progress = developmentProgress
   <div class="glass-text-main h-full flex flex-col overflow-hidden p-4 lg:p-8 sm:p-6">
     <div class="mx-auto h-full max-w-7xl w-full flex gap-6">
       <!-- 左侧分类导航 -->
-      <aside class="spring-interactive glass-panel h-full w-64 flex shrink-0 flex-col rounded-2xl p-4 shadow-sm transition-all">
+      <aside class="glass-panel h-full w-64 flex shrink-0 flex-col rounded-2xl p-4 shadow-sm transition-all">
         <h2 class="mb-6 from-blue-600 to-indigo-600 bg-gradient-to-r bg-clip-text px-2 text-xl text-transparent font-bold tracking-wide dark:from-cyan-400 dark:to-blue-500">
           御农 Help
         </h2>
@@ -104,7 +104,7 @@ const progress = developmentProgress
             class="space-y-1"
           >
             <button
-              class="spring-interactive group w-full flex items-center justify-between rounded-xl px-4 py-3 text-left transition-colors"
+              class="group w-full flex items-center justify-between rounded-xl px-4 py-3 text-left transition-colors"
               :class="[
                 category.expanded
                   ? 'bg-primary-500/10 border border-primary-500/20 dark:bg-white/[0.08] dark:border-white/10 text-primary-700 dark:text-primary-300 font-bold shadow-[0_0_15px_rgba(var(--color-primary-500),0.1)]'
@@ -134,7 +134,7 @@ const progress = developmentProgress
                 <button
                   v-for="item in category.items"
                   :key="item.id"
-                  class="spring-interactive w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all"
+                  class="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all"
                   :class="[
                     selectedArticle === item.id
                       ? 'bg-primary-500/10 text-primary-700 font-bold dark:bg-white/[0.08] dark:text-primary-300 shadow-sm'
@@ -178,7 +178,7 @@ const progress = developmentProgress
 
             <!-- 左侧作者信息 -->
             <div class="relative z-10 flex items-center gap-4">
-              <div class="spring-interactive relative h-12 w-12 rounded-full from-blue-500 to-indigo-600 bg-gradient-to-tr p-[2px] shadow-md transition-all duration-500 dark:from-cyan-400 dark:to-blue-500 group-hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+              <div class="relative h-12 w-12 rounded-full from-blue-500 to-indigo-600 bg-gradient-to-tr p-[2px] shadow-md transition-all duration-500 dark:from-cyan-400 dark:to-blue-500 group-hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]">
                 <div class="h-full w-full flex items-center justify-center border border-white/20 rounded-full bg-black/5 dark:border-white/10 dark:bg-black/40">
                   <div class="i-carbon-code text-xl text-primary-700 dark:text-primary-400" />
                 </div>
@@ -201,7 +201,7 @@ const progress = developmentProgress
             <!-- 右侧搜索与联系方式 -->
             <div class="relative z-10 w-full flex items-center gap-3 sm:w-auto">
               <!-- 搜索框 -->
-              <div class="spring-interactive flex flex-1 cursor-text items-center border border-gray-200/50 rounded-xl bg-black/5 p-2.5 shadow-inner backdrop-blur-md transition-all sm:w-64 dark:border-white/5 group-hover:border-primary-400/50 dark:bg-black/30 dark:hover:border-white/10">
+              <div class="flex flex-1 cursor-text items-center border border-gray-200/50 rounded-xl bg-black/5 p-2.5 shadow-inner backdrop-blur-md transition-all sm:w-64 dark:border-white/5 group-hover:border-primary-400/50 dark:bg-black/30 dark:hover:border-white/10">
                 <span class="glass-text-muted i-carbon-search ml-2 mr-2 text-lg transition-colors group-hover:text-primary-600 dark:group-hover:text-primary-400" />
                 <input
                   v-model="searchQuery"
@@ -216,7 +216,7 @@ const progress = developmentProgress
               </div>
 
               <!-- QQ群按钮 -->
-              <a href="tencent://message/?uin=227916149&Site=&Menu=yes" class="spring-interactive glass-panel glass-text-main flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition-all hover:shadow-md">
+              <a href="tencent://message/?uin=227916149&Site=&Menu=yes" class="glass-panel glass-text-main flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition-all hover:shadow-md">
                 <div class="i-carbon-chat text-lg text-primary-600 dark:text-primary-400" />
                 <span class="hidden sm:inline">支持Q群</span>
               </a>
@@ -237,7 +237,7 @@ const progress = developmentProgress
                 <button
                   v-for="result in searchResults"
                   :key="result.id"
-                  class="spring-interactive group w-full flex items-start gap-4 glass-panel rounded-xl p-4 text-left shadow-sm transition-all hover:shadow-md"
+                  class="group w-full flex items-start gap-4 glass-panel rounded-xl p-4 text-left shadow-sm transition-all hover:shadow-md"
                   @click="selectArticle(result.id)"
                 >
                   <div class="h-10 w-10 flex shrink-0 items-center justify-center border border-gray-200/50 rounded-lg bg-black/5 text-primary-600 shadow-sm dark:border-white/5 dark:bg-black/30 dark:text-primary-400 group-hover:shadow-md">
@@ -265,7 +265,7 @@ const progress = developmentProgress
             </div>
 
             <!-- 正常文章视图 -->
-            <div v-else class="relative z-10 max-w-3xl">
+            <div v-else class="relative z-10">
               <h2 class="glass-text-main mb-8 flex items-center gap-3 text-3xl font-black tracking-tight">
                 <div class="i-carbon-document text-primary-600 dark:text-primary-400" />
                 {{ getArticleTitle() }}
@@ -291,10 +291,10 @@ const progress = developmentProgress
                 <div class="flex items-center gap-3">
                   <span class="glass-text-muted text-sm font-bold">文档有帮助吗？</span>
                   <div class="flex gap-2">
-                    <button class="spring-interactive glass-text-muted h-9 w-9 flex items-center justify-center border border-transparent rounded-full bg-black/5 shadow-sm transition-all hover:border-primary-300 dark:bg-white/[0.06] hover:bg-primary-100 hover:text-primary-700 dark:hover:border-primary-700/50 dark:hover:bg-primary-900/40 dark:hover:text-primary-400">
+                    <button class="glass-text-muted h-9 w-9 flex items-center justify-center border border-transparent rounded-full bg-black/5 shadow-sm transition-all hover:border-primary-300 dark:bg-white/[0.06] hover:bg-primary-100 hover:text-primary-700 dark:hover:border-primary-700/50 dark:hover:bg-primary-900/40 dark:hover:text-primary-400">
                       <div class="i-carbon-thumbs-up" />
                     </button>
-                    <button class="spring-interactive glass-text-muted h-9 w-9 flex items-center justify-center border border-transparent rounded-full bg-black/5 shadow-sm transition-all hover:border-red-300 dark:bg-white/[0.06] hover:bg-red-100 hover:text-red-700 dark:hover:border-red-700/50 dark:hover:bg-red-900/40 dark:hover:text-red-400">
+                    <button class="glass-text-muted h-9 w-9 flex items-center justify-center border border-transparent rounded-full bg-black/5 shadow-sm transition-all hover:border-red-300 dark:bg-white/[0.06] hover:bg-red-100 hover:text-red-700 dark:hover:border-red-700/50 dark:hover:bg-red-900/40 dark:hover:text-red-400">
                       <div class="i-carbon-thumbs-down" />
                     </button>
                   </div>
@@ -309,14 +309,6 @@ const progress = developmentProgress
 </template>
 
 <style scoped>
-/* 赋予元素顶级弹簧物理的阻尼感 */
-.spring-interactive {
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.spring-interactive:active {
-  transform: scale(0.95);
-  transition: all 0.1s ease-out; /* 按下时快速收缩 */
-}
 
 /* 深邃层次感玻璃底板 - 仅增强 box-shadow，backdrop-filter 由全局 style.css 统一管控 */
 .glass-panel {
@@ -381,7 +373,7 @@ const progress = developmentProgress
   font-family: monospace;
   font-size: 0.85rem;
   margin-top: 0.5rem;
-  color: #111827;
+  color: var(--text-main, #111827);
   font-weight: 600;
   border: 1px solid rgba(0, 0, 0, 0.1);
 }

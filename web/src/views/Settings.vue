@@ -24,7 +24,7 @@ const farmStore = useFarmStore()
 const friendStore = useFriendStore()
 
 const { settings, loading } = storeToRefs(settingStore)
-const { currentAccountId, currentAccount, accounts } = storeToRefs(accountStore)
+const { currentAccountId, accounts } = storeToRefs(accountStore)
 const { seeds } = storeToRefs(farmStore)
 const { friends } = storeToRefs(friendStore)
 
@@ -456,7 +456,11 @@ onMounted(() => {
   loadData()
 })
 
-watch(() => currentAccount.value, () => {
+// 【关键修复】仅监听 accountId 字符串值，而非 currentAccount 对象引用
+// 原因：Sidebar 每 10 秒轮询 fetchAccounts() 会替换 accounts 数组，
+// 导致 currentAccount computed 返回新对象引用（即使数据内容相同），
+// 从而误触发 loadData()，引发页面闪烁和滚动位置重置
+watch(() => currentAccountId.value, () => {
   loadData()
 })
 

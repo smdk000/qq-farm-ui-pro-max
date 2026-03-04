@@ -53,6 +53,11 @@ const router = createRouter({
           name: 'help',
           component: () => import('@/views/HelpCenter.vue'),
         },
+        {
+          path: 'farm-tools',
+          name: 'farm-tools',
+          component: () => import('@/views/FarmTools.vue'),
+        }
       ],
     },
     {

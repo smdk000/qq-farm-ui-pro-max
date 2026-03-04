@@ -9,8 +9,11 @@ import viteCompression from 'vite-plugin-compression'
 const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 // https://vitejs.dev/config/
+import { ncApiMiddleware } from './src/plugins/nc-api-middleware'
+
 export default defineConfig({
   plugins: [
+    ncApiMiddleware(),
     vue(),
     UnoCSS() as any,
     viteCompression({

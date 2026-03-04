@@ -46,15 +46,15 @@ const showLeaderboard = ref(false)
         <!-- 浮动操作区域 (配置与通知) -->
         <div class="absolute right-4 top-4 z-40 flex items-center gap-3">
           <button
-            class="glass-panel h-10 w-10 flex items-center justify-center border rounded-full text-amber-500 shadow-md transition-all duration-300 hover:rotate-12 hover:scale-110 dark:text-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-900 bg-gradient-to-br from-amber-50 to-orange-100 border-amber-200/50 dark:from-amber-900/40 dark:to-orange-900/40 dark:border-amber-700/50"
+            class="glass-panel h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:rotate-12 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-900 bg-gradient-to-br from-amber-50 to-orange-100 border-amber-200/50 dark:from-amber-900/40 dark:to-orange-900/40 dark:border-amber-700/50"
             title="平台排行榜"
             @click="showLeaderboard = true"
           >
-            <div class="i-carbon-trophy text-xl" />
+            <div class="i-carbon-trophy text-xl text-amber-600 dark:text-amber-400" />
           </button>
           <NotificationBell />
           <button
-            class="glass-panel h-10 w-10 flex items-center justify-center border rounded-full text-gray-600 shadow-md transition-all duration-300 hover:rotate-90 dark:text-gray-300 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-900"
+            class="glass-panel glass-text-main h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:rotate-90 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-900"
             title="系统配置"
             @click="showThemeDrawer = true"
           >

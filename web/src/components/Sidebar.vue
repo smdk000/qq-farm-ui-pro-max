@@ -25,6 +25,10 @@ const { accounts, currentAccount } = storeToRefs(accountStore)
 const { status, realtimeConnected } = storeToRefs(statusStore)
 const { sidebarOpen } = storeToRefs(appStore)
 
+import { useFarmToolsStore } from '@/stores/farmTools'
+const farmToolsStore = useFarmToolsStore()
+const { isAvailable: isFarmToolsAvailable } = storeToRefs(farmToolsStore)
+
 // 响应式检测是否为宽屏（xl 断点 ≥ 1280px）
 const isDesktop = useMediaQuery('(min-width: 1280px)')
 
@@ -129,6 +133,7 @@ onMounted(() => {
   checkConnection()
   loadCurrentUser()
   checkUnread()
+  farmToolsStore.checkAvailability()
 })
 
 onBeforeUnmount(() => {
@@ -499,6 +504,19 @@ function onNavClick() {
         </div>
         <span>更新公告</span>
       </button>
+    </div>
+
+    <!-- 农场工具入口 -->
+    <div v-if="isFarmToolsAvailable" class="px-3 pb-2">
+      <router-link
+        to="/farm-tools"
+        class="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-gray-600 transition-all duration-200 hover:bg-emerald-50 dark:text-gray-400 hover:text-emerald-600 dark:hover:bg-emerald-900/10 dark:hover:text-emerald-400"
+        :active-class="'bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 font-medium shadow-sm ring-1 ring-emerald-500/10'"
+        @click="onNavClick"
+      >
+        <div class="i-carbon-tool-box text-xl" />
+        <span>农场工具</span>
+      </router-link>
     </div>
 
     <!-- 帮助中心入口 -->

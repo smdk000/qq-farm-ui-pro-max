@@ -804,7 +804,8 @@ function clearFilter() {
   refresh()
 }
 
-watch(() => currentAccount.value, () => {
+// 【修复闪烁】监听 accountId 字符串值而非 currentAccount 对象引用
+watch(() => currentAccountId.value, () => {
   refresh()
 })
 

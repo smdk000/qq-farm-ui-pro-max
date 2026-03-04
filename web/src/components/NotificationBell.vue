@@ -28,7 +28,7 @@ function togglePanel() {
 <template>
   <div class="relative">
     <button
-      class="glass-panel h-10 w-10 flex items-center justify-center border rounded-full text-gray-600 shadow-md transition-all duration-300 hover:rotate-12 dark:text-gray-300 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-900"
+      class="glass-panel glass-text-main h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:rotate-12 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-gray-900"
       title="系统通知"
       @click="togglePanel"
     >

@@ -16,7 +16,7 @@ const farmStore = useFarmStore()
 const friendStore = useFriendStore()
 const settingStore = useSettingStore()
 
-const { currentAccountId, currentAccount, accounts } = storeToRefs(accountStore)
+const { currentAccountId, accounts } = storeToRefs(accountStore)
 const { seeds } = storeToRefs(farmStore)
 const { cachedFriends: friends, loading: friendsLoading } = storeToRefs(friendStore)
 const { settings, loading: settingsLoading } = storeToRefs(settingStore)
@@ -148,8 +148,8 @@ watch(() => selectedAccount.value, () => {
   loadData()
 })
 
-watch(() => currentAccount.value, (acc) => {
-  const newId = acc ? String(acc.id || acc.uin || '') : ''
+// 【修复闪烁】监听 accountId 字符串值而非 currentAccount 对象引用
+watch(() => currentAccountId.value, (newId) => {
   if (newId && newId !== selectedAccount.value) {
     selectedAccount.value = newId
   }

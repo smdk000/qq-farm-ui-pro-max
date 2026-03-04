@@ -12,13 +12,15 @@ const { toLong, toNum, getServerTimeSec, toTimeSec, log, logWarn, sleep } = requ
 const { getPlantRankings } = require('./analytics');
 const { createScheduler } = require('./scheduler');
 const { recordOperation } = require('./stats');
+const { getDefaultLimiter } = require('./rate-limiter');
 
 // ============ 内部状态 ============
 let isCheckingFarm = false;
-let isFirstFarmCheck = true;
+let isFirstFarmCheck = true; // 用于初始化输出更多日志
+let lastGhostingEndedAt = 0; // Ghosting 打盹上次结束时间（独立于 suspendUntil，避免语义混淆）
+
 let farmLoopRunning = false;
 let externalSchedulerMode = false;
-let lastGhostingEndedAt = 0; // Ghosting 打盹上次结束时间（独立于 suspendUntil，避免语义混淆）
 const farmScheduler = createScheduler('farm');
 
 // Promise 级别的高频并发合并缓存 (针对防偷抢收的极速侦测请求起削峰作用)
@@ -95,6 +97,9 @@ const ORGANIC_FERTILIZER_ID = 1012;
 async function fertilize(landIds, fertilizerId = NORMAL_FERTILIZER_ID) {
     let successCount = 0;
     for (const landId of landIds) {
+        // [防封] 施肥速度平滑，每次请求消费一个令牌
+        try { await getDefaultLimiter().bucket.waitForToken(1); } catch (e) { }
+
         try {
             const body = types.FertilizeRequest.encode(types.FertilizeRequest.create({
                 land_ids: [toLong(landId)],
@@ -125,6 +130,9 @@ async function fertilizeOrganicLoop(landIds) {
     let idx = 0;
 
     while (successCount < MAX_ORGANIC_ROUNDS) {
+        // [防封] 有机化肥也平滑，每次消耗 1 个令牌
+        try { await getDefaultLimiter().bucket.waitForToken(1); } catch (e) { }
+
         const landId = ids[idx];
         try {
             const body = types.FertilizeRequest.encode(types.FertilizeRequest.create({
@@ -141,6 +149,14 @@ async function fertilizeOrganicLoop(landIds) {
         idx = (idx + 1) % ids.length;
         // 随机化施肥间隔 (400~700ms)，避免固定 500ms 节奏被检测
         await sleep(400 + Math.floor(Math.random() * 300));
+
+        // [优化] 分片让流机制：每连续施有机肥 20 次，强行休眠 8~15 秒，将令牌桶的排队机会让给抢收、心跳等其他核心线程防卡死。
+        if (successCount > 0 && successCount % 20 === 0) {
+            log('施肥', `批量有机肥已通过 ${successCount} 次，主动让流休息一下...`, {
+                module: 'farm', event: 'fertilize_yield', result: 'ok',
+            });
+            await sleep(8000 + Math.floor(Math.random() * 7000));
+        }
     }
 
     if (successCount >= MAX_ORGANIC_ROUNDS) {
