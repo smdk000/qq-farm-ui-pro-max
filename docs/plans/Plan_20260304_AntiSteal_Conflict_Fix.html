@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Plan - Antigravity: 防偷抢收与状态机冲突修复规划</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --text: #e2e8f0;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #fff;
+            margin-top: 1.5em;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 0.3em;
+        }
+
+        .mermaid-container {
+            background: #1e293b;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-left: 4px solid var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+            margin: 1rem 0;
+        }
+
+        .impact-high {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--danger);
+            color: white;
+            font-size: 0.8em;
+            margin-right: 8px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+
+<body>
+
+    <h1>QQ农场智能助手 - 功能架构优化计划 (Plan)</h1>
+    <p><strong>构建时间</strong>：2026-03-04</p>
+    <p><strong>核心目标</strong>：解决「极限防偷抢收」与「全局防封休眠锁」、「小号多级错峰」之间的优先级干涉冲突，提升长期高等级防封的韧性。</p>
+
+    <h2>1. 业务流程与架构冲突现状分析</h2>
+
+    <div class="alert">
+        <span class="impact-high">高危</span>
+        <strong>致命冲突点</strong>：当前防偷探测器 <code>farmScheduler</code> 是无视网络层状态的。如果账号在 1 分钟前刚好触发了腾讯 1002003 风控报错并被置入了
+        <code>suspendUntil</code> 长休眠，1 分钟后如果有菜成熟，系统依然会被唤起并发起化肥请求，这会极大概率引发黑名单的顺延与连坐。
+    </div>
+
+    <div class="mermaid-container">
+        <div class="mermaid">
+            stateDiagram-v2
+            [*] --> Scheduler
+            Scheduler --> AntiSteal: 农产品距成熟 < 60s state AntiSteal { [*] --> CheckSuspend: 当前逻辑缺失
+                CheckSuspend --> (Danger)执行抢收 : 即使在被封锁状态依然强行发包
+                }
+
+                Scheduler --> AltMode: 处于小号模式
+                state AltMode {
+                [*] --> RandomDelay
+                RandomDelay --> (Conflict)被抢先: 防偷检测横插一脚，导致预定错峰失效
+                }
+        </div>
+    </div>
+
+    <h2>2. 决议：状态与调度优先级重构</h2>
+
+    <p>针对这一风险，我计划设计一套严密的「调度隔离屏障」，确保安全高于收益。</p>
+
+    <h3>2.1 防封锁最高优先级保护机制 (Safety First Override)</h3>
+    <ul>
+        <li><strong>机制</strong>：修改运行引擎 (<code>farm.js</code>) 中的 <code>checkAndHarvest</code> 或者包含在防偷定时器的判定里。</li>
+        <li><strong>实施</strong>：拦截任何发向服务器的请求。在准备给待抢收农作物施放「普通化肥」<strong>之前</strong>，检查
+            <code>account.state.suspendUntil</code> 是否处于生效期。若在生效期内，宁愿被偷也绝不可打破休眠去下发包。</li>
+    </ul>
+
+    <h3>2.2 小号模式排异降级处理 (Alt Mode Exclusion)</h3>
+    <ul>
+        <li><strong>机制</strong>：既然小号本身是为了“提供碎片化收益”并降低在线峰值而定，防偷这种极端内卷竞争在它身上没有必要。</li>
+        <li><strong>实施</strong>：如果一个账号开启了 <code>ALT</code> 小号模式，则在 <code>farm.js</code>
+            里自动关闭对其「极限防偷功能」的监听循环，强制走最保守的时序路线。让它遵循原设定的 180s~300s 开外延迟再去收菜。</li>
+    </ul>
+
+    <div class="mermaid-container">
+        <div class="mermaid">
+            flowchart TD
+            A[开启并调度农场模块] --> B{账号模式是什么?}
+            B -- 风险模式/Risk --> C[强制禁用一切抢收/偷菜等高危挂机]
+            B -- 小号模式/Alt --> D[关闭极限防偷\n执行 180s 延迟随缘收]
+            B -- 主号模式/Main --> E{检查 suspendUntil 休眠}
+
+            E -- 休眠中 (风控生效) --> F[锁定网络 IO\n完全挂机死局保护]
+            E -- 清醒状态 --> G[放行！开启极限防偷抢收倒挂]
+        </div>
+    </div>
+
+    <h2>3. 对现网架构的影响面 (Impact Analysis)</h2>
+    <ul>
+        <li><strong>网络底座通信</strong>：无影响，利用已有的状态机节点变量（<code>opUser.state.suspendUntil</code>）。</li>
+        <li><strong>UI 显示</strong>：无影响，但可能会发现小号比以前明显被偷得更多了，因为这符合设计本意（舍去防偷，保大号安全错峰环境）。</li>
+    </ul>
+
+    <h2>4. 下一步行动 (Action)</h2>
+    <ol>
+        <li>阅读 <code>core/src/services/farm.js</code> 找到防偷倒计时 <code>setTimeout</code> 或 <code>farmScheduler</code>
+            定位抛钩点。</li>
+        <li>将 <code>config.mode === 'alt'</code> 和 <code>config.mode === 'safe'</code> 加入到拦截屏障。</li>
+        <li>加入 <code>suspendUntil</code> 熔断审查日志，输出类似：<code>[主号/防封期] 为了保护账号指纹，放弃极限防偷 0 号土地...</code></li>
+    </ol>
+
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+</body>
+
+</html>

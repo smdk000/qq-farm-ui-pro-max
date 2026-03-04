@@ -14,9 +14,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g., v4.1.0)'
+        description: 'Version (e.g., v3.6.0)'
         required: false
-        default: 'v4.1.0'
+        default: 'v3.6.0'
       push_to_docker_hub:
         description: 'Push to Docker Hub'
         required: false
@@ -30,8 +30,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   DOCKERHUB_USERNAME: smdk000
-  IMAGE_UI: smdk000/qq-farm-bot-ui
-  IMAGE_IPAD: smdk000/ipad860
+  DOCKERHUB_IMAGE: smdk000/qq-farm-bot-ui
 
 jobs:
   build-and-push:
@@ -58,7 +57,7 @@ jobs:
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             VERSION="${{ github.ref_name }}"
           else
-            VERSION="4.1.0"
+            VERSION="v3.6.0"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
@@ -83,7 +82,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.IMAGE_UI }}
+            ${{ env.DOCKERHUB_IMAGE }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
@@ -91,31 +90,21 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=sha-
 
-      - name: Build and push UI image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: core/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ env.IMAGE_UI }}:${{ steps.version.outputs.version }}
-            ${{ env.IMAGE_UI }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Build and push Ipad860 image
-        uses: docker/build-push-action@v5
-        with:
-          context: services/ipad860
-          file: services/ipad860/Dockerfile.multi
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ env.IMAGE_IPAD }}:${{ steps.version.outputs.version }}
-            ${{ env.IMAGE_IPAD }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
 
       - name: Update Docker Hub description
         if: github.event.inputs.push_to_docker_hub != 'false'
@@ -123,7 +112,7 @@ jobs:
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.IMAGE_UI }}
+          repository: ${{ env.DOCKERHUB_IMAGE }}
           readme-filepath: ./DOCKER_HUB_README.md
           short-description: 'QQ 农场智能助手 - 多账号挂机 + Web 面板'
 
@@ -139,23 +128,21 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 仓库 | 镜像名称 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|---------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker Hub | \`${{ env.IMAGE_UI }}:${{ steps.version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker Hub | \`${{ env.IMAGE_UI }}:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Hub | \`${{ env.DOCKERHUB_IMAGE }}:${{ steps.version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Hub | \`${{ env.DOCKERHUB_IMAGE }}:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "| GitHub Container Registry | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| GitHub Container Registry | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🚀 快速部署" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo '# 创建目录并进入' >> $GITHUB_STEP_SUMMARY
-          echo 'mkdir -p /opt/qq-farm-bot/init-db && cd /opt/qq-farm-bot' >> $GITHUB_STEP_SUMMARY
+          echo '# ARM 服务器' >> $GITHUB_STEP_SUMMARY
+          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
+          echo 'chmod +x deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
+          echo './deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo '# 下载配置文件' >> $GITHUB_STEP_SUMMARY
-          echo 'curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/docker-compose.yml' >> $GITHUB_STEP_SUMMARY
-          echo 'curl -fsSL -o .env https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/.env' >> $GITHUB_STEP_SUMMARY
-          echo 'curl -fsSL -o init-db/01-init.sql https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/init-db/01-init.sql' >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-          echo '# 修改密码等必需配置后，启动服务' >> $GITHUB_STEP_SUMMARY
-          echo '# vi .env (Optional)' >> $GITHUB_STEP_SUMMARY
-          echo 'docker compose up -d' >> $GITHUB_STEP_SUMMARY
+          echo '# x86 服务器' >> $GITHUB_STEP_SUMMARY
+          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
+          echo 'chmod +x deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
+          echo './deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

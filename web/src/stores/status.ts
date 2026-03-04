@@ -53,11 +53,29 @@ export const useStatusStore = defineStore('status', () => {
     })
   }
 
+  let logBuffer: any[] = []
+  let logFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+  function flushRealtimeLogs() {
+    if (logBuffer.length === 0) return
+    const merged = [...logs.value, ...logBuffer]
+    if (merged.length > 1000) {
+      logs.value = merged.slice(-1000)
+    } else {
+      logs.value = merged
+    }
+    logBuffer = []
+    logFlushTimer = null
+  }
+
   function pushRealtimeLog(entry: any) {
     const next = normalizeLogEntry(entry)
-    logs.value.push(next)
-    if (logs.value.length > 1000)
-      logs.value = logs.value.slice(-1000)
+    logBuffer.push(next)
+
+    // 增加 300ms 延迟截流缓冲，防止极端刷屏卡死主线程
+    if (!logFlushTimer) {
+      logFlushTimer = setTimeout(flushRealtimeLogs, 300)
+    }
   }
 
   function pushRealtimeAccountLog(entry: any) {

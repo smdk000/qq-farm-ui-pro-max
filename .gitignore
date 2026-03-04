@@ -2,9 +2,8 @@
 node_modules/
 .pnpm-store/
 
-# 敏感数据（deploy/.env 是模板文件，需要追踪）
+# 敏感数据
 .env
-!deploy/.env
 .env.local
 .env.*.local
 *.db
@@ -39,16 +38,6 @@ build/
 *.exe
 *.app
 *.dmg
-
-# 大文件与离线包（防止超过 GitHub 100M 限制）
-*.tar
-*.tar.gz
-*.zip
-*.rar
-*.7z
-deploy/offline/
-/services/
-/wxcode/
 
 # 临时文件
 *.tmp

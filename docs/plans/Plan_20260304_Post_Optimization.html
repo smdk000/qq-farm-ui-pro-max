@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统架构与稳定性深度优化计划 (2026-03-04)</title>
+    <style>
+        :root {
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --border-color: #333333;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --primary: #4caf50;
+            --danger: #f44336;
+            --warning: #ff9800;
+            --code-bg: #2d2d2d;
+            --code-text: #ffca28;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #ffffff;
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 0.5rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h2 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.3rem;
+            margin-top: 2rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+
+        .badge.danger {
+            background: rgba(244, 67, 54, 0.2);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .badge.warning {
+            background: rgba(255, 152, 0, 0.2);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        .badge.primary {
+            background: rgba(76, 175, 80, 0.2);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+
+        code {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9em;
+        }
+
+        .mermaid-container {
+            background: var(--bg-card);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin: 1.5rem 0;
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        ul,
+        ol {
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            securityLevel: 'loose',
+            fontFamily: 'inherit'
+        });
+    </script>
+</head>
+
+<body>
+
+    <h1>🚀 系统架构与稳定性深化改进计划</h1>
+
+    <div class="card">
+        <h2>📌 1. 背景与核心问题综述 (The Context & Issues)</h2>
+        <p>在近期进行了大量底层防封、UI多主题重构及多账号模式等高强度跨域优化后，代码库已趋近于 4.1.1 稳态版本。但在极端测试与高维压力推演下，我们发现 3 个可能会在未来或者高频多账号并发集群中爆发的严重隐患：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>问题源</th>
+                    <th>等级</th>
+                    <th>隐患描述</th>
+                    <th>触发条件</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>三阶段偷菜机制</strong></td>
+                    <td><span class="badge danger">高危 (风控)</span></td>
+                    <td><code>checkFriendsThreePhase</code> 及手动操作会在网格偷取后立即无条件调用 <code>sellAllFruits()</code>。</td>
+                    <td>好友列表极长且果实成熟频次高时，极易触发腾讯接口短时 <strong>限流与风控黑洞</strong>。</td>
+                </tr>
+                <tr>
+                    <td><strong>前端全景面板</strong></td>
+                    <td><span class="badge warning">中危 (性能)</span></td>
+                    <td>Web 端在接收 WebSocket 发车队列推送时缺乏截流机制。</td>
+                    <td>20+ 开账号“全部启动”瞬间，任务疯狂推入可能打满 Chrome 内存与主线程，导致 <strong>假死/白屏</strong>。</td>
+                </tr>
+                <tr>
+                    <td><strong>流程编排 (Workflow)</strong></td>
+                    <td><span class="badge warning">中危 (死锁)</span></td>
+                    <td>移除 <code>autoPlantEmptyLands</code> 内置化肥调用后，系统完全依赖流程图中的节点。</td>
+                    <td>用户小白误开启流程编排却 <strong>漏配 <code>stage_fertilize</code> 节点</strong>，植物将干枯无法成长。</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>🛠️ 2. 改进架构设计图 (Optimization Architecture)</h2>
+        <div class="mermaid-container">
+            <pre class="mermaid">
+            flowchart TD
+                subgraph 1. 旁路安全售卖网关 (Backend)
+                    A[好友巡查 (Three Phase)] -.->|产生售卖需求| B(事件总线 / 标记池)
+                    C[手动偷菜操作] -.->|产生售卖需求| B
+                    D{Cron 定时守护任务} -->|10-20分钟轮询| B
+                    B -- 聚合判定 --> E[执行 sellAllFruits]
+                    E --> F[底层令牌桶 (Token Bucket) 发包]
+                end
+
+                subgraph 2. 前端防抖与虚拟化渲染 (Frontend: Dashboard)
+                    G[WebSocket 流] -->|高频推入百条 Task| H(useThrottleFn / 防抖池)
+                    H -- 300~500ms 切片更新 --> I[Vue Refs (store.tasks)]
+                    I --> J[DOM 虚拟滚动 (RecycleScroller)]
+                end
+
+                subgraph 3. Workflow 静态编译期保护 (Backend/Frontend)
+                    K[用户开启流程编排] --> L{JSON Config 静态路由检测}
+                    L -- 存在 stage_fertilize --> M(允许落库生效)
+                    L -- 缺失 stage_fertilize --> N(((硬拦截 & UI 弹窗警告)))
+                end
+            </pre>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🧩 3. 详细实施路径 (Execution Steps)</h2>
+
+        <h3>阶段 1: 剥离售卖逻辑，实施旁路守护 (Anti-Ban Isolation)</h3>
+        <ul>
+            <li><strong>目标文件</strong>: <code>core/src/services/friend.js</code>, <code>core/src/services/farm.js</code>
+                (可选)</li>
+            <li><strong>动作</strong>:
+                <ol>
+                    <li>移除 <code>visitFriend</code>, <code>checkFriendsThreePhase</code> 和
+                        <code>doFriendOperation</code> 成功偷菜后强制跟进的 <code>await sellAllFruits()</code>。</li>
+                    <li>在内存状态管理 <code>runtime-state.js</code> 或 <code>store.js</code> 中新增标记槽位位
+                        <code>accountsNeedsSell: Set&lt;gid&gt;</code>，偷菜成功仅推入 gid 标记。</li>
+                    <li>在 <code>scheduler.js</code> 中挂载一个每 15 分钟（加随机偏移）触发一次的 <code>Warehouse Sell Daemon</code> 守护进程，消费
+                        <code>accountsNeedsSell</code> 并执行缓释贩卖，大幅解耦网络请求。</li>
+                </ol>
+            </li>
+        </ul>
+
+        <h3>阶段 2: 前端高频重绘防抖降频 (Vue Reactivity Throttle)</h3>
+        <ul>
+            <li><strong>目标文件</strong>: <code>web/src/stores/app.ts</code> 或 <code>web/src/views/Dashboard.vue</code>
+            </li>
+            <li><strong>动作</strong>:
+                <ol>
+                    <li>引入 VueUse 的 <code>useThrottleFn</code> 或者手写截流定时器。</li>
+                    <li>在接收 WebSocket 的 <code>on('task_queue_update', data)</code> 事件回调时，不再直接
+                        <code>state.tasks.value = data</code>，而是压入过渡缓存对象，利用 Throttle 控制至少 <code>500ms</code> 才向 Vue
+                        响应式数据推送一次更新。</li>
+                    <li>结合已有的 DOM 虚拟化，彻底杜绝瞬间万件 DOM 更新造成的浏览器卡崩。</li>
+                </ol>
+            </li>
+        </ul>
+
+        <h3>阶段 3: 流程编排完整性约束断言 (Workflow DAG Assertion)</h3>
+        <ul>
+            <li><strong>目标文件</strong>: <code>web/src/views/Settings.vue</code>,
+                <code>core/src/services/config-validator.js</code></li>
+            <li><strong>动作</strong>:
+                <ol>
+                    <li><strong>前端强提醒</strong>: 在用户勾选 <code>启用流程编排</code> 时，解析其 <code>workflowConfig.nodes</code>，如果检测不到
+                        <code>type === 'stage_fertilize'</code>，弹窗提示用户：“您的编排图中缺少施肥节点。由于已禁用传统施肥，可能导致植物生长极度缓慢甚至缺肥停滞，是否确认保存？”
+                    </li>
+                    <li><strong>后端防漏校验</strong> (可选增强): 在 <code>/api/settings/save</code> 通过 schema validator 添加对于
+                        <code>workflowConfig</code> 完整性的 Warning 级别透传。</li>
+                </ol>
+            </li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>💣 4. 影响面评估 (Impact Analysis)</h2>
+        <ul>
+            <li><strong>数据一致性与持久化</strong>: 新建的售卖守护任务必须正确依托现存的 <code>tokenBucket</code> 频率限制网关，不能打破目前多号并联使用的接口安全速率。</li>
+            <li><strong>用户体感变化</strong>: 用户将发现在 Dashboard 点击“偷菜”后，果实不会像以前一样立刻变现为金币而是存在着“延迟结算”感。需要在控制台 Logs
+                打印清晰提示：“已寄存至自动售卖队列，稍后将由旁路守护统一结算。”</li>
+            <li><strong>视图刷新率折损</strong>: 增加防抖会牺牲视觉层面的“绝对实时（0ms级跳跃）”，但是换来了 UI 主进程如丝般顺滑的操作手感，收益远大于代价。</li>
+        </ul>
+    </div>
+
+</body>
+
+</html>

@@ -11,7 +11,7 @@ const { toLong, toNum, toTimeSec, getServerTimeSec, log, logWarn, sleep } = requ
 const { getCurrentPhase, setOperationLimitsCallback } = require('./farm');
 const { createScheduler } = require('./scheduler');
 const { recordOperation } = require('./stats');
-const { requestSellFruits } = require('./warehouse');
+const { sellAllFruits } = require('./warehouse');
 const { getPool } = require('./mysql-db');
 
 // ============ 内部状态 ============
@@ -972,9 +972,9 @@ async function doFriendOperation(friendGid, opType) {
             count = await runBatchWithFallback(target, (ids) => stealHarvest(gid, ids), (ids) => stealHarvest(gid, ids));
             if (count > 0) {
                 recordOperation('steal', count);
-                // 手动偷取成功后立即尝试旁路自动出售一次果实
+                // 手动偷取成功后立即尝试出售一次果实
                 try {
-                    requestSellFruits();
+                    await sellAllFruits();
                 } catch (e) {
                     logWarn('仓库', `手动偷取后自动出售失败: ${e.message}`, {
                         module: 'warehouse',
@@ -1334,10 +1334,10 @@ async function checkFriends() {
             }
         }
 
-        // 偷菜后触发旁路自动出售
+        // 偷菜后自动出售
         if (totalActions.steal > 0) {
             try {
-                requestSellFruits();
+                await sellAllFruits();
             } catch {
                 // ignore
             }
@@ -1406,9 +1406,9 @@ async function checkFriendsThreePhase(friends, state, helpEnabled, badEnabled) {
 
     if (totalActions.steal > 0) {
         try {
-            requestSellFruits();
-            log('好友', `偷菜完成，已进入自动旁路售卖队列`, {
-                module: 'friend', event: 'batch_sell_requested', result: 'ok', stolen: totalActions.steal,
+            await sellAllFruits();
+            log('好友', `偷菜完成，统一出售果实`, {
+                module: 'friend', event: 'batch_sell', result: 'ok', stolen: totalActions.steal,
             });
         } catch { /* ignore */ }
     }
@@ -1754,9 +1754,9 @@ async function runStakeoutSteal(friendGid, friendName, targetLandIds, delaySec) 
                 friendName, friendGid, count: ok, plantNames,
             });
 
-            // 偷取后触发旁路自动出售
+            // 偷取后自动出售
             try {
-                requestSellFruits();
+                await sellAllFruits();
             } catch { /* ignore */ }
         } else {
             log('蹲守', `${friendName}: 偷取失败`, {

@@ -511,6 +511,17 @@ async function loadData() {
 
 async function saveConfigData(scope: 'farm' | 'friend') {
   if (!currentAccountId.value) return
+  
+  // 静态编译期拦截：农场一旦启用编排，必须明确知道自己没有配置施肥可能会导致停滞
+  if (scope === 'farm' && config.value.farm.enabled) {
+    const hasFertilizeNode = config.value.farm.nodes.some(n => n.type === 'stage_fertilize' || n.type === 'fertilize');
+    if (!hasFertilizeNode) {
+      if (!window.confirm('【警告】您的农场流程中没有包含“阶段施肥”或“普通施肥”节点。\n在流程编排模式下，系统将完全依靠编排节点执行。缺少施肥节点可能导致植物长期处于某阶段不成长。\n\n是否确认无化肥直接保存？')) {
+        return;
+      }
+    }
+  }
+
   saving.value = true
   
   // To avoid overwriting the other scope if it was changed by another client, we should merge.

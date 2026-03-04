@@ -211,6 +211,7 @@ const localSettings = ref({
     stealFriendFilterIds: [] as number[],
     friend_auto_accept: false,
     fertilizer_60s_anti_steal: false,
+    fertilizer_smart_phase: false,
   },
 })
 
@@ -286,6 +287,7 @@ function syncLocalSettings() {
         stealFriendFilterIds: [] as number[],
         friend_auto_accept: false,
         fertilizer_60s_anti_steal: false,
+        fertilizer_smart_phase: false,
       }
     }
     else {
@@ -321,6 +323,7 @@ function syncLocalSettings() {
         stealFriendFilterIds: [] as number[],
         friend_auto_accept: false,
         fertilizer_60s_anti_steal: false,
+        fertilizer_smart_phase: false,
       }
       localSettings.value.automation = {
         ...defaults,
@@ -1086,6 +1089,7 @@ async function restoreTimingDefaults() {
                   </div>
                 </div>
                 <BaseSwitch v-model="localSettings.automation.fertilizer_60s_anti_steal" label="60秒施肥(防偷)" hint="核心防盗功能。在果实成熟前60秒内自动施肥催熟并瞬间收获，将被偷窗口压缩到接近0。需消耗化肥，主号必开。" recommend="on" />
+                <BaseSwitch v-model="localSettings.automation.fertilizer_smart_phase" label="智能二季施肥" hint="开启后，二季作物刚种植时不会马上浪费化肥，而是等到耗时最长的黄金阶段再自动进行延期施肥，实现单果经验/金钱收益最大化。" recommend="conditional" />
                 <div class="border-t pt-2 dark:border-gray-700/50">
                   <BaseSelect
                     v-model="localSettings.automation.fertilizer"

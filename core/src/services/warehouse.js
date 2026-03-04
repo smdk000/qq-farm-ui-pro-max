@@ -29,7 +29,6 @@ const ORGANIC_FERTILIZER_ITEM_HOURS = new Map([
 ]);
 let fertilizerGiftDoneDateKey = '';
 let fertilizerGiftLastOpenAt = 0;
-let sellDaemonTimerId = null;
 
 function getDateKey() {
     const now = new Date();
@@ -500,23 +499,6 @@ async function sellAllFruits() {
     }
 }
 
-/**
- * 旁路售卖网关：请求售卖果实，将其加入异步延迟队列，防抖降频
- */
-function requestSellFruits() {
-    if (sellDaemonTimerId) return; // 已经在倒计时中，防抖
-
-    // 随机 3~8 分钟后执行
-    const delayMs = 180000 + Math.floor(Math.random() * 300000);
-    const delayMin = Math.floor(delayMs / 60000);
-
-    log('仓库', `⏳ 已通过旁路网关将售卖请求寄存，将于约 ${delayMin} 分钟后隐蔽执行`);
-    sellDaemonTimerId = setTimeout(async () => {
-        sellDaemonTimerId = null;
-        await sellAllFruits();
-    }, delayMs);
-}
-
 module.exports = {
     getBag,
     getBagDetail,
@@ -530,7 +512,6 @@ module.exports = {
         lastOpenAt: fertilizerGiftLastOpenAt,
     }),
     sellAllFruits,
-    requestSellFruits,
     getBagItems,
     getCurrentTotalsFromBag,
 };

@@ -124,7 +124,7 @@ build_multiarch() {
         -t "${REPO}:${VERSION}" \
         -t "${REPO}:latest" \
         -f "$DOCKERFILE" \
-        --push \
+        --push --provenance=false \
         .
     
     print_success "多平台 Docker 镜像构建并推送完成"
@@ -139,7 +139,7 @@ build_amd64() {
         -t "${REPO}:${VERSION}-amd64" \
         -t "${REPO}:latest-amd64" \
         -f "$DOCKERFILE" \
-        --push \
+        --push --provenance=false \
         .
     
     print_success "AMD64 Docker 镜像构建并推送完成"
@@ -154,7 +154,7 @@ build_arm64() {
         -t "${REPO}:${VERSION}-arm64" \
         -t "${REPO}:latest-arm64" \
         -f "$DOCKERFILE" \
-        --push \
+        --push --provenance=false \
         .
     
     print_success "ARM64 Docker 镜像构建并推送完成"
