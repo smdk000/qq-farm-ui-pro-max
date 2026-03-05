@@ -197,7 +197,36 @@ function syncThemeToIframe() {
     
     varsToSync.forEach(v => {
       const val = computed.getPropertyValue(v).trim()
-      if (val) cssVars += `${v}: ${val};\n`
+      if (val) {
+        cssVars += `${v}: ${val};\n`
+      } else {
+        // 🔧 容错处理：确保取到的值不是空
+        if (v === '--glass-bg') {
+          cssVars += `${v}: ${isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.4)'};\n`
+        } else if (v === '--glass-border') {
+          cssVars += `${v}: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.4)'};\n`
+        } else if (v === '--text-main') {
+          cssVars += `${v}: ${isDark ? '#e2e8f0' : '#334155'};\n`
+        } else if (v === '--text-muted') {
+          cssVars += `${v}: ${isDark ? '#94a3b8' : '#64748b'};\n`
+        } else if (v.startsWith('--color-primary-')) {
+          // 兜底一个蓝色的 primary 色系，防止空值
+          const fallbackColors = {
+            '--color-primary-50': '239 246 255',
+            '--color-primary-100': '219 234 254',
+            '--color-primary-200': '191 219 254',
+            '--color-primary-300': '147 197 253',
+            '--color-primary-400': '96 165 250',
+            '--color-primary-500': '59 130 246',
+            '--color-primary-600': '37 99 235',
+            '--color-primary-700': '29 78 216',
+            '--color-primary-800': '30 64 175',
+            '--color-primary-900': '30 58 138',
+            '--color-primary-950': '23 37 84'
+          };
+          cssVars += `${v}: ${fallbackColors[v as keyof typeof fallbackColors]};\n`
+        }
+      }
     })
 
     // 通用半透明背景色 —— 根据主题深浅自动切换
