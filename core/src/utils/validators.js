@@ -17,7 +17,7 @@ function validateUsername(username) {
         return { valid: false, error: '用户名长度应为 4-20 个字符' };
     }
 
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    if (!/^\w+$/.test(username)) {
         return { valid: false, error: '用户名只能包含字母、数字和下划线' };
     }
 
@@ -43,8 +43,8 @@ function validatePassword(password) {
     }
 
     // 字符复杂度：至少包含字母和数字
-    const hasLetter = /[a-zA-Z]/.test(password);
-    const hasDigit = /[0-9]/.test(password);
+    const hasLetter = /[a-z]/i.test(password);
+    const hasDigit = /\d/.test(password);
     if (!hasLetter || !hasDigit) {
         return { valid: false, error: '密码须同时包含字母和数字' };
     }

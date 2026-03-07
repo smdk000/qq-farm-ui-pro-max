@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Plan: Phase 4 终局演进</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #58a6ff;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 0.3em;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #161b22;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .mermaid {
+            background: #0d1117;
+            padding: 20px;
+            border-radius: 6px;
+            my-4
+        }
+
+        .step {
+            background: #21262d;
+            padding: 15px;
+            border-left: 4px solid #238636;
+            margin-bottom: 15px;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .impact {
+            background: #3c1e1e;
+            padding: 15px;
+            border-left: 4px solid #f85149;
+            margin-bottom: 15px;
+            border-radius: 0 4px 4px 0;
+        }
+
+        code {
+            background: #30363d;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+    </style>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 Antigravity 完美计划：System Evolution Phase 4 终局演进</h1>
+        <p><strong>日期:</strong> 2026-03-06 | <strong>代号:</strong> 熔断与大屏 (Circuit Breaker & Dashboard)</p>
+
+        <h2>1. 架构目标流水线 (Pipeline)</h2>
+        <div class="mermaid">
+            graph TD
+            A[风控异常触发: 1002003] -->|累积计数| B{Circuit Breaker<br>状态管理机}
+            B -->|OPEN 开启| C[引擎物理挂起<br>拒绝进队排队]
+            B -->|WebPush| D[微信告警通报]
+            E[MySQL 历史 stats] --> F[Aggregator Router<br>数据收敛聚合]
+            F --> G[Vue Echarts 端<br>科技感全景大屏]
+            H[臃肿的 admin.js] --> I[Router 微服务剥离<br>farm-tools-routing.js]
+        </div>
+
+        <h2>2. 原理与实施步骤 (Execution Steps)</h2>
+        <div class="step">
+            <h3>Step 1: 建立熔断隔离护城河 (Circuit Breaker)</h3>
+            <p>在底层实现自动保护，不完全切断业务但暂停 API 发射池（类似网络层的短路开关）。在连续 N 次触碰预设红线后锁定容器调度。</p>
+        </div>
+        <div class="step">
+            <h3>Step 2: P0 级别路由治理 (admin.js)</h3>
+            <p><code>admin.js</code> 的行数由于历史版本堆积越来越长，必须将完全纯计算型的工具 API 隔离到 <code>farm-tools-routing.js</code> 以腾出主进程内存。
+            </p>
+        </div>
+        <div class="step">
+            <h3>Step 3: Echarts 数据聚合大屏引入</h3>
+            <p>在终端展示外，让前端提供近7天偷菜金币量与工作效能折线图，直观展示系统的赚钱能力。无需外部重量级 BI 系统。</p>
+        </div>
+
+        <h2>3. 影响面评估 (Impact Analysis)</h2>
+        <div class="impact">
+            <p><strong>🚨 警告领域：</strong>修改路由拆分时，前端请求地址将会变更 (`=> /api/tools/...`)，可能会引发暂时的 404 错误。需要确保所有涉及前端请求的文件（比如 Vue
+                stores 或组件）一次性被安全替换。</p>
+            <p><strong>💡 熔断风验：</strong>熔断机制的恢复条件（Half-Open）设置必须精确，否则可能导致整个框架永久停止运行无法挂机，建议增加手动强制重启的功能按钮或通过重启容器归零状态。</p>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -16,6 +16,13 @@ export const menuRoutes: MenuItem[] = [
     component: () => import('@/views/Dashboard.vue'),
   },
   {
+    path: 'overview',
+    name: 'overview',
+    label: '总览',
+    icon: 'i-carbon-chart-multitype',
+    component: () => import('@/views/AnalyticsEcharts.vue'),
+  },
+  {
     path: 'personal',
     name: 'personal',
     label: '农场预览',
@@ -63,6 +70,22 @@ export const menuRoutes: MenuItem[] = [
     label: '设置',
     icon: 'i-carbon-settings',
     component: () => import('@/views/Settings.vue'),
+  },
+  {
+    path: 'announcements',
+    name: 'announcements',
+    label: '公告管理',
+    icon: 'i-carbon-notification',
+    component: () => import('@/views/AnnouncementManager.vue'),
+    adminOnly: true,
+  },
+  {
+    path: 'system-logs',
+    name: 'system-logs',
+    label: '系统日志',
+    icon: 'i-carbon-catalog',
+    component: () => import('@/views/SystemLogs.vue'),
+    adminOnly: true,
   },
   {
     path: 'users',

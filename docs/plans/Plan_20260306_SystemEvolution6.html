@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统演进计划 - Phase 6: 分布式 Master-Worker 集群化架构</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --border-color: #30363d;
+            --primary-color: #58a6ff;
+            --success-color: #3fb950;
+            --warning-color: #d29922;
+            --danger-color: #f85149;
+            --panel-bg: #161b22;
+            --code-bg: #010409;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-scale, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #fff;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.3em;
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        h2 {
+            font-size: 1.5em;
+            margin-top: 2rem;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+        }
+
+        .alert-info {
+            background: rgba(88, 166, 255, 0.1);
+            border-left-color: var(--primary-color);
+        }
+
+        .alert-warning {
+            background: rgba(210, 153, 34, 0.1);
+            border-left-color: var(--warning-color);
+        }
+
+        .mermaid-container {
+            background-color: var(--code-bg);
+            padding: 1.5rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th,
+        td {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 2rem;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge-new {
+            background-color: rgba(63, 185, 80, 0.2);
+            color: var(--success-color);
+        }
+
+        .badge-update {
+            background-color: rgba(88, 166, 255, 0.2);
+            color: var(--primary-color);
+        }
+
+        .badge-delete {
+            background-color: rgba(248, 81, 73, 0.2);
+            color: var(--danger-color);
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            theme: 'dark',
+            startOnLoad: true,
+            securityLevel: 'loose'
+        });
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 农场引擎演进 Phase 6: 分布式 Master-Worker 架构设计蓝图</h1>
+
+        <div class="alert alert-info">
+            <strong>核心愿景：</strong>突破 NodeJS 单核运行瓶颈，终结随着账号膨胀导致的 GC 卡顿与并发延迟。将系统架构升级为“控制面 (Control Plane) 与 数据/执行面 (Data
+            Plane/Workers) 分离”的跨服务器集群运作体系。
+        </div>
+
+        <div class="panel">
+            <h2>1. 业务痛点分析溯源</h2>
+            <p>在 Phase 4 和 Phase 5，我们连续打通了全局断路器、Echarts 可视化大屏、WebSocket 的 Room Pagination 分页以及 MySQL
+                实时资产聚合。所有的底层应用级安全隔离带与数据基座已修筑完毕。</p>
+            <p><strong>目前的瓶颈：</strong></p>
+            <ul>
+                <li><strong>集中式瓶颈：</strong>所有的爬虫（巡查、签到、好友请求）都堆积在唯一的主进程里。账号量达到千级别时，事件循环池将极度拥堵。</li>
+                <li><strong>IP 风控隔离：</strong>单 IP 承载过多账号必然触发 <code>1002003</code> 极严厉风控。</li>
+                <li><strong>扩容僵硬：</strong>无法动态水平扩展机器。</li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h2>2. 顶层架构设计 (Master-Worker)</h2>
+            <div class="mermaid-container">
+                <div class="mermaid">
+                    graph TD
+                    subgraph "Master 控制面 (核心服)"
+                    M_DB[(MySQL/SQLite)]
+                    M_Redis[(Redis(可选调度队列))]
+                    M_Admin[Admin Server / Web UI]
+                    M_Store[Account Store + 分发器]
+                    end
+
+                    subgraph "Worker 节点集群 (执行面)"
+                    W_1[Worker 1 (Docker/IP1)]
+                    W_2[Worker 2 (Docker/IP2)]
+                    W_N[Worker N (Docker/IPN)]
+                    end
+
+                    Client((用户 Browser)) -- "HTTP/WS 操作面板" --> M_Admin
+                    M_Admin -.-> M_DB
+
+                    M_Store -- "1. 派发账号/Tokens/任务指令 (gRPC/HTTP)" --> W_1
+                    M_Store -- "1. 派发账号/Tokens/任务指令" --> W_2
+
+                    W_1 -- "2. 回传收益 / 日志 / 心跳状态" --> M_Store
+                    W_2 -- "2. 回传收益 / 日志 / 心跳状态" --> M_Store
+
+                    W_1 -- "3. 发起游戏真实爬虫请求" --> QQ[(QQ 服务器)]
+                    W_2 -- "3. 发起游戏真实爬虫请求" --> QQ
+
+                    style Master 控制面 fill:#1a202c,stroke:#fff,stroke-width:1px
+                    style Worker 节点集群 fill:#2d3748,stroke:#cbd5e0,stroke-width:1px
+                </div>
+            </div>
+            <p><strong>责任清晰化：</strong></p>
+            <ul>
+                <li><strong>Master：</strong>不跑任何游戏业务。专职收发用户指令、读取数据库并分配账密、渲染面板（Analytics）、持久化每日收益聚合。</li>
+                <li><strong>Worker：</strong>极度轻量化，没有数据库概念，接到 Master 分配的 Account 结构体后，立刻执行轮询。向 Master 的 API 发送心条包反馈日志。
+                </li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h2>3. 核心分阶段重构点 (Epic 拆解)</h2>
+
+            <h3>第一梯队：数据与调度分层 <span class="badge badge-update">内部改造</span></h3>
+            <table>
+                <tr>
+                    <th>方向</th>
+                    <th>动作描述</th>
+                    <th>说明</th>
+                </tr>
+                <tr>
+                    <td>Worker 通信协议</td>
+                    <td>建立 Master <=> Worker 的双向通信。推荐初期使用长轮询 (Long Polling) 结合 Heartbeat，或在 Worker 与 Master 间建立轻量级 WS
+                            隧道。</td>
+                    <td>方便 Worker 将 <code>log:new</code> 和 <code>status:update</code> 回推给主节点存入内存池。</td>
+                </tr>
+                <tr>
+                    <td>数据剥离结构</td>
+                    <td>剥离 <code>farmer-agent.js</code> / <code>friend-scanner.js</code>，使其作为纯粹的 Worker 类。</td>
+                    <td>通过环境变量 <code>ROLE=master</code> 或 <code>ROLE=worker</code> 决定启动的服务类。</td>
+                </tr>
+            </table>
+
+            <h3>第二梯队：无状态执行节点设计 <span class="badge badge-new">基础建设</span></h3>
+            <ul>
+                <li>所有需要通过网络请求（Axios）向 Aineishe或 QQ 发起的函数，必须放在 Worker 内发生。</li>
+                <li>实现分布式锁或简易的一致性 Hash 算法（例如按 QQ 号长度取模运算，分发给挂载上来的 <code>Worker_N</code>）。如果 Worker 突然掉线（心跳丢失超过 1
+                    分钟），Master 自动将其名下的账号转移给存活的其它 Worker。</li>
+            </ul>
+
+            <h3>第三梯队：容器化与 CI/CD 改造 <span class="badge badge-update">部署基建</span></h3>
+            <ul>
+                <li>扩写目前的 <code>docker-compose.yml</code> 实现模拟测试。新增 <code>farm-worker</code> 服务进行容器复用缩放 (e.g.
+                    <code>docker-compose up --scale farm-worker=3</code>)。</li>
+                <li>由于每个 Worker 最终大概率会被分配到不同的物理机器来使用不同的家用宽带 IP（抗风控），所以需要配置外部 Worker 连接 Master 的安全握手鉴权（类似于目前系统中的 token
+                    机制，但针对集群）。</li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h2>4. 潜在风险及应对方案 (Impact & Mitigation)</h2>
+            <ul>
+                <li><strong>数据延迟 (Data Staleness)：</strong>前端可能无法像目前一样极致的看到 ms 级的 100% 实时反馈。<br><em>应对：</em>接受合理的延迟（如
+                    2-5秒同步），在页面用骨架屏掩盖视觉延迟。</li>
+                <li><strong>日志收集海量洪峰：</strong>Worker 将所有明细发回 Master。<br><em>应对：</em>我们已经在 Phase 5b 完成了 <strong>Room
+                        Pagination</strong>（分布式 WS 频道），这为集群洪峰起到了决定性的降压。对于后台内部，可以在 Worker 端实行 10秒 批量提交机制，压缩网络交互。</li>
+            </ul>
+        </div>
+
+    </div>
+</body>
+
+</html>

@@ -68,12 +68,12 @@ CREATE TABLE IF NOT EXISTS account_configs (
   preferred_seed_id INTEGER DEFAULT 0,
   
   -- 时间间隔
-  interval_farm INTEGER DEFAULT 2,
-  interval_friend INTEGER DEFAULT 10,
-  interval_farm_min INTEGER DEFAULT 2,
-  interval_farm_max INTEGER DEFAULT 2,
-  interval_friend_min INTEGER DEFAULT 10,
-  interval_friend_max INTEGER DEFAULT 10,
+  interval_farm INTEGER DEFAULT 30,
+  interval_friend INTEGER DEFAULT 60,
+  interval_farm_min INTEGER DEFAULT 30,
+  interval_farm_max INTEGER DEFAULT 120,
+  interval_friend_min INTEGER DEFAULT 60,
+  interval_friend_max INTEGER DEFAULT 180,
   
   -- 好友静默时段
   friend_quiet_hours_enabled BOOLEAN DEFAULT false,

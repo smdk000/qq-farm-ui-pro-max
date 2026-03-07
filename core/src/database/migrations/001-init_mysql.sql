@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `cards` (
     `type` VARCHAR(20) NOT NULL,
     `description` TEXT,
     `used_by` INT NULL,
+    `used_at` DATETIME NULL,
     `enabled` TINYINT(1) DEFAULT 1,
     `expires_at` DATETIME,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS `accounts` (
   `running` TINYINT(1) DEFAULT 0,
 
 -- 新阶段追加: 账号失效状态与容错审计
+
 
 `status` VARCHAR(50) DEFAULT 'valid',
   `api_error_count` INT DEFAULT 0,
@@ -74,12 +76,12 @@ CREATE TABLE IF NOT EXISTS `account_configs` (
 `automation_fertilizer` VARCHAR(50) DEFAULT 'none',
 `planting_strategy` VARCHAR(50) DEFAULT 'preferred',
 `preferred_seed_id` INT DEFAULT 0,
-`interval_farm` INT DEFAULT 2,
-`interval_friend` INT DEFAULT 10,
-`interval_farm_min` INT DEFAULT 2,
-`interval_farm_max` INT DEFAULT 2,
-`interval_friend_min` INT DEFAULT 10,
-`interval_friend_max` INT DEFAULT 10,
+`interval_farm` INT DEFAULT 30,
+`interval_friend` INT DEFAULT 60,
+`interval_farm_min` INT DEFAULT 30,
+`interval_farm_max` INT DEFAULT 120,
+`interval_friend_min` INT DEFAULT 60,
+`interval_friend_max` INT DEFAULT 180,
 `friend_quiet_hours_enabled` TINYINT(1) DEFAULT 0,
 `friend_quiet_hours_start` VARCHAR(20) DEFAULT '23:00',
 `friend_quiet_hours_end` VARCHAR(20) DEFAULT '07:00',
@@ -89,6 +91,7 @@ CREATE TABLE IF NOT EXISTS `account_configs` (
 `steal_friend_filter_mode` VARCHAR(20) DEFAULT 'blacklist',
 
 -- 新增: 将复杂设置(如蹲守策略 stakeoutSteal) 放进 JSON 字段, 避免再改 Schema
+
 
 `advanced_settings` JSON NULL,
 

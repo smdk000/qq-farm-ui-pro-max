@@ -1,4 +1,21 @@
 const { createScheduler } = require('../services/scheduler');
+const { getPool } = require('../services/mysql-db');
+
+let systemLogBatch = [];
+setInterval(() => {
+    if (systemLogBatch.length > 0) {
+        const pool = getPool();
+        if (!pool) return;
+        const currentBatch = systemLogBatch;
+        systemLogBatch = [];
+        try {
+            const values = currentBatch.map(b => [b.accountId, b.level || 'info', b.tag || '默认', b.msg || '', JSON.stringify(b.meta || {})]);
+            const placeholders = currentBatch.map(() => '(?, ?, ?, ?, ?)').join(',');
+            pool.query(`INSERT INTO system_logs (account_id, level, category, text, meta_data) VALUES ${placeholders}`, values.flat())
+                .catch(err => {/* 忽略批量写入异常以防日志死循环 */ });
+        } catch (e) { }
+    }
+}, 5000).unref();
 
 function createWorkerManager(options) {
     const {
@@ -19,6 +36,7 @@ function createWorkerManager(options) {
         addOrUpdateAccount,
         deleteAccount,
         upsertFriendBlacklist,
+        updateFriendsCache,
         broadcastConfigToWorkers,
         onStatusSync,
         onWorkerLog,
@@ -261,7 +279,7 @@ function createWorkerManager(options) {
                 }
             }
         } else if (msg.type === 'log') {
-            // 保存日志
+            // 保存日志到内存与推送到前端
             const logEntry = {
                 ...msg.data,
                 accountId,
@@ -274,8 +292,16 @@ function createWorkerManager(options) {
             if (worker.logs.length > MAX_WORKER_LOG_LIMIT) worker.logs.shift();
             globalLogs.push(logEntry);
             if (globalLogs.length > MAX_WORKER_LOG_LIMIT) globalLogs.shift();
+
+            // 压入持久化批处理队列
+            systemLogBatch.push(logEntry);
+
             if (typeof onWorkerLog === 'function') {
                 onWorkerLog(logEntry, accountId, worker.name);
+            }
+        } else if (msg.type === 'sync_friends_cache') {
+            if (typeof updateFriendsCache === 'function' && msg.data) {
+                updateFriendsCache(accountId, msg.data).catch(() => {});
             }
         } else if (msg.type === 'error') {
             log('错误', `账号[${accountId}]进程报错: ${msg.error}`, { accountId: String(accountId), accountName: worker.name });
@@ -302,6 +328,16 @@ function createWorkerManager(options) {
             });
             addAccountLog('kickout_stop', `账号 ${worker.name} 被踢下线，已自动停止`, accountId, worker.name, { reason });
             stopWorker(accountId);
+        } else if (msg.type === 'account_banned') {
+            const reason = msg.reason || '未知';
+            log('系统', `账号 ${worker.name} 被判定限制 (${reason})，记录日志并推送 Webhook 告警`, { accountId: String(accountId), accountName: worker.name });
+            triggerOfflineReminder({
+                accountId,
+                accountName: worker.name,
+                reason: `ban:${reason}`,
+                offlineMs: 30 * 60 * 1000,
+            });
+            addAccountLog('ban_sleep', `账号 ${worker.name} 触发防刷保护，进入 30 分钟休眠`, accountId, worker.name, { reason });
         } else if (msg.type === 'friend_blacklist_add') {
             const gid = Number(msg.gid);
             if (!Number.isFinite(gid) || gid <= 0) return;

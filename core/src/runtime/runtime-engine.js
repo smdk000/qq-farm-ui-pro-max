@@ -9,6 +9,7 @@ const { createDataProvider } = require('./data-provider')
 const { createReloginReminderService } = require('./relogin-reminder')
 const { createRuntimeState } = require('./runtime-state')
 const { createWorkerManager } = require('./worker-manager')
+const { updateFriendsCache } = require('../services/database')
 
 const OPERATION_KEYS = ['harvest', 'water', 'weed', 'bug', 'fertilize', 'plant', 'steal', 'helpWater', 'helpWeed', 'helpBug', 'taskClaim', 'sell', 'upgrade']
 
@@ -74,6 +75,7 @@ function createRuntimeEngine(options = {}) {
     triggerOfflineReminder,
     addOrUpdateAccount: store.addOrUpdateAccount,
     deleteAccount: store.deleteAccount,
+    updateFriendsCache,
     onStatusSync: (accountId, status, accountName) => {
       runtimeEvents.emit('status', { accountId, status, accountName })
       if (onStatusSync) onStatusSync(accountId, status, accountName)

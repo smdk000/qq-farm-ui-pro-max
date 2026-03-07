@@ -10,7 +10,14 @@ export interface Account {
   uin?: number
   avatar?: string
   running?: boolean
+  connected?: boolean
+  wsError?: any
   accountMode?: 'main' | 'alt' | 'safe'
+  level?: number
+  gold?: number
+  exp?: number
+  coupon?: number
+  uptime?: number
   // Add other fields as discovered
 }
 

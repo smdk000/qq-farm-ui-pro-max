@@ -2,7 +2,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-RUN npm install -g pnpm
+RUN npm config set registry https://registry.npmmirror.com && npm install -g pnpm
 
 # Copy workspace configuration
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
@@ -12,7 +12,7 @@ COPY core/package.json ./core/
 COPY web/package.json ./web/
 
 # Install all deps for build
-RUN pnpm install
+RUN npm config set registry https://registry.npmmirror.com && pnpm config set registry https://registry.npmmirror.com && pnpm install
 
 # Copy source code
 COPY core ./core
@@ -25,16 +25,17 @@ RUN pnpm build:web
 FROM node:20-alpine AS prod-deps
 
 WORKDIR /app
+ENV npm_config_disturl=https://npmmirror.com/mirrors/node/
 
-RUN npm install -g pnpm
-RUN apk add --no-cache python3 make g++
+RUN npm config set registry https://registry.npmmirror.com && npm install -g pnpm
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && apk add --no-cache python3 make g++
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY core/package.json ./core/
 COPY web/package.json ./web/
 
 # Install only runtime deps for core
-RUN pnpm -C core install --prod
+RUN npm config set registry https://registry.npmmirror.com && pnpm config set registry https://registry.npmmirror.com && pnpm -C core install --prod
 RUN cd /app/core && npm rebuild better-sqlite3
 
 # ==========================================

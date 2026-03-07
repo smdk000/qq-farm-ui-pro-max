@@ -72,7 +72,7 @@ function verifyPassword(plain, stored) {
             const parts = stored.split('$');
             if (parts.length !== 4) return { valid: false, needsMigration: false };
 
-            const iterations = parseInt(parts[1], 10);
+            const iterations = Number.parseInt(parts[1], 10);
             if (!Number.isFinite(iterations) || iterations < 1) {
                 return { valid: false, needsMigration: false };
             }

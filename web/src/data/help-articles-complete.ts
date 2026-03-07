@@ -327,6 +327,34 @@ export const helpArticles: HelpArticle[] = [
     author: 'QQ Farm Bot Team',
     reviewStatus: 'published',
   },
+  {
+    id: 'ops-distributed',
+    category: '运维部署',
+    title: '分布式集群部署 (Docker)',
+    icon: 'i-carbon-network-4',
+    content: `<div class="content-sections"><div class="info-card"><h3>🌊 分布式 Master-Worker 集群部署</h3><p>从 v4.3.0 版本起，系统支持强大的分布式集群化部署。默认拉取的镜像以单节点（Standalone）运行，如果您拥有大量账号需要并发执行，可以通过本教程改造为集群部署方案。</p></div><div class="step-card"><div class="step-number">1</div><div class="step-content"><h4>单机版部署 (默认模式)</h4><pre># 默认情况下拉取的是单一节点版本
+docker run -d --name farm-bot -p 3003:3000 smdk/qq-farm-ui-pro-max:latest</pre><p>默认方案自动集成了面板（Master）与挂机任务（Worker），开箱即用，适合百号以内的常规操作。</p></div></div><div class="step-card"><div class="step-number">2</div><div class="step-content"><h4>升级到分布式集群版</h4><p>创建一个 <code>docker-compose.yml</code> 配置文件，通过定义环境变数 <code>ROLE=master</code> 或 <code>ROLE=worker</code> 将架构拆分。</p><pre>version: '3.8'
+services:
+  farm-master:
+    image: smdk/qq-farm-ui-pro-max:latest
+    ports:
+      - "3003:3000"
+    environment:
+      - ROLE=master
+
+  farm-worker:
+    image: smdk/qq-farm-ui-pro-max:latest
+    environment:
+      - ROLE=worker
+      - MASTER_URL=http://farm-master:3000
+    depends_on:
+      - farm-master</pre></div></div><div class="step-card"><div class="step-number">3</div><div class="step-content"><h4>一键无缝横向扩容 (Scale)</h4><p>在同目录下执行如下部署命令即可挂载多个打工节点抢占挂机任务（以下范例拉起 3 个无头客户端）：</p><pre>docker-compose up -d --scale farm-worker=3</pre></div></div><div class="tip-card tip-success"><div class="tip-header"><div class="i-carbon-checkmark-filled tip-icon"></div><strong>✅ 各角色职能梳理</strong></div><ul class="tip-content"><li><strong>Master 节点：</strong>只负责展示后台 Web UI（浏览器3003端口）和执行午夜12点的数据落库、任务派发。不处理实际账号挂机，永不卡顿。</li><li><strong>Worker 节点：</strong>无面板，开机自动用 Socket 连接到 Master 登记，随后领取被分配的农场账号，默默在后台爬虫打怪反馈经验进度。</li></ul></div></div>`,
+    tags: ['运维', '分布式', 'Docker', '集群', '高并发', '部署'],
+    updatedAt: '2026-03-06',
+    version: 'v4.3.0',
+    author: 'QQ Farm Bot Team',
+    reviewStatus: 'published',
+  },
 ]
 
 // 分类定义
@@ -371,14 +399,25 @@ export const helpCategories = [
 
 // 开发进度追踪
 export const developmentProgress = {
-  totalArticles: 25,
-  completedArticles: 25, // 已完成
+  totalArticles: 26,
+  completedArticles: 26, // 已完成
   draftArticles: 0,
-  lastUpdated: '2026-03-05',
+  lastUpdated: '2026-03-06',
   nextUpdate: '2026-03-??',
-  version: 'v4.2.0',
+  version: 'v4.3.0',
   progress: 100,
   changelog: [
+    {
+      version: 'v4.3.0',
+      date: '2026-03-06',
+      changes: [
+        '架构演进：重构 Master-Worker 分布式集群模式',
+        '全面容器化：内置分布式 Docker-compose 弹性扩展机制',
+        '真实战报系统：接入 MySQL stats_daily 进行统计并引入 Dirty Write 防抖',
+        '核心引擎重写：WebSocket 分页订阅与 Echarts 异步首屏加载',
+        '安全与防封：全平台同步拉取路由修复，QQ/WeChat 登录鉴权双轨优化'
+      ],
+    },
     {
       version: 'v3.9.0',
       date: '2026-03-02',
@@ -394,7 +433,7 @@ export const developmentProgress = {
       version: 'v3.2.4',
       date: '2026-02-28',
       changes: [
-        '完成所有 21 篇帮助文章',
+        '完成所有 26 篇帮助文章',
         '实现搜索功能',
         '添加进度追踪系统',
         '完善维护指南',

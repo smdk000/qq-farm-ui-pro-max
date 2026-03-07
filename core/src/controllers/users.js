@@ -8,9 +8,9 @@ const userStore = require('../models/user-store');
 /**
  * 获取用户列表（仅管理员）
  */
-function getAllUsers(req, res) {
+async function getAllUsers(req, res) {
     try {
-        const users = userStore.getAllUsers();
+        const users = await userStore.getAllUsers();
         res.json({ ok: true, users });
     } catch (error) {
         console.error('获取用户列表失败:', error.message);
@@ -21,9 +21,9 @@ function getAllUsers(req, res) {
 /**
  * 获取用户详情（带密码，仅管理员）
  */
-function getAllUsersWithPassword(req, res) {
+async function getAllUsersWithPassword(req, res) {
     try {
-        const users = userStore.getAllUsersWithPassword();
+        const users = await userStore.getAllUsersWithPassword();
         res.json({ ok: true, users });
     } catch (error) {
         console.error('获取用户详情失败:', error.message);
@@ -34,7 +34,7 @@ function getAllUsersWithPassword(req, res) {
 /**
  * 更新用户信息（仅管理员）
  */
-function updateUser(req, res) {
+async function updateUser(req, res) {
     try {
         const { username } = req.params;
         const { expiresAt, enabled } = req.body;
@@ -43,7 +43,7 @@ function updateUser(req, res) {
         if (expiresAt !== undefined) updates.expiresAt = expiresAt;
         if (enabled !== undefined) updates.enabled = enabled;
 
-        const result = userStore.updateUser(username, updates);
+        const result = await userStore.updateUser(username, updates);
         if (!result) {
             return res.status(404).json({ ok: false, error: '用户不存在' });
         }
@@ -58,10 +58,10 @@ function updateUser(req, res) {
 /**
  * 删除用户（仅管理员）
  */
-function deleteUser(req, res) {
+async function deleteUser(req, res) {
     try {
         const { username } = req.params;
-        const result = userStore.deleteUser(username);
+        const result = await userStore.deleteUser(username);
 
         if (!result.ok) {
             return res.status(400).json(result);
@@ -77,7 +77,7 @@ function deleteUser(req, res) {
 /**
  * 修改密码
  */
-function changePassword(req, res) {
+async function changePassword(req, res) {
     try {
         // 从 req.currentUser 获取用户名（由 authRequired 中间件设置）
         const username = req.currentUser?.username;
@@ -98,7 +98,7 @@ function changePassword(req, res) {
             return res.status(400).json({ ok: false, error: pwdValidation.error });
         }
 
-        const result = userStore.changePassword(username, oldPassword, newPassword);
+        const result = await userStore.changePassword(username, oldPassword, newPassword);
 
         if (!result.ok) {
             return res.status(400).json(result);

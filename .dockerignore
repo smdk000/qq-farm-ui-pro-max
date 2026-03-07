@@ -1,0 +1,51 @@
+# Dependencies
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build artifacts
+dist
+**/dist
+core/dist-*
+core/dist-nest
+web/stats.html
+coverage
+
+# Runtime data
+/data
+/core/data
+backup
+
+# VCS & dev files
+.git
+.github
+.vscode
+.idea
+
+# Env & logs
+.env
+.env.*
+*.local
+npm-debug.log*
+pnpm-debug.log*
+/logs
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archive & non-build directories
+archive
+github-sync
+docs
+tmp
+图鉴
+*.tar
+*.zip
+
+# AI tools data
+.llm-chat-history
+.specstory
+.agent
+.cursor
+

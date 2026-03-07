@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AccountModal from '@/components/AccountModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -15,6 +15,17 @@ const { getAvatarUrl, markFailed } = useAvatar()
 const router = useRouter()
 const accountStore = useAccountStore()
 const { accounts, loading } = storeToRefs(accountStore)
+
+// 排序：运行中的账号排在前面，已停止的排在后面
+const sortedAccounts = computed(() => {
+  return [...accounts.value].sort((a, b) => {
+    if (a.running && !b.running)
+      return -1
+    if (!a.running && b.running)
+      return 1
+    return 0
+  })
+})
 
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
@@ -267,7 +278,7 @@ async function handleSafeCheck(acc: any) {
 
     <div v-else class="grid grid-cols-1 items-start gap-4 lg:grid-cols-3 sm:grid-cols-2">
       <div
-        v-for="acc in accounts"
+        v-for="acc in sortedAccounts"
         :key="acc.id"
         class="glass-panel cursor-pointer border border-transparent rounded-lg p-4 shadow transition-all duration-300 hover:border-primary-500/50 hover:shadow-[0_0_15px_rgba(var(--color-primary-500),0.1)]"
         :class="acc.id === accountStore.currentAccountId ? 'border-primary-500/50 bg-primary-500/[0.03] shadow-[0_0_20px_rgba(var(--color-primary-500),0.15)] dark:border-primary-400/50' : ''"
@@ -314,8 +325,24 @@ async function handleSafeCheck(acc: any) {
         <div class="mt-2 flex items-center justify-between border-t border-gray-100/50 pt-4 dark:border-white/10">
           <div class="glass-text-muted flex items-center gap-2 text-sm">
             <span class="flex items-center gap-1">
-              <div class="h-2 w-2 rounded-full" :class="acc.running ? 'bg-green-500' : 'bg-gray-300'" />
-              {{ acc.running ? '运行中' : '已停止' }}
+              <template v-if="acc.running">
+                <template v-if="acc.connected">
+                  <div class="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                  运行中
+                </template>
+                <template v-else-if="acc.wsError || acc.level !== undefined">
+                  <div class="h-2 w-2 rounded-full bg-red-500" />
+                  <span class="text-red-500 font-medium dark:text-red-400" :title="acc.wsError?.message || 'WebSocket连接断开'">已掉线</span>
+                </template>
+                <template v-else>
+                  <div class="h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
+                  <span class="text-yellow-600 font-medium dark:text-yellow-500">连接中...</span>
+                </template>
+              </template>
+              <template v-else>
+                <div class="h-2 w-2 rounded-full bg-gray-300" />
+                已停止
+              </template>
             </span>
             <transition name="fade">
               <BaseButton

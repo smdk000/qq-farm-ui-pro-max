@@ -4,26 +4,58 @@
 
 const { getAllPlants, getFruitPrice, getSeedPrice, getItemImageById } = require('../config/gameConfig');
 
-function parseGrowTime(growPhases) {
-    if (!growPhases) return 0;
-    const phases = growPhases.split(';').filter(p => p.length > 0);
-    let totalTime = 0;
+/**
+ * 解析生长阶段时长数组（排除成熟阶段 :0）
+ */
+function parsePhaseSeconds(growPhases) {
+    if (!growPhases) return [];
+    const phases = String(growPhases).split(';').filter(p => p.length > 0);
+    const secs = [];
     for (const phase of phases) {
         const match = phase.match(/:(\d+)$/);
         if (match) {
-            totalTime += Number.parseInt(match[1]);
+            const s = Number.parseInt(match[1], 10) || 0;
+            if (s > 0) secs.push(s);
         }
     }
-    return totalTime;
+    return secs;
 }
 
+function parseGrowTime(growPhases) {
+    const secs = parsePhaseSeconds(growPhases);
+    return secs.reduce((a, b) => a + b, 0);
+}
+
+/**
+ * 两季作物完整周期时长（第一季 + 第二季）
+ * 参考 farm-calculator：第二季 = 最后 2 个有效阶段之和
+ */
+function parseFullCycleGrowTime(growPhases, seasons) {
+    const secs = parsePhaseSeconds(growPhases);
+    if (secs.length === 0) return 0;
+    const firstSeason = secs.reduce((a, b) => a + b, 0);
+    if (Number(seasons) !== 2 || secs.length < 2) return firstSeason;
+    const last2 = secs.slice(-2);
+    const secondSeason = last2.reduce((a, b) => a + b, 0);
+    return firstSeason + secondSeason;
+}
+
+/**
+ * 普通化肥对第一生长阶段的加速效果（秒）
+ * 参考策略版：普通施肥跳过第一阶段，即减少时长为第一个有效阶段的秒数
+ * 排除成熟阶段（:0），取第一个 seconds>0 的阶段
+ */
 function parseNormalFertilizerReduceSec(growPhases) {
     if (!growPhases) return 0;
     const phases = String(growPhases).split(';').filter(p => p.length > 0);
-    if (!phases.length) return 0;
-    const first = phases[0];
-    const match = first.match(/:(\d+)$/);
-    return match ? (Number.parseInt(match[1], 10) || 0) : 0;
+    for (const phase of phases) {
+        const match = phase.match(/:(\d+)$/);
+        if (match) {
+            const sec = Number.parseInt(match[1], 10) || 0;
+            if (sec > 0) return sec; // 第一个有效阶段
+        }
+    }
+    return 0;
 }
 
 function formatTime(seconds) {
@@ -34,7 +66,7 @@ function formatTime(seconds) {
     return mins > 0 ? `${hours}时${mins}分` : `${hours}时`;
 }
 
-function getPlantRankings(sortBy = 'exp') {
+function getPlantRankings(sortBy = 'exp', levelMax = null) {
     const plants = getAllPlants();
     console.warn(`[分析] 获取到 ${plants.length} 种作物`);
     
@@ -55,7 +87,7 @@ function getPlantRankings(sortBy = 'exp') {
         if (baseGrowTime <= 0) continue;
         const seasons = Number(plant.seasons) || 1;
         const isTwoSeason = seasons === 2;
-        const growTime = isTwoSeason ? (baseGrowTime * 1.5) : baseGrowTime;
+        const growTime = parseFullCycleGrowTime(plant.grow_phases, seasons);
         
         const harvestExpBase = Number.parseInt(plant.exp) || 0;
         const harvestExp = isTwoSeason ? (harvestExpBase * 2) : harvestExpBase;
@@ -121,6 +153,11 @@ function getPlantRankings(sortBy = 'exp') {
         results.sort((a, b) => lv(b.level) - lv(a.level));
     }
 
+    // 按等级筛选：仅保留 level 为空或 level <= levelMax 的作物
+    if (levelMax != null && Number.isFinite(Number(levelMax)) && Number(levelMax) > 0) {
+        const max = Number(levelMax);
+        return results.filter(r => r.level === null || r.level === undefined || Number(r.level) <= max);
+    }
     return results;
 }
 

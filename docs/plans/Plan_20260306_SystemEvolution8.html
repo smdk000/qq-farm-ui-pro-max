@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统演进：Phase 8 智能分布式网关与流控</title>
+    <!-- 暗黑模式原生 CSS -->
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f1f5f9;
+            --heading-color: #38bdf8;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --accent-color: #0ea5e9;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--heading-color);
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+
+        .alert-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            border-left: 4px solid var(--success-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: var(--heading-color);
+        }
+
+        pre {
+            background: #000;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            color: #10b981;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+</head>
+
+<body>
+
+    <h1>🏰 Phase 8: 集群智能流控与网关抽象 (Smart Rebalance & NGINX)</h1>
+    <p>日期：2026-03-06 | 架构师：Antigravity Agent</p>
+
+    <div class="alert alert-success">
+        🎯 <strong>核心目标：</strong>实现企业级 NGINX API 代理基座，并将暴力全量重洗牌机制平滑升级为智能 Least Load 粘性路由推流机制（扫码后自动分发至最近最空的 Worker）。
+    </div>
+
+    <!-- 架构流程图 -->
+    <div class="section">
+        <h2>一、网络链路抽象图 (Mermaid)</h2>
+        <div class="mermaid">
+            graph TD
+            U[管理员浏览器 手机端扫码 / 监控大屏] -->|HTTP / WS| N[NGINX Gateway]
+            N -->|前反向拆解 + Upgrade Header| M([Master Node 调度中心])
+            M -->|持有状态: Account To Worker Map| C{智能决策器}
+
+            C -->|配置=最小负荷LeastLoad| L(筛选负载最轻的 Node)
+            L --> W1([Worker 1: Load 2])
+            C -->|原有账号心跳保持| W2([Worker 2: Load 5])
+            C --> W3([Worker 3: Load 9])
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>二、影响面分析与优化点</h2>
+        <table>
+            <tr>
+                <th>优化模块</th>
+                <th>影响组件</th>
+                <th>核心目标与益处</th>
+            </tr>
+            <tr>
+                <td><strong>NGINX 边界层</strong></td>
+                <td><code>docker-compose.yml</code><br><code>nginx/nginx.conf</code></td>
+                <td>由 Nginx 接管公网流量解析和 Websocket Upgrade 工作，增强并发与安全性能力，彻底摆脱“单点直连”的孱弱。</td>
+            </tr>
+            <tr>
+                <td><strong>控制面板选项</strong></td>
+                <td><code>Settings.vue</code><br><code>stores/setting.ts</code><br><code>api/admin.js</code></td>
+                <td>用户获得“自动推流至未满载集群”和“无脑平均切分”的自定义决策权开关。</td>
+            </tr>
+            <tr>
+                <td><strong>智能粘性分发算法</strong></td>
+                <td><code>master-dispatcher.js</code></td>
+                <td>改写历史中粗暴的 <code>assigned = []</code> 重排。维持原本绑定的长线生命周期，避免在群集下发规模增加时引发断触效应！</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>三、行动里程碑 (Assessment)</h2>
+        <ol>
+            <li><strong>Task 1</strong> - 于 API 与 Store 中贯通设置信道。</li>
+            <li><strong>Task 2</strong> - 于前端画出一套酷炫的 <code>分布式集群管控</code> 卡片。</li>
+            <li><strong>Task 3</strong> - 修改调度器底层，落实 Least Load 匹配映射。</li>
+            <li><strong>Task 4</strong> - 搭建正规军版带有 WS Proxy 能力的 NGINX 环境。</li>
+        </ol>
+    </div>
+
+</body>
+
+</html>

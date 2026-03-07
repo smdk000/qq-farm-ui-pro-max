@@ -161,8 +161,31 @@ function createDataProvider(options) {
             data.accounts.forEach((a) => {
                 const worker = workers[a.id];
                 a.running = !!worker;
-                if (worker && worker.status && worker.status.status && worker.status.status.name) {
-                    a.nick = worker.status.status.name;
+
+                if (worker) {
+                    a.wsError = worker.wsError ? { code: worker.wsError.code, message: worker.wsError.message } : null;
+                    if (worker.status && worker.status.connection) {
+                        a.connected = !!worker.status.connection.connected;
+                    } else {
+                        a.connected = false;
+                    }
+                } else {
+                    a.connected = false;
+                    a.wsError = null;
+                }
+
+                if (worker && worker.status) {
+                    const st = worker.status.status || {};
+                    // 附加昵称
+                    if (st.name) {
+                        a.nick = st.name;
+                    }
+                    // 附加实时统计数据（用于排行榜和面板展示）
+                    a.level = st.level || 0;
+                    a.gold = st.gold || 0;
+                    a.exp = st.exp || 0;
+                    a.coupon = st.coupon || 0;
+                    a.uptime = worker.status.uptime || 0;
                 }
             });
             return data;

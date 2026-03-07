@@ -2,7 +2,7 @@
 
 > 🔴 **醒目提醒：现在扫码登录失效，等其他大佬修复，本仓库暂停更新功能，仅修复bug了。**基于 Node.js 的 QQ 农场自动化工具，支持多账号管理、Web 控制面板、实时日志与数据分析。
 
-![版本](https://img.shields.io/badge/版本-v4.3.0-blue)
+![版本](https://img.shields.io/badge/版本-v4.5.0-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange)
 ![Redis](https://img.shields.io/badge/Redis-6.0-red)
@@ -249,24 +249,25 @@ ADMIN_PASSWORD='你的强密码' pnpm dev:core
 
 # 🐳 Docker 部署完整指南（整合版）
 
-## 🚀 快速开始（双架构一键部署）
+## 🚀 Docker 一键部署（推荐）
 
-### 🚀 推荐：单行脚本一键部署 (App + MySQL + Redis)
+### 方案一：全新服务器一键部署
 
-无论您使用的是 Intel/AMD 服务器、还是类似甲骨文/树莓派等 ARM 架构的机器，请直接在终端中执行以下命令：
+适用于全新服务器，自动安装 Docker、拉取全部服务（App + MySQL + Redis + 微信扫码）、配置环境并启动。
 
-**全架构通用一键脚本（x86_64 / ARM64 自动适配，含 MySQL + Redis + 微信扫码）：**
+**一键脚本（x86_64 / ARM64 自动适配）：**
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/quick-deploy.sh)
+bash <(curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/quick-deploy.sh)
 ```
 
-**或者手动三步部署：**
+**或手动三步部署：**
 ```bash
 # 1. 下载编排文件和环境配置
 mkdir -p qq-farm && cd qq-farm
-curl -O https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/docker-compose.yml
-curl -o .env https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/.env.example
-curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/init-db/init.sql -o init-db/init.sql --create-dirs
+curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/docker-compose.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/.env.example -o .env
+mkdir -p init-db
+curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/init-db/01-init.sql -o init-db/01-init.sql
 
 # 2.（可选）编辑 .env 修改密码和端口
 # nano .env
@@ -275,51 +276,35 @@ curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deplo
 docker compose up -d
 ```
 
-### 💡 极强健壮性：空载数据库零干预启动
+### 💡 零干预空载启动
 
-新部署环境下，只要您的内核支持运行 Docker，我们的架构已支持 **零干预空载启动**：
-- Docker 会自动拉取并启动专属微型 `MySQL` 节点与 `Redis` 哨兵。
-- 当 `App` 服务侦测到当前 `MySQL` 毫无数据时，将**自动初始化建库、注入多表 Schema 与缓存索引引擎**，100% 杜绝各类 "Table accounts doesn't exist" 的报错阻断。
-- 整个过程只需您静侯 2 分钟，在终端 `docker logs -f qq-farm-app` 中看到绿色的 `✅ MySQL 核心表结构自动初始化完成` 即为胜利！
-
-**该脚本的魔力在于：**
-1. 自动全生命周期检测防火墙、端口冲突并引导修复。
-2. 自动基于远端智能拉取匹配底层架构。
-3. （重要）在侦测到 ARM 架构（如 aarch64）时，将自动开启 `vm.overcommit_memory=1` 释放系统内存限额，防止 Redis 等依赖无故崩溃。
-4. 全自动在当前目录生成 `.env` 安全脱敏配置模板供后期微调。
-
+- Docker 自动拉取 MySQL 8.0 + Redis 7 + 微信扫码服务
+- MySQL 首次启动自动执行 `01-init.sql` 建表，无需手动干预
+- ARM 架构自动设置 `vm.overcommit_memory=1` 防止 Redis 崩溃
+- 端口冲突自动检测并提示修改
 
 ---
 
-### 方法 2: Docker Compose（生产环境纯净部署）
+### 方案二：仅更新主程序（已部署环境）
 
-使用 `docker-compose.prod.yml` 可一键启动完整栈：**qq-farm-bot-ui** + **ipad860**（微信协议）+ **Redis**，端口映射 `3080 → 3000`。
+MySQL / Redis / 微信扫码保持不变，仅更新主应用镜像，数据零丢失。
 
-**1. 下载完整编排配置并生成 `.env`**
+**一键更新脚本：**
 ```bash
-curl -O https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/docker-compose.prod.yml
-curl -o .env https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/.env.example
+cd ~/qq-farm  # 进入部署目录
+bash <(curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/update-app.sh)
 ```
 
-**2. 定制您的服务密码（强烈防黑客推荐）**
-您可以使用 `nano` 或 `vim` 编辑 `.env` 文件，任意修改 `ADMIN_PASSWORD`、数据库密文及相关系统级验证 Key（如 `WX_API_KEY`）。
-
-**3. 后台独立启动服务矩阵**
+**或手动更新：**
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+cd ~/qq-farm
+docker compose pull qq-farm-bot
+docker compose up -d --no-deps qq-farm-bot
 ```
-
-**4. 查看状态**
-```bash
-docker-compose -f docker-compose.prod.yml ps
-docker-compose -f docker-compose.prod.yml logs -f
-```
-
-**服务说明**：`docker-compose.prod.yml` 包含 qq-farm-bot-ui、ipad860（微信扫码登录）、Redis，Web 面板访问端口为 `3080`。
 
 ---
 
-### 方法 3: Docker 命令（灵活配置）
+### 方法 3: Docker 命令（仅主程序，灵活配置）
 
 ```bash
 docker run -d \
@@ -577,7 +562,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 
 ## 📚 完整文档
 
-- **GitHub 仓库**: https://github.com/smdk000/qq-farm-ui-pro-max
+- **GitHub 仓库**: https://github.com/smdk000/qq-farm-bot-ui
 - **Docker Hub**: https://hub.docker.com/r/smdk000/qq-farm-bot-ui
 - **GitHub Packages**: https://github.com/users/smdk000/packages/container/package/qq-farm-bot-ui
 - **部署指南**: [deploy/README.md](deploy/README.md)
@@ -590,13 +575,13 @@ Docker 会自动选择适合您系统架构的镜像版本。
 
 ### 文档资源
 
-- [README.md](https://github.com/smdk000/qq-farm-ui-pro-max) - 项目说明
+- [README.md](https://github.com/smdk000/qq-farm-bot-ui) - 项目说明
 - [DEPLOYMENT_FIX_REPORT.md](DEPLOYMENT_FIX_REPORT.md) - 部署问题修复报告
 - [DOCKER_BUILD_COMPLETE.md](DOCKER_BUILD_COMPLETE.md) - Docker 构建完成总结
 
 ### 技术支持
 
-- **GitHub Issues**: https://github.com/smdk000/qq-farm-ui-pro-max/issues
+- **GitHub Issues**: https://github.com/smdk000/qq-farm-bot-ui/issues
 - **QQ 群**: 227916149
 - **Docker Hub**: https://hub.docker.com/r/smdk000/qq-farm-bot-ui
 
@@ -721,7 +706,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 ### 下载预编译版本
 
 **从 GitHub Releases 下载**:
-访问 https://github.com/smdk000/qq-farm-ui-pro-max/releases 下载对应平台的可执行文件。
+访问 https://github.com/smdk000/qq-farm-bot-ui/releases 下载对应平台的可执行文件。
 
 | 平台 | 文件名 |
 |------|--------|

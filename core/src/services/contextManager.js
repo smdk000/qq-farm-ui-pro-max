@@ -98,7 +98,7 @@ class ContextManager {
   /**
    * 获取相关上下文
    * @param {string} query - 查询内容
-   * @param {Object} options - 选项
+   * @param {object} options - 选项
    */
   async getRelatedContext(query, options = {}) {
     if (!this.enabled) {

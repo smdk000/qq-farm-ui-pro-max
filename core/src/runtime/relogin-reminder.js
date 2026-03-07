@@ -14,7 +14,7 @@ function createReloginReminderService(options) {
     } = options;
 
     const reloginWatchers = new Map(); // key: accountId:loginCode
-  const lastReminderTime = new Map(); // key: accountId, value: timestamp
+    const lastReminderTime = new Map(); // key: accountId, value: timestamp
 
     function getOfflineAutoDeleteMs() {
         const cfg = store.getOfflineReminder ? store.getOfflineReminder() : null;
@@ -22,7 +22,7 @@ function createReloginReminderService(options) {
         return sec * 1000;
     }
 
-    function applyReloginCode({ accountId = '', accountName = '', authCode = '', uin = '' }) {
+    function applyReloginCode({ accountId = '', accountName = '', authCode = '', uin = '', username = '' }) {
         const code = String(authCode || '').trim();
         if (!code) return;
 
@@ -65,6 +65,7 @@ function createReloginReminderService(options) {
             qq: uin || '',
             uin: uin || '',
             avatar,
+            username: username || '',
         });
         const newAcc = (created.accounts || [])[created.accounts.length - 1];
         if (newAcc) {
@@ -74,7 +75,7 @@ function createReloginReminderService(options) {
         }
     }
 
-    function startReloginWatcher({ loginCode, accountId = '', accountName = '' }) {
+    function startReloginWatcher({ loginCode, accountId = '', accountName = '', username = '' }) {
         const code = String(loginCode || '').trim();
         if (!code) return;
 
@@ -118,7 +119,7 @@ function createReloginReminderService(options) {
                             stop();
                             return;
                         }
-                        applyReloginCode({ accountId, accountName, authCode, uin });
+                        applyReloginCode({ accountId, accountName, authCode, uin, username });
                         stop();
                         return;
                     }
@@ -135,7 +136,11 @@ function createReloginReminderService(options) {
     async function triggerOfflineReminder(payload = {}) {
         try {
             const accountId = String(payload.accountId || '').trim();
-            
+            const accountData = getAccounts ? getAccounts() : {};
+            const accountList = Array.isArray(accountData.accounts) ? accountData.accounts : (Array.isArray(accountData) ? accountData : []);
+            const matchedAccount = accountList.find(a => String(a.id) === accountId);
+            const ownerUsername = (matchedAccount && matchedAccount.username) || '';
+
             // 去重：避免短时间内重复发送推送（5分钟内）
             const now = Date.now();
             const lastTime = lastReminderTime.get(accountId);
@@ -144,7 +149,7 @@ function createReloginReminderService(options) {
                 return;
             }
             lastReminderTime.set(accountId, now);
-            
+
             const cfg = store.getOfflineReminder ? store.getOfflineReminder() : null;
             if (!cfg) return;
 
@@ -157,7 +162,16 @@ function createReloginReminderService(options) {
             const accountName = String(payload.accountName || payload.accountId || '').trim();
             const title = accountName ? `${baseTitle} ${accountName}` : baseTitle;
             let content = String(cfg.msg || '').trim();
-            if (!channel || !token || !title || !content) return;
+
+            // Phase 4: 特殊 P0 级告警覆盖文案
+            if (payload.reason && payload.reason.startsWith('ban:')) {
+                content = `【P0系统告警】账号 [${accountName}] 触发腾讯防刷安全策略(1002003)，系统已自动进入 30 分钟保护性自愈休眠。建议排查设置是否过快，此为最后防线。`;
+            } else if (payload.reason && payload.reason.startsWith('kickout:')) {
+                const pureReason = payload.reason.replace('kickout:', '');
+                content = `【P0跑路告警】账号 [${accountName}] 被踢下线被登出，请紧急上线检查状态！可能异地登录或被封禁！原因: ${pureReason}`;
+            }
+
+            if (!channel || !title || !content) return;
             if (channel === 'webhook' && !endpoint) return;
             if (reloginUrlMode === 'qq_link' || reloginUrlMode === 'qr_code' || reloginUrlMode === 'all') {
                 try {
@@ -168,11 +182,11 @@ function createReloginReminderService(options) {
                     if (qqUrl) {
                         if (reloginUrlMode === 'qq_link') {
                             content = `${content}\n\n登录链接: ${qqUrl}`;
-                        } else if(reloginUrlMode === 'qr_code') {
+                        } else if (reloginUrlMode === 'qr_code') {
                             if (qrCodeImage) {
                                 content = `${content}\n\n登录二维码:\n\n<img src="${qrCodeImage}" alt="登录二维码" width="300" height="300" />`;
                             }
-                        }else if(reloginUrlMode === 'all'){
+                        } else if (reloginUrlMode === 'all') {
                             if (qrCodeImage) {
                                 content = ` ${content}\n\n登录链接: ${qqUrl}\n登录二维码:\n <img src="${qrCodeImage}" alt="登录二维码" width="300" height="300" />`;
                             } else {
@@ -185,6 +199,7 @@ function createReloginReminderService(options) {
                             loginCode,
                             accountId: String(payload.accountId || '').trim(),
                             accountName: String(payload.accountName || '').trim(),
+                            username: ownerUsername,
                         });
                     }
                 } catch (e) {

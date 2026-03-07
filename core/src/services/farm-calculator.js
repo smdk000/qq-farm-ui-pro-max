@@ -81,7 +81,7 @@ function get_crop_stats(crop, params, land_dist, lands, min_land_level, is_smart
 
     const fert_phases_all_same = phase_count > 1 && new Set(valid_phases.map(p => p.seconds)).size === 1;
 
-    let fert_best_phase_sec = 0, fert_best_phase_names = [], fert_best_phase_orders = [];
+    let fert_best_phase_sec = 0; let fert_best_phase_names = []; let fert_best_phase_orders = [];
     if (is_smart_fert) {
         if (phase_secs_adjusted.length > 0) {
             const max_phase_sec = Math.max(...phase_secs_adjusted);
@@ -123,7 +123,7 @@ function get_crop_stats(crop, params, land_dist, lands, min_land_level, is_smart
 
     const base_fruit_count = crop.fruitCount || 0;
     const fruit_sell_price = crop.fruitSellPrice || 0;
-    let total_gold = 0, effective_fruit_count = 0;
+    let total_gold = 0; let effective_fruit_count = 0;
     [4, 3, 2, 1].forEach(lv => {
         const cnt = land_dist[lv] || 0;
         if (cnt > 0) {
@@ -224,7 +224,7 @@ function get_crop_stats(crop, params, land_dist, lands, min_land_level, is_smart
 
 function calculate_main(params) {
     ensureData();
-    const level = parseInt(params.level || '1', 10);
+    const level = Number.parseInt(params.level || '1', 10);
     const is_smart_fert = params.smart === '1';
     const is_ideal = params.ideal === '1';
     const is_s2_fert = params.s2fert === '1';
@@ -233,10 +233,10 @@ function calculate_main(params) {
     let lands = lands_info.lands;
     const default_dist = lands_info.distribution || {};
 
-    const gold = parseInt(params.gold || '0', 10);
-    const black = parseInt(params.black || '0', 10);
-    const red = parseInt(params.red || '0', 10);
-    const normal = parseInt(params.normal || '0', 10);
+    const gold = Number.parseInt(params.gold || '0', 10);
+    const black = Number.parseInt(params.black || '0', 10);
+    const red = Number.parseInt(params.red || '0', 10);
+    const normal = Number.parseInt(params.normal || '0', 10);
 
     let land_dist = {};
     if (gold + black + red + normal > 0) {
@@ -319,7 +319,7 @@ function _build_segments(cur_level, tgt_level, cur_exp, is_smart_fert = true, is
         if (cur_level < c.level && c.level <= tgt_level) level_changes.add(c.level);
     });
     Object.keys(LANDS_DATA).forEach(lvStr => {
-        const lv = parseInt(lvStr, 10);
+        const lv = Number.parseInt(lvStr, 10);
         if (!isNaN(lv) && cur_level < lv && lv <= tgt_level) level_changes.add(lv);
     });
     const breakpoints = [...level_changes].sort((a, b) => a - b);
@@ -502,14 +502,14 @@ function _build_recharge_plan(diamonds_needed, first_tiers) {
 
 function calculate_exp_plan(params) {
     ensureData();
-    const cur_level = parseInt(params.cur_level || '1', 10);
-    const tgt_level = parseInt(params.tgt_level || '2', 10);
-    const cur_exp = parseInt(params.cur_exp || '0', 10);
-    const fert_h = parseFloat(params.fert_h || '0');
-    const org_h = parseFloat(params.org_h || '0');
-    const cur_diamonds = parseInt(params.cur_diamonds || '0', 10);
-    const cur_coupons = parseInt(params.cur_coupons || '0', 10);
-    let plan_days = Math.max(1, parseInt(params.plan_days || '1', 10));
+    const cur_level = Number.parseInt(params.cur_level || '1', 10);
+    const tgt_level = Number.parseInt(params.tgt_level || '2', 10);
+    const cur_exp = Number.parseInt(params.cur_exp || '0', 10);
+    const fert_h = Number.parseFloat(params.fert_h || '0');
+    const org_h = Number.parseFloat(params.org_h || '0');
+    const cur_diamonds = Number.parseInt(params.cur_diamonds || '0', 10);
+    const cur_coupons = Number.parseInt(params.cur_coupons || '0', 10);
+    let plan_days = Math.max(1, Number.parseInt(params.plan_days || '1', 10));
     const svip = params.svip === '1';
     const level_bonus = params.level_bonus === '1';
     const super_monthly = params.super_monthly_card === '1';
@@ -533,13 +533,13 @@ function calculate_exp_plan(params) {
     const total_reg_h = segments.reduce((acc, seg) => acc + seg.reg_h, 0);
     const total_org_h = segments.reduce((acc, seg) => acc + seg.org_h, 0);
 
-    let daily_free_reg = 0, daily_detail_parts = [];
+    let daily_free_reg = 0; let daily_detail_parts = [];
     if (svip) { daily_free_reg += 5; daily_detail_parts.push('SVIP 5h'); }
     if (super_monthly) { daily_free_reg += 5; daily_detail_parts.push('超级月卡 5h'); }
     let free_fert_h = daily_free_reg * plan_days;
     const free_daily_detail = daily_detail_parts.join(' + ');
 
-    let bonus_info = {}, level_bonus_fert_h = 0, level_bonus_coupons = 0;
+    let bonus_info = {}; let level_bonus_fert_h = 0; let level_bonus_coupons = 0;
     if (level_bonus) {
         bonus_info = _calc_level_bonus(cur_level, tgt_level);
         level_bonus_fert_h = bonus_info.level_bonus_fert_h || 0;
@@ -556,7 +556,7 @@ function calculate_exp_plan(params) {
     let org_from_coupons_h = org_from_coupons_packs * 10;
     let coupon_remainder = total_coupons - org_from_coupons_packs * 42;
 
-    const reg_saved_h = fert_h, org_saved_h = org_h;
+    const reg_saved_h = fert_h; const org_saved_h = org_h;
     let reg_to_buy = Math.max(0, Math.ceil(total_reg_h - reg_saved_h - free_fert_h - level_bonus_fert_h));
     let org_to_buy = Math.max(0, Math.ceil(total_org_h - org_saved_h - org_from_coupons_h));
 

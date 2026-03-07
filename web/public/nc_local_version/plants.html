@@ -51,14 +51,14 @@
     html.dark .plant-card,
     html.dark .crop-table,
     html.dark .filter-bar {
-      background: rgba(15, 23, 42, 0.75) !important;
+      background: var(--glass-bg, transparent) !important;
       border-color: rgba(148, 163, 184, 0.15) !important;
       color: #f0f9ff !important;
     }
 
     html.dark input,
     html.dark select {
-      background: rgba(30, 41, 59, 0.8) !important;
+      background: var(--glass-bg, transparent) !important;
       border-color: rgba(148, 163, 184, 0.2) !important;
       color: #f0f9ff !important;
     }
@@ -292,7 +292,7 @@
   <header
     class="lg:hidden sticky top-0 z-50 bg-slate-900 text-white flex items-center justify-between px-4 h-14 flex-shrink-0 shadow-lg">
     <button id="menu-btn" onclick="openSidebar()"
-      class="p-2 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition" aria-label="菜单">
+      class="p-2 rounded-lg hover:bg-transparent/10 dark:hover:bg-slate-800/10 transition" aria-label="菜单">
       <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
         stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -327,19 +327,19 @@
       <!-- 导航 -->
       <nav class="flex-1 px-3 py-4 space-y-1">
         <a href="./index.html"
-          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition "
+          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-transparent/10 dark:hover:bg-slate-800/10 transition "
           onclick="closeSidebar()">
           <div class="nav-dot h-5 mr-0.5"></div>
           <span class="text-lg">🏠</span><span class="text-sm font-medium">首页</span>
         </a>
         <a href="./calculator.html"
-          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition "
+          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-transparent/10 dark:hover:bg-slate-800/10 transition "
           onclick="closeSidebar()">
           <div class="nav-dot h-5 mr-0.5"></div>
           <span class="text-lg">🧮</span><span class="text-sm font-medium">经验计算器</span>
         </a>
         <a href="./levels.html"
-          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition "
+          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-transparent/10 dark:hover:bg-slate-800/10 transition "
           onclick="closeSidebar()">
           <div class="nav-dot h-5 mr-0.5"></div>
           <span class="text-lg">💰</span><span class="text-sm font-medium">氪金计算器</span>
@@ -356,13 +356,13 @@
           <span class="ml-auto text-xs opacity-40">🔒</span>
         </a>
         <a href="./plants.html"
-          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition active"
+          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-transparent/10 dark:hover:bg-slate-800/10 transition active"
           onclick="closeSidebar()">
           <div class="nav-dot h-5 mr-0.5"></div>
           <span class="text-lg">🌿</span><span class="text-sm font-medium">作物图鉴</span>
         </a>
         <a href="./lands.html"
-          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition "
+          class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-transparent/10 dark:hover:bg-slate-800/10 transition "
           onclick="closeSidebar()">
           <div class="nav-dot h-5 mr-0.5"></div>
           <span class="text-lg">🏞️</span><span class="text-sm font-medium">土地图鉴</span>
@@ -375,7 +375,7 @@
 
 
         <a href="./items/05.html"
-          class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition "
+          class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-transparent/10 dark:hover:bg-slate-800/10 transition "
           onclick="closeSidebar()">
           <div class="nav-dot h-5 mr-0.5"></div>
           <span class="text-base leading-none">🌱</span>

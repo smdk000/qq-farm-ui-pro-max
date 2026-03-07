@@ -155,6 +155,100 @@ function isRedisCacheAvailable() {
     return circuitBreaker.isAvailable();
 }
 
+// ============ 公告管理 (支持多版本历史) ============
+const ANNOUNCEMENT_CACHE_KEY = 'announcements:list';
+const ANNOUNCEMENT_CACHE_TTL = 300; // 5 分钟
+
+async function getAnnouncements() {
+    try {
+        const redis = getRedisClient();
+        if (redis) {
+            const cached = await redis.get(ANNOUNCEMENT_CACHE_KEY);
+            if (cached) return JSON.parse(cached);
+        }
+    } catch (e) {
+        logger.warn(`公告 Redis 缓存读取失败: ${e.message}`);
+    }
+
+    const pool = getPool();
+    if (!pool) return [];
+    try {
+        // 按照 ID 倒序排列获取所有有效和非有效公告
+        const [rows] = await pool.execute(
+            'SELECT id, title, version, publish_date, content, enabled, created_by, created_at, updated_at FROM announcements ORDER BY id DESC'
+        );
+        const data = rows.map(row => ({
+            id: row.id,
+            title: row.title || '',
+            version: row.version || '',
+            publish_date: row.publish_date || '',
+            content: row.content || '',
+            enabled: !!row.enabled,
+            createdBy: row.created_by,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+        }));
+        try {
+            const redis = getRedisClient();
+            if (redis) {
+                await redis.set(ANNOUNCEMENT_CACHE_KEY, JSON.stringify(data), 'EX', ANNOUNCEMENT_CACHE_TTL);
+            }
+        } catch (rErr) { /* ignore */ }
+        return data;
+    } catch (e) {
+        logger.error(`getAnnouncements failed: ${e.message}`);
+        return [];
+    }
+}
+
+async function saveAnnouncement(data) {
+    const pool = getPool();
+    if (!pool) throw new Error('MySQL 不可用');
+    const { id, title = '', version = '', publish_date = '', content = '', enabled = true, createdBy = null } = data || {};
+    try {
+        if (id) {
+            await pool.execute(
+                'UPDATE announcements SET title = ?, version = ?, publish_date = ?, content = ?, enabled = ?, created_by = ? WHERE id = ?',
+                [title, version, publish_date, content, enabled ? 1 : 0, createdBy, id]
+            );
+        } else {
+            await pool.execute(
+                'INSERT INTO announcements (title, version, publish_date, content, enabled, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+                [title, version, publish_date, content, enabled ? 1 : 0, createdBy]
+            );
+        }
+        await invalidateAnnouncementCache();
+        return { ok: true };
+    } catch (e) {
+        logger.error(`saveAnnouncement failed: ${e.message}`);
+        throw e;
+    }
+}
+
+async function deleteAnnouncement(id) {
+    const pool = getPool();
+    if (!pool) throw new Error('MySQL 不可用');
+    try {
+        if (id) {
+            await pool.execute('DELETE FROM announcements WHERE id = ?', [id]);
+        } else {
+            await pool.query('TRUNCATE TABLE announcements'); // 使用 query 代替 execute 并且 TRUNCATE，重置自增顺序
+        }
+        await invalidateAnnouncementCache();
+        return { ok: true };
+    } catch (e) {
+        logger.error(`deleteAnnouncement failed: ${e.message}`);
+        throw e;
+    }
+}
+
+async function invalidateAnnouncementCache() {
+    try {
+        const redis = getRedisClient();
+        if (redis) await redis.del(ANNOUNCEMENT_CACHE_KEY);
+    } catch (e) { /* ignore */ }
+}
+
 module.exports = {
     initDatabase,
     getDb,
@@ -164,4 +258,8 @@ module.exports = {
     updateFriendsCache,
     getCachedFriends,
     isRedisCacheAvailable,
+    getAnnouncements,
+    saveAnnouncement,
+    deleteAnnouncement,
+    invalidateAnnouncementCache,
 };

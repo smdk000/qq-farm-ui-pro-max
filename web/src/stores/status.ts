@@ -33,6 +33,7 @@ export const useStatusStore = defineStore('status', () => {
   const realtimeConnected = ref(false)
   const realtimeLogsEnabled = ref(true)
   const currentRealtimeAccountId = ref('')
+  const announcementUpdateTrigger = ref(0)
   const tokenRef = adminToken
 
   let socket: Socket | null = null
@@ -60,8 +61,8 @@ export const useStatusStore = defineStore('status', () => {
     if (logBuffer.length === 0)
       return
     const merged = [...logs.value, ...logBuffer]
-    if (merged.length > 1000) {
-      logs.value = merged.slice(-1000)
+    if (merged.length > 300) {
+      logs.value = merged.slice(-300)
     }
     else {
       logs.value = merged
@@ -134,7 +135,7 @@ export const useStatusStore = defineStore('status', () => {
     }
     // 按时间排序并限制总量
     merged.sort((a: any, b: any) => a.ts - b.ts)
-    logs.value = merged.length > 1000 ? merged.slice(-1000) : merged
+    logs.value = merged.length > 300 ? merged.slice(-300) : merged
   }
 
   function handleRealtimeAccountLogsSnapshot(payload: any) {
@@ -173,6 +174,12 @@ export const useStatusStore = defineStore('status', () => {
       auth: {
         token: tokenRef.value,
       },
+      // 分布式网关防雪崩退避策略：
+      // 起步2秒避让，最大15秒，外加50%随机抖动，彻底打散并发大军
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 15000,
+      randomizationFactor: 0.5,
+      timeout: 10000,
     })
 
     socket.on('connect', () => {
@@ -196,27 +203,43 @@ export const useStatusStore = defineStore('status', () => {
     socket.on('account-log:new', handleRealtimeAccountLog)
     socket.on('logs:snapshot', handleRealtimeLogsSnapshot)
     socket.on('account-logs:snapshot', handleRealtimeAccountLogsSnapshot)
+    socket.on('announcement:update', () => {
+      announcementUpdateTrigger.value++
+    })
     return socket
   }
 
-  function connectRealtime(accountId: string) {
-    const newId = String(accountId || '').trim()
-    currentRealtimeAccountId.value = newId
+  function connectRealtime(accountId: string | string[]) {
+    // 支持分页多选订阅，如果传数组则视为开启 Room Pagination
+    const newId = Array.isArray(accountId) ? accountId : String(accountId || '').trim()
+    currentRealtimeAccountId.value = Array.isArray(newId) ? newId.join(',') : newId
     if (!tokenRef.value)
       return
 
     const client = ensureRealtimeSocket()
-    client.auth = {
-      token: tokenRef.value,
-      accountId: newId || 'all',
+
+    // 按条件构造认证凭据
+    if (Array.isArray(newId)) {
+      client.auth = { token: tokenRef.value, accountIds: newId }
     }
+    else {
+      client.auth = { token: tokenRef.value, accountId: newId || 'all' }
+    }
+
+    const nextSubKey = Array.isArray(newId) ? newId.join(',') : (newId || 'all')
 
     if (client.connected) {
       // 幂等守卫：账号未变化时不重复 subscribe，避免触发 snapshot 覆盖日志
-      if (lastSubscribedAccountId === (newId || 'all'))
+      if (lastSubscribedAccountId === nextSubKey)
         return
-      lastSubscribedAccountId = newId || 'all'
-      client.emit('subscribe', { accountId: newId || 'all' })
+      lastSubscribedAccountId = nextSubKey
+
+      if (Array.isArray(newId)) {
+        client.emit('subscribe', { accountIds: newId })
+      }
+      else {
+        client.emit('subscribe', { accountId: newId || 'all' })
+      }
       return
     }
     lastSubscribedAccountId = ''
@@ -234,6 +257,7 @@ export const useStatusStore = defineStore('status', () => {
     socket.off('account-log:new', handleRealtimeAccountLog)
     socket.off('logs:snapshot', handleRealtimeLogsSnapshot)
     socket.off('account-logs:snapshot', handleRealtimeAccountLogsSnapshot)
+    socket.off('announcement:update')
     socket.disconnect()
     socket = null
     realtimeConnected.value = false
@@ -341,5 +365,6 @@ export const useStatusStore = defineStore('status', () => {
     clearLogs,
     connectRealtime,
     disconnectRealtime,
+    announcementUpdateTrigger,
   }
 })

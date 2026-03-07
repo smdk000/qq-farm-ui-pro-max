@@ -1,0 +1,105 @@
+:root {
+    --bg: #0b0f19;
+    --panel: #111827;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --primary: #38bdf8;
+    --border: #1e293b;
+    --glass: rgba(17, 24, 39, 0.7);
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.7;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+}
+
+header {
+    margin-bottom: 3rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 2rem;
+}
+
+h1 {
+    color: #f8fafc;
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.025em;
+}
+
+h2 {
+    color: var(--primary);
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 2rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.card ul {
+    list-style: none;
+    padding: 0;
+}
+
+.card li {
+    margin-bottom: 1.25rem;
+    color: var(--text-muted);
+    position: relative;
+    padding-left: 1.8rem;
+}
+
+.card li::before {
+    content: '✦';
+    position: absolute;
+    left: 0;
+    color: var(--primary);
+    font-size: 0.9rem;
+    top: 0.1rem;
+    opacity: 0.8;
+}
+
+.card strong {
+    color: #f8fafc;
+    font-weight: 600;
+}
+
+.mermaid {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2rem;
+    border-radius: 0.75rem;
+    border: 1px dashed var(--border);
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+code {
+    background: #0f172a;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    color: var(--primary);
+    font-family: ui-monospace, monospace;
+    border: 1px solid var(--border);
+    font-size: 0.9em;
+}

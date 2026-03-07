@@ -7,8 +7,10 @@ import LandCard from '@/components/LandCard.vue'
 import { useAccountStore } from '@/stores/account'
 import { useFriendStore } from '@/stores/friend'
 import { useStatusStore } from '@/stores/status'
+import { useToastStore } from '@/stores/toast'
 
 const accountStore = useAccountStore()
+const toast = useToastStore()
 const friendStore = useFriendStore()
 const statusStore = useStatusStore()
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
@@ -60,7 +62,10 @@ async function loadFriends() {
 
     if (acc.running && status.value?.connection?.connected) {
       avatarErrorKeys.value.clear()
-      await friendStore.fetchFriends(currentAccountId.value)
+      const result = await friendStore.fetchFriends(currentAccountId.value)
+      if (result?.fromCache) {
+        toast.warning('好友列表加载失败，已显示缓存数据，可能非最新')
+      }
       await friendStore.fetchBlacklist(currentAccountId.value)
     }
   }

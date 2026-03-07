@@ -37,7 +37,7 @@ router.get('/status', async (req, res) => {
     // 检查守护进程
     const pidFile = path.join(__dirname, '..', 'logs', 'ai-daemon.pid');
     if (fs.existsSync(pidFile)) {
-      const pid = parseInt(fs.readFileSync(pidFile, 'utf8'));
+      const pid = Number.parseInt(fs.readFileSync(pidFile, 'utf8'));
       try {
         process.kill(pid, 0);
         status.daemon.running = true;
@@ -93,7 +93,7 @@ router.get('/logs', (req, res) => {
     
     const content = fs.readFileSync(logFile, 'utf8');
     const allLines = content.split('\n').filter(line => line.trim());
-    const recentLines = allLines.slice(-parseInt(lines));
+    const recentLines = allLines.slice(-Number.parseInt(lines));
     
     res.json({
       success: true,

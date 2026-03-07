@@ -19,8 +19,8 @@ class WriteBuffer {
      * @param {object} options 配置
      * @param {Function} options.getDb - 获取数据库实例的函数
      * @param {string} options.name - 缓冲器名称，用于日志标识
-     * @param {number} [options.flushIntervalMs=5000] - 定时刷盘间隔（毫秒）
-     * @param {number} [options.maxBatchSize=200] - 累积条数阈值，达到时立即刷盘
+     * @param {number} [options.flushIntervalMs] - 定时刷盘间隔（毫秒）
+     * @param {number} [options.maxBatchSize] - 累积条数阈值，达到时立即刷盘
      */
     constructor(options = {}) {
         this.getDb = options.getDb;

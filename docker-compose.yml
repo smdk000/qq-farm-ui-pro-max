@@ -1,14 +1,47 @@
+version: '3.8'
+
 services:
-  qq-farm-bot-ui:
+  # NGINX 对外网关
+  gateway:
+    image: nginx:alpine
+    container_name: farm-gateway
+    restart: unless-stopped
+    ports:
+      # 映射为主访问端口 (如原 3000 或 80)
+      - "3003:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - farm-master
+
+  # Master 中心控制节点
+  farm-master:
     build:
       context: .
       dockerfile: core/Dockerfile
-    container_name: qq-farm-bot-ui
+    container_name: farm-master
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - ROLE=master
+      - FARM_PORT=3000
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+  # Worker 执行节点（可以通过 docker-compose up --scale farm-worker=3 来水平扩展）
+  farm-worker:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
     restart: unless-stopped
     environment:
-      ADMIN_PASSWORD: qq007qq008
-      TZ: Asia/Shanghai
-    ports:
-      - "3080:3000"
+      - ROLE=worker
+      - MASTER_URL=http://farm-master:3000
+      - WORKER_TOKEN=default_cluster_token
+    # Worker 不对外暴露端口，只需能连上 Master 即可
+    depends_on:
+      - farm-master
     volumes:
-      - ./data:/app/core/data
+      - ./logs:/app/logs

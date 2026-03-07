@@ -367,7 +367,7 @@ watch(() => props.show, (newVal) => {
             <BaseButton
               v-if="!qrData"
               variant="primary"
-              class="w-full mt-2"
+              class="mt-2 w-full"
               :disabled="!qrUin"
               :loading="loading"
               @click="loadQRCode"

@@ -38,6 +38,16 @@ message GameFriend {
     // repeated AvatarFrame equip_avatar_frames = 13;  // 略
 }
 
+// ============ 邀请信息 ============
+message Invitation {
+    int64 gid = 1;
+    string open_id = 2;
+    string name = 3;
+    string avatar_url = 4;
+    int64 level = 5;
+    int64 time_at = 6;
+}
+
 // ============ 请求/回复 ============
 
 // --- 获取所有好友 ---
@@ -45,7 +55,7 @@ message GetAllRequest {}
 
 message GetAllReply {
     repeated GameFriend game_friends = 1;
-    // repeated Invitation invitations = 2;  // 略
+    repeated Invitation invitations = 2;
     int64 application_count = 3;
 }
 
@@ -57,7 +67,7 @@ message SyncAllRequest {
 
 message SyncAllReply {
     repeated GameFriend game_friends = 1;
-    // repeated Invitation invitations = 2;  // 略
+    repeated Invitation invitations = 2;
     int64 application_count = 3;
 }
 

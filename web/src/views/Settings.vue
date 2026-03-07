@@ -68,6 +68,16 @@ const trialConfig = ref({
   maxAccounts: 1,
 })
 
+const clusterConfig = ref({
+  dispatcherStrategy: 'round_robin',
+})
+const clusterSaving = ref(false)
+
+const clusterStrategyOptions = [
+  { label: '轮询洗牌 (Round Robin)', value: 'round_robin' },
+  { label: '最小负荷与粘性推流 (Least Load)', value: 'least_load' },
+]
+
 const trialDaysOptions = [
   { label: '1 天', value: 1 },
   { label: '7 天', value: 7 },
@@ -83,6 +93,8 @@ const thirdPartyApiConfig = ref({
   aineisheKey: '',
 })
 const thirdPartyApiSaving = ref(false)
+
+
 
 const trialCooldownOptions = [
   { label: '1 小时', value: 3600000 },
@@ -122,6 +134,34 @@ async function saveTrialConfig() {
   }
 }
 
+async function loadClusterConfig() {
+  if (!isAdmin.value)
+    return
+  const data = await settingStore.fetchClusterConfig()
+  if (data) {
+    clusterConfig.value = { ...clusterConfig.value, ...data }
+  }
+}
+
+async function saveClusterConfig() {
+  clusterSaving.value = true
+  try {
+    const res = await settingStore.saveClusterConfig(clusterConfig.value)
+    if (res.ok) {
+      showAlert('分布式与集群策略已保存并即时生效')
+    }
+    else {
+      showAlert(`保存失败: ${res.error}`, 'danger')
+    }
+  }
+  catch (e: any) {
+    showAlert(`保存失败: ${e.message}`, 'danger')
+  }
+  finally {
+    clusterSaving.value = false
+  }
+}
+
 async function loadThirdPartyApiConfig() {
   if (!isAdmin.value)
     return
@@ -152,6 +192,8 @@ async function saveThirdPartyApiConfig() {
     thirdPartyApiSaving.value = false
   }
 }
+
+
 
 const modalVisible = ref(false)
 const modalConfig = ref({
@@ -216,6 +258,7 @@ const localSettings = ref({
     friend_auto_accept: false,
     fertilizer_60s_anti_steal: false,
     fertilizer_smart_phase: false,
+    forceGetAllEnabled: false,
   },
 })
 
@@ -234,8 +277,8 @@ const localTiming = ref({
   rateLimitIntervalMs: 334,
   ghostingProbability: 0.02,
   ghostingCooldownMin: 240,
-  ghostingMinMin: 30,
-  ghostingMaxMin: 90,
+  ghostingMinMin: 5,
+  ghostingMaxMin: 10,
   inviteRequestDelay: 2000,
 })
 
@@ -292,6 +335,7 @@ function syncLocalSettings() {
         friend_auto_accept: false,
         fertilizer_60s_anti_steal: false,
         fertilizer_smart_phase: false,
+        forceGetAllEnabled: false,
       }
     }
     else {
@@ -328,6 +372,7 @@ function syncLocalSettings() {
         friend_auto_accept: false,
         fertilizer_60s_anti_steal: false,
         fertilizer_smart_phase: false,
+        forceGetAllEnabled: false,
       }
       localSettings.value.automation = {
         ...defaults,
@@ -458,6 +503,7 @@ async function loadData() {
   loadThirdPartyApiConfig()
   if (isAdmin.value) {
     loadTimingConfig()
+    loadClusterConfig()
   }
 }
 
@@ -629,6 +675,7 @@ const fieldLabels: Record<string, string> = {
   friend_bad: '自动捣乱',
   friend_auto_accept: '自动同意好友',
   friend_help_exp_limit: '经验上限停止帮忙',
+  forceGetAllEnabled: '强制好友兼容模式',
   email: '自动领取邮件',
   fertilizer_gift: '自动填充化肥',
   fertilizer_buy: '自动购买化肥',
@@ -1174,6 +1221,7 @@ async function restoreTimingDefaults() {
               <BaseSwitch v-model="localSettings.automation.friend_bad" label="自动捣乱" hint="访问好友农场时自动放虫/放草。有社交风险，好友可能拉黑你，小号专用。" recommend="off" />
               <BaseSwitch v-model="localSettings.automation.friend_auto_accept" label="自动同意好友" hint="自动同意所有好友申请。好友越多偷菜机会越多，但也增加被偷风险。" recommend="conditional" />
               <BaseSwitch v-model="localSettings.automation.friend_help_exp_limit" label="经验上限停止帮忙" hint="当日帮忙经验达到系统上限后自动停止，避免做无用功浪费请求配额。" recommend="on" />
+              <BaseSwitch v-model="localSettings.automation.forceGetAllEnabled" label="强效兼容尝试" hint="如果发现好友列表一直为空（多见于微信最新环境），请开启此项强制尝试 GetAll 拉取。" recommend="conditional" />
             </div>
           </div>
 
@@ -1474,6 +1522,49 @@ async function restoreTimingDefaults() {
         </div>
       </div>
 
+      <!-- Card New: 分布式与集群流控（仅管理员可见） -->
+      <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
+        <div class="border-b border-gray-200/50 bg-transparent px-4 py-3 dark:border-gray-700/50">
+          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+            <div class="i-carbon-flow-stream" />
+            分布式与集群流控 (Cluster Routing)
+          </h3>
+        </div>
+
+        <div class="p-4 space-y-4">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <BaseSelect
+              v-model="clusterConfig.dispatcherStrategy"
+              label="集群派发器路由策略"
+              :options="clusterStrategyOptions"
+            />
+          </div>
+          <div class="alert alert-info mt-2 flex items-start gap-2 rounded-md bg-blue-50/50 p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+            <div class="i-carbon-information mt-0.5 shrink-0 text-base" />
+            <div>
+              <p class="font-bold">
+                策略说明：
+              </p>
+              <ul class="ml-4 mt-1 list-disc opacity-90 space-y-1">
+                <li><strong>轮询洗牌：</strong> 早期默认逻辑。新增账号或节点变动时，把所有存活账号抽出来均分给所有存活 Worker。(易引发大面积账号离线闪断)</li>
+                <li><strong>最小负荷与粘性推流：</strong> 企业级商用逻辑。账号被精准分发到当前活跃数最少的离散节点上。并保持<strong>粘性心跳</strong>。只有老节点死亡或是新用户扫码登入时，才会触发推流动作，完全不影响已经在工作的进程丛集！</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-auto flex justify-end border-t border-gray-200/50 bg-transparent px-4 py-3 dark:border-gray-700/50">
+          <BaseButton
+            variant="primary"
+            size="sm"
+            :loading="clusterSaving"
+            @click="saveClusterConfig"
+          >
+            保存集群路由策略
+          </BaseButton>
+        </div>
+      </div>
+
       <!-- Card 3: 体验卡配置（仅管理员可见） -->
       <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
         <div class="border-b border-gray-200/50 bg-transparent px-4 py-3 dark:border-gray-700/50">
@@ -1528,6 +1619,8 @@ async function restoreTimingDefaults() {
           </BaseButton>
         </div>
       </div>
+
+
 
       <!-- Card 4: 第三方 API 配置（仅管理员可见） -->
       <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">

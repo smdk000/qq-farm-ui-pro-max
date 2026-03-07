@@ -98,6 +98,10 @@ export interface TimingParameter {
   group: string
 }
 
+export interface ClusterConfig {
+  dispatcherStrategy: string
+}
+
 export interface SettingsState {
   plantingStrategy: string
   preferredSeedId: number
@@ -112,6 +116,7 @@ export interface SettingsState {
   timingConfig: TimingConfig
   defaultTimingConfig: TimingConfig
   readonlyTimingParams: TimingParameter[]
+  clusterConfig: ClusterConfig
 }
 
 export const useSettingStore = defineStore('setting', () => {
@@ -154,8 +159,8 @@ export const useSettingStore = defineStore('setting', () => {
       rateLimitIntervalMs: 334,
       ghostingProbability: 0.02,
       ghostingCooldownMin: 240,
-      ghostingMinMin: 30,
-      ghostingMaxMin: 90,
+      ghostingMinMin: 5,
+      ghostingMaxMin: 10,
       inviteRequestDelay: 2000,
     },
     defaultTimingConfig: {
@@ -163,11 +168,14 @@ export const useSettingStore = defineStore('setting', () => {
       rateLimitIntervalMs: 334,
       ghostingProbability: 0.02,
       ghostingCooldownMin: 240,
-      ghostingMinMin: 30,
-      ghostingMaxMin: 90,
+      ghostingMinMin: 5,
+      ghostingMaxMin: 10,
       inviteRequestDelay: 2000,
     },
     readonlyTimingParams: [],
+    clusterConfig: {
+      dispatcherStrategy: 'round_robin',
+    },
   })
   const loading = ref(false)
   const timingLoading = ref(false)
@@ -343,5 +351,36 @@ export const useSettingStore = defineStore('setting', () => {
     }
   }
 
-  return { settings, loading, timingLoading, fetchSettings, saveSettings, saveOfflineConfig, changeAdminPassword, fetchTrialCardConfig, fetchThirdPartyApiConfig, saveThirdPartyApiConfig, fetchTimingConfig, saveTimingConfig }
+  async function fetchClusterConfig() {
+    try {
+      const u = JSON.parse(localStorage.getItem('current_user') || 'null')
+      if (u?.role !== 'admin')
+        return
+
+      const { data } = await api.get('/api/admin/cluster-config')
+      if (data && data.ok && data.data) {
+        settings.value.clusterConfig = data.data
+      }
+      return data?.data
+    }
+    catch (e) {
+      console.error('获取集群调度配置失败:', e)
+    }
+  }
+
+  async function saveClusterConfig(config: ClusterConfig) {
+    try {
+      const { data } = await api.post('/api/admin/cluster-config', config)
+      if (data && data.ok) {
+        settings.value.clusterConfig = config
+        return { ok: true }
+      }
+      return { ok: false, error: '保存失败' }
+    }
+    catch (e: any) {
+      return { ok: false, error: e.message }
+    }
+  }
+
+  return { settings, loading, timingLoading, fetchSettings, saveSettings, saveOfflineConfig, changeAdminPassword, fetchTrialCardConfig, fetchThirdPartyApiConfig, saveThirdPartyApiConfig, fetchTimingConfig, saveTimingConfig, fetchClusterConfig, saveClusterConfig }
 })

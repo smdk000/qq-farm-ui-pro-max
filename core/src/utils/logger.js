@@ -66,7 +66,7 @@ function cleanupOldLogs(logsDir) {
         const files = fs.readdirSync(logsDir);
         for (const file of files) {
             const match = file.match(/^user-actions\.log\.(\d+)$/);
-            if (match && parseInt(match[1], 10) > MAX_LOG_FILES) {
+            if (match && Number.parseInt(match[1], 10) > MAX_LOG_FILES) {
                 fs.unlinkSync(path.join(logsDir, file));
             }
         }
@@ -104,7 +104,7 @@ function logUserAction(action, username, details = {}) {
         // 追加日志
         fs.appendFileSync(
             logFile,
-            JSON.stringify(logEntry) + '\n',
+            `${JSON.stringify(logEntry)  }\n`,
             'utf8'
         );
 

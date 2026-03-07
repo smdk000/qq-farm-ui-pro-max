@@ -26,16 +26,11 @@ function selectArticle(articleId: string) {
 // 🔧 优化 #1：将绝大部分不依赖 isDark 的静态系统样式提取出来
 const BASE_STATIC_CSS = `
   html, body { 
-    background: transparent !important; 
     color: var(--text-main) !important;
   }
   
   /* 隐藏原本自带的内部侧边栏与顶部栏，使其作为纯粹的组件嵌入 */
   aside, header, #sidebar-backdrop { display: none !important; }
-  
-  .home-container, main {
-    background: transparent !important;
-  }
   
   /* =========== 卡片与全局玻璃质感同步 =========== */
   .bg-white, [class*="dark:bg-slate-800"] { 
@@ -215,6 +210,7 @@ function syncThemeToIframe() {
       '--glass-border',
       '--text-main',
       '--text-muted',
+      '--theme-dark-bg',
     ]
 
     varsToSync.forEach((v) => {
@@ -236,6 +232,9 @@ function syncThemeToIframe() {
         else if (v === '--text-muted') {
           cssVars += `${v}: ${isDark ? '#94a3b8' : '#64748b'};\n`
         }
+        else if (v === '--theme-dark-bg') {
+          cssVars += `${v}: ${isDark ? '#111827' : '#f9fafb'};\n`
+        }
         else if (v.startsWith('--color-primary-')) {
           // 兜底一个蓝色的 primary 色系，防止空值
           const fallbackColors = {
@@ -256,14 +255,63 @@ function syncThemeToIframe() {
       }
     })
 
+    // 🔧 强制给内部 iframe 的 html 标签加上 dark 类，以便触发其内部自带的 tailwind 暗夜模式
+    if (isDark) {
+      doc.documentElement.classList.add('dark')
+    }
+    else {
+      doc.documentElement.classList.remove('dark')
+    }
+
     // 通用半透明背景色 —— 根据主题深浅自动切换
     const subtleBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'
     const stripeBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
 
-    // 🔧 只拼接真正受 isDark 影响的动态属性
+    // 🔧 仅注入真正受 isDark 影响的动态属性，包括背景色，拒绝白底透传
     styleEl.innerHTML = `
       :root { ${cssVars} }
       ${BASE_STATIC_CSS}
+      
+      /* =============== 🔥 终极防白底与系统深度融合补丁 =============== */
+      :root, html, body {
+        /* 深色模式：用不透明的 --theme-dark-bg 作为画布底色，防止半透明 --glass-bg 混合浏览器默认白色 */
+        background: ${isDark ? 'var(--theme-dark-bg, #111827)' : 'var(--glass-bg)'} !important;
+        background-color: ${isDark ? 'var(--theme-dark-bg, #111827)' : 'var(--glass-bg)'} !important;
+        background-image: none !important;
+        color: var(--text-main) !important;
+      }
+      
+      /* 强制将所有文本类的颜色继承系统的字体色彩，不再局限于 dark class 的动态切换失效问题 */
+      .text-slate-800, .text-gray-800 {
+        color: var(--text-main) !important;
+      }
+      .text-slate-500, .text-gray-500 {
+        color: var(--text-muted) !important;
+      }
+      
+      /* 获取到计算器外层的大型包裹元素并强制剥离所有默认的底色，直接跟身体相同颜色避免断层 */
+      #app, main, .home-container, .min-h-screen {
+        background-color: transparent !important;
+      }
+
+      /* 核心卡片容器：取消自身背景，依赖父级玻璃渲染 */
+      .calc-input-panel,
+      .calc-mode-tabs,
+      .result-card,
+      .stat-box,
+      .phase-timeline,
+      .crop-table,
+      .crop-detail-card,
+      .sim-card,
+      .info-popup-content,
+      .tc-input-panel,
+      .tc-timeline-card,
+      .tc-summary-card {
+        background-color: ${isDark ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.3)'} !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        border-color: var(--glass-border) !important;
+      }
       
       .bg-white\\/60, [class*="dark:bg-slate-800\\/60"] { 
         background-color: ${isDark ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.6)'} !important; 
@@ -374,6 +422,64 @@ function syncThemeToIframe() {
       /* ⓘ 说明按钮 */
       .info-btn:hover { background: rgba(var(--color-primary-500), 0.1) !important; color: ${isDark ? 'rgb(var(--color-primary-300))' : 'rgb(var(--color-primary-600))'} !important; }
       .info-btn[data-info-key="smart-fert"] { color: ${isDark ? 'rgb(var(--color-primary-400))' : 'rgb(var(--color-primary-600))'} !important; }
+      
+      /* =========== 🌙 深色模式下 Hero/Tab 亮度柔化 =========== */
+      /* calc-hero 渐变区域：降低渐变不透明度，避免浅色系主题的 primary 色在深底上太亮 */
+      .calc-hero, .level-hero, .plant-hero, .land-hero {
+        background: ${isDark ? 'linear-gradient(135deg, rgba(var(--color-primary-900), 0.4) 0%, rgba(var(--color-primary-800), 0.25) 50%, transparent 100%)' : 'linear-gradient(135deg, rgba(var(--color-primary-200), 0.3) 0%, rgba(var(--color-primary-100), 0.2) 50%, var(--glass-bg) 100%)'} !important;
+        border-bottom-color: ${isDark ? 'rgba(var(--color-primary-500), 0.15)' : 'rgba(var(--color-primary-300), 0.4)'} !important;
+      }
+      .calc-hero h1, .level-hero h1, .plant-hero h1, .land-hero h1 {
+        color: ${isDark ? 'rgb(var(--color-primary-300))' : 'rgb(var(--color-primary-800))'} !important;
+      }
+      
+      /* Tab 激活态：使用深色系主题色替代原始 primary-500 纯色 */
+      .calc-mode-tab.active {
+        background: ${isDark ? 'rgb(var(--color-primary-900))' : 'rgb(var(--color-primary-500))'} !important;
+        color: ${isDark ? 'rgb(var(--color-primary-200))' : '#fff'} !important;
+        border-color: ${isDark ? 'rgba(var(--color-primary-500), 0.3)' : 'rgb(var(--color-primary-500))'} !important;
+      }
+      .rank-tab.active, .v-crop-tab.v-active, .level-tab.active {
+        background: ${isDark ? 'rgb(var(--color-primary-900))' : 'rgb(var(--color-primary-500))'} !important;
+        color: ${isDark ? 'rgb(var(--color-primary-200))' : '#fff'} !important;
+        border-color: ${isDark ? 'rgba(var(--color-primary-500), 0.3)' : 'rgb(var(--color-primary-500))'} !important;
+      }
+
+      /* 计算摘要条 */
+      .calc-summary {
+        background: ${isDark ? 'rgba(var(--color-primary-900), 0.3)' : 'rgba(var(--color-primary-100), 0.2)'} !important;
+        border-color: ${isDark ? 'rgba(var(--color-primary-500), 0.15)' : 'rgba(var(--color-primary-300), 0.4)'} !important;
+        color: ${isDark ? 'var(--text-main)' : 'rgb(var(--color-primary-800))'} !important;
+      }
+      
+      /* 推荐卡左侧彩条降低亮度 */
+      .rec-card.card-no-fert {
+        border-left-color: ${isDark ? 'rgba(var(--color-primary-500), 0.5)' : 'rgb(var(--color-primary-500))'} !important;
+      }
+      
+      /* 主按钮在深色模式下使用更深的底色 */
+      .btn-calc {
+        background: ${isDark ? 'linear-gradient(135deg, rgb(var(--color-primary-800)), rgb(var(--color-primary-900)))' : 'linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-primary-600)))'} !important;
+        color: ${isDark ? 'rgb(var(--color-primary-200))' : '#fff'} !important;
+        box-shadow: ${isDark ? '0 2px 8px rgba(var(--color-primary-500), 0.2)' : '0 2px 8px rgba(var(--color-primary-500), 0.35)'} !important;
+      }
+      
+      /* 验算按钮 */
+      .btn-verify {
+        background: ${isDark ? 'linear-gradient(135deg, rgb(var(--color-primary-800)), rgb(var(--color-primary-900)))' : 'linear-gradient(135deg, rgb(var(--color-primary-400)), rgb(var(--color-primary-600)))'} !important;
+        color: ${isDark ? 'rgb(var(--color-primary-200))' : '#fff'} !important;
+      }
+      
+      /* 开关激活态柔化 */
+      .fert-toggle input[type="checkbox"]:checked { 
+        background: ${isDark ? 'rgb(var(--color-primary-800))' : 'rgb(var(--color-primary-500))'} !important;
+      }
+      
+      /* land-info 信息条 */
+      .land-info {
+        background: ${isDark ? 'rgba(var(--color-primary-900), 0.3)' : 'rgba(var(--color-primary-100), 0.2)'} !important;
+        color: ${isDark ? 'rgb(var(--color-primary-300))' : 'rgb(var(--color-primary-600))'} !important;
+      }
     `
 
     // 强制同步深色类

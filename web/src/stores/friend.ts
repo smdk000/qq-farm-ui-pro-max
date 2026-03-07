@@ -65,9 +65,9 @@ export const useFriendStore = defineStore('friend', () => {
     friends.value[idx] = { ...friends.value[idx], plant: nextPlant }
   }
 
-  async function fetchFriends(accountId: string) {
+  async function fetchFriends(accountId: string): Promise<{ ok: boolean; fromCache?: boolean }> {
     if (!accountId)
-      return
+      return { ok: false }
     loading.value = true
     try {
       const res = await api.get('/api/friends', {
@@ -75,7 +75,20 @@ export const useFriendStore = defineStore('friend', () => {
       })
       if (res.data.ok) {
         friends.value = res.data.data || []
+        return { ok: true, fromCache: false }
       }
+      return { ok: false }
+    }
+    catch {
+      try {
+        await fetchCachedFriends(accountId)
+        if (cachedFriends.value.length > 0) {
+          friends.value = [...cachedFriends.value]
+          return { ok: true, fromCache: true }
+        }
+      }
+      catch { /* ignore */ }
+      return { ok: false }
     }
     finally {
       loading.value = false

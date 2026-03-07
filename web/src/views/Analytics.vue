@@ -64,8 +64,11 @@ async function loadAnalytics() {
     return
   loading.value = true
   try {
+    const params: Record<string, string | number> = { sort: sortKey.value }
+    if (levelFilter.value > 0)
+      params.level = levelFilter.value
     const res = await api.get(`/api/analytics`, {
-      params: { sort: sortKey.value },
+      params,
       headers: { 'x-account-id': currentAccountId.value },
     })
     const data = res.data.data
@@ -111,7 +114,7 @@ onMounted(() => {
   loadAnalytics()
 })
 
-watch([currentAccountId, sortKey], () => {
+watch([currentAccountId, sortKey, levelFilter], () => {
   loadAnalytics()
 })
 

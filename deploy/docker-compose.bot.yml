@@ -1,0 +1,53 @@
+services:
+  qq-farm-bot:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    image: smdk000/qq-farm-bot-ui:pro-max-0303
+    container_name: pro-max-0303
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      - ADMIN_PASSWORD=qq007qq008
+      - TZ=Asia/Shanghai
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - MYSQL_HOST=pro-max-0304-mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=qq_farm_user
+      - MYSQL_PASSWORD=qq007qq008
+      - MYSQL_DATABASE=qq_farm
+      - REDIS_HOST=pro-max-0304-redis
+      - REDIS_PORT=6379
+      - IPAD860_URL=http://pro-max-0304-ipad860:8058
+    volumes:
+      - bot-data:/app/core/data
+      - bot-logs:/app/core/logs
+    networks:
+      - farm-net
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000/api/ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"
+
+networks:
+  farm-net:
+    external: true
+    name: por-max-0304_pro-max-0304-net
+
+volumes:
+  bot-data:
+    external: true
+    name: por-max-0304_pro-max-0304-data
+  bot-logs:
+    external: true
+    name: por-max-0304_pro-max-0304-logs

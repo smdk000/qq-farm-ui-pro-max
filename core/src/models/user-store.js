@@ -5,8 +5,8 @@ const { getDataFile, ensureDataDir } = require('../config/runtime-paths');
 const { CARD_TYPES, isValidCardType, getDefaultDaysForType } = require('../config/card-types');
 const { logUserAction } = require('../utils/logger');
 
-const USERS_FILE = getDataFile('users.json');
-const CARDS_FILE = getDataFile('cards.json');
+const { getPool, transaction } = require('../services/mysql-db');
+
 const TRIAL_IP_FILE = getDataFile('trial-ip-history.json');
 
 const security = require('../services/security');
@@ -115,7 +115,7 @@ function saveIPHistory() {
  * @param {string} clientIP - 客户端 IP
  * @returns {{ ok: boolean, code?: string, error?: string, retryAfterMs?: number }}
  */
-function createTrialCard(clientIP) {
+async function createTrialCard(clientIP) {
     const store = require('./store');
     const config = store.getTrialCardConfig();
 
@@ -142,16 +142,8 @@ function createTrialCard(clientIP) {
 
     // 生成体验卡
     const days = config.days || 1;
-    const card = createCard('体验卡（自动生成）', CARD_TYPES.TRIAL, days);
-    // 覆盖卡密为 TRIAL- 前缀
-    loadCards();
-    const idx = cards.findIndex(c => c.code === card.code);
-    if (idx >= 0) {
-        const trialCode = generateTrialCardCode();
-        cards[idx].code = trialCode;
-        card.code = trialCode;
-        saveCards();
-    }
+    const trialCode = generateTrialCardCode();
+    const card = await createCard('体验卡（自动生成）', CARD_TYPES.TRIAL, days, trialCode);
 
     // 更新 IP 缓存和日计数
     trialCardIPMap.set(clientIP, { lastCreatedAt: now });
@@ -167,7 +159,7 @@ function createTrialCard(clientIP) {
  * @param {'admin'|'user'} callerRole - 调用者角色
  * @returns {{ ok: boolean, card?: object, error?: string }}
  */
-function renewTrialUser(username, callerRole) {
+async function renewTrialUser(username, callerRole) {
     const store = require('./store');
     const config = store.getTrialCardConfig();
 
@@ -180,7 +172,7 @@ function renewTrialUser(username, callerRole) {
     }
 
     // 校验目标用户是否为体验卡用户
-    loadUsers();
+    await loadUsers();
     const user = users.find(u => u.username === username);
     if (!user || user.card?.type !== CARD_TYPES.TRIAL) {
         return { ok: false, error: '仅体验卡用户可使用此功能' };
@@ -188,65 +180,111 @@ function renewTrialUser(username, callerRole) {
 
     // 自动生成体验卡 → 续费
     const days = config.days || 1;
-    const newCard = createCard('体验卡续费（自动）', CARD_TYPES.TRIAL, days);
-    return renewUser(username, newCard.code);
+    const trialCode = generateTrialCardCode();
+    const newCard = await createCard('体验卡续费（自动）', CARD_TYPES.TRIAL, days, trialCode);
+    return await renewUser(username, newCard.code);
 }
 
 let users = [];
 let cards = [];
 
-function loadUsers() {
-    ensureDataDir();
+async function loadUsers() {
     try {
-        if (fs.existsSync(USERS_FILE)) {
-            const data = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-            users = Array.isArray(data.users) ? data.users : [];
-        } else {
-            users = [];
-            saveUsers();
-        }
-    } catch (e) {
-        console.error('加载用户数据失败:', e.message);
-        users = [];
-    }
+        const pool = getPool();
+        if (!pool) return;
+        const [rows] = await pool.query('SELECT * FROM users');
+        users = rows.map(r => ({
+            id: r.id,
+            username: r.username,
+            password: r.password_hash,
+            plainPassword: '',
+            role: r.role,
+            createdAt: new Date(r.created_at).getTime()
+        }));
+
+        // Populate card info for users by joining cards table if needed, however since users table doesn't have card_code we look at cards table usedBy
+        const [cardRows] = await pool.query('SELECT cards.*, users.username as usedBy FROM cards LEFT JOIN users ON cards.used_by = users.id WHERE cards.used_by IS NOT NULL');
+        cardRows.forEach(c => {
+            let u = users.find(u => u.username === c.usedBy);
+            if (u) {
+                u.cardCode = c.code;
+                u.card = {
+                    code: c.code,
+                    description: c.description,
+                    type: c.type,
+                    typeChar: c.type,
+                    days: c.days,
+                    expiresAt: c.expires_at ? new Date(c.expires_at).getTime() : null,
+                    enabled: c.enabled === 1
+                };
+            }
+        });
+    } catch (e) { console.error('加载用户数据失败:', e.message); }
 }
 
-function saveUsers() {
-    ensureDataDir();
+async function saveUsers() {
+    const pool = getPool();
+    if (!pool) return;
     try {
-        fs.writeFileSync(USERS_FILE, JSON.stringify({ users }, null, 2), 'utf8');
+        await transaction(async (conn) => {
+            for (const u of users) {
+                await conn.query(
+                    "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash=?, role=?",
+                    [u.username, u.password, u.role || 'user', u.password, u.role || 'user']
+                );
+            }
+        });
     } catch (e) {
         console.error('保存用户数据失败:', e.message);
     }
 }
 
-function loadCards() {
-    ensureDataDir();
+async function loadCards() {
     try {
-        if (fs.existsSync(CARDS_FILE)) {
-            const data = JSON.parse(fs.readFileSync(CARDS_FILE, 'utf8'));
-            cards = Array.isArray(data.cards) ? data.cards : [];
-        } else {
-            cards = [];
-            saveCards();
-        }
-    } catch (e) {
-        console.error('加载卡密数据失败:', e.message);
-        cards = [];
-    }
+        const pool = getPool();
+        if (!pool) return;
+        const [rows] = await pool.query('SELECT cards.*, users.username as usedBy FROM cards LEFT JOIN users ON cards.used_by = users.id');
+        cards = rows.map(r => ({
+            id: r.id,
+            code: r.code,
+            type: r.type,
+            typeChar: r.type,
+            description: r.description,
+            enabled: r.enabled === 1,
+            usedBy: r.usedBy,
+            usedAt: r.used_at ? new Date(r.used_at).getTime() : null,
+            createdAt: new Date(r.created_at).getTime(),
+            expiresAt: r.expires_at ? new Date(r.expires_at).getTime() : null
+        }));
+    } catch (e) { console.error('加载卡密数据失败:', e.message); }
 }
 
-function saveCards() {
-    ensureDataDir();
+async function saveCards() {
+    const pool = getPool();
+    if (!pool) return;
     try {
-        fs.writeFileSync(CARDS_FILE, JSON.stringify({ cards }, null, 2), 'utf8');
+        await transaction(async (conn) => {
+            for (const c of cards) {
+                if (c.code) {
+                    await conn.query(
+                        "INSERT INTO cards (code, type, description, enabled, used_by, used_at, expires_at) VALUES (?, ?, ?, ?, (SELECT id FROM users WHERE username = ?), ?, ?) ON DUPLICATE KEY UPDATE description=?, enabled=?, used_by=(SELECT id FROM users WHERE username = ?), used_at=?, expires_at=?",
+                        [
+                            c.code, c.type, c.description || '', c.enabled ? 1 : 0, c.usedBy || null,
+                            c.usedAt ? new Date(c.usedAt) : null, c.expiresAt ? new Date(c.expiresAt) : null,
+                            c.description || '', c.enabled ? 1 : 0, c.usedBy || null,
+                            c.usedAt ? new Date(c.usedAt) : null, c.expiresAt ? new Date(c.expiresAt) : null
+                        ]
+                    );
+                }
+            }
+        });
     } catch (e) {
         console.error('保存卡密数据失败:', e.message);
     }
 }
 
-function initDefaultAdmin() {
-    loadUsers();
+async function initDefaultAdmin() {
+    await loadUsers();
     const adminExists = users.find(u => u.username === 'admin');
     if (!adminExists) {
         // 从环境变量读取管理员初始密码，若未设置则回退到 'admin'
@@ -259,7 +297,7 @@ function initDefaultAdmin() {
             card: null,
             createdAt: Date.now()
         });
-        saveUsers();
+        await saveUsers();
         const maskedPwd = defaultPassword.length > 2
             ? defaultPassword[0] + '*'.repeat(defaultPassword.length - 2) + defaultPassword.slice(-1)
             : '***';
@@ -267,8 +305,8 @@ function initDefaultAdmin() {
     }
 }
 
-function validateUser(username, password) {
-    loadUsers();
+async function validateUser(username, password) {
+    await loadUsers();
     const user = users.find(u => u.username === username);
     if (!user) return null;
 
@@ -277,7 +315,7 @@ function validateUser(username, password) {
 
     if (verify.needsMigration) {
         user.password = security.hashPassword(password);
-        saveUsers();
+        await saveUsers();
         console.log('[验证用户] 密码已自动迁移为 PBKDF2 格式:', username);
     }
 
@@ -307,9 +345,9 @@ function validateUser(username, password) {
     };
 }
 
-function registerUser(username, password, cardCode) {
-    loadUsers();
-    loadCards();
+async function registerUser(username, password, cardCode) {
+    await loadUsers();
+    await loadCards();
 
     // 检查用户名是否已存在
     if (users.find(u => u.username === username)) {
@@ -378,11 +416,25 @@ function registerUser(username, password, cardCode) {
 
     users.push(newUser);
     card.usedBy = username;
-    card.usedAt = now;
+    card.usedAt = now; // 修正局部变量赋值的写法
     card.enabled = false; // 卡密使用后自动禁用
 
-    saveUsers();
-    saveCards();
+    const pool = getPool();
+    if (pool) {
+        // 单条插入新用户
+        await pool.query(
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            [newUser.username, newUser.password, newUser.role || 'user']
+        ).catch(e => console.error("Insert New User Error:", e.message));
+
+        await pool.query(
+            "UPDATE cards SET enabled=?, used_by=(SELECT id FROM users WHERE username = ?), used_at=?, expires_at=? WHERE code=?",
+            [0, username, new Date(now), expiresAt ? new Date(expiresAt) : null, card.code]
+        ).catch(e => console.error("Update Card Error:", e.message));
+    } else {
+        await saveUsers(); // 兜底
+        await saveCards(); // 兜底
+    }
 
     // 记录操作日志
     logUserAction('register', username, {
@@ -395,9 +447,9 @@ function registerUser(username, password, cardCode) {
     return { ok: true, user: { username: newUser.username, role: newUser.role, card: newUser.card } };
 }
 
-function renewUser(username, cardCode) {
-    loadUsers();
-    loadCards();
+async function renewUser(username, cardCode) {
+    await loadUsers();
+    await loadCards();
 
     // 查找用户
     const user = users.find(u => u.username === username);
@@ -468,8 +520,17 @@ function renewUser(username, cardCode) {
     card.usedAt = now;
     card.enabled = false; // 卡密使用后自动禁用
 
-    saveUsers();
-    saveCards();
+    await saveUsers();
+
+    const pool = getPool();
+    if (pool) {
+        await pool.query(
+            "UPDATE cards SET enabled=?, used_by=(SELECT id FROM users WHERE username = ?), used_at=? WHERE code=?",
+            [0, username, new Date(now), card.code]
+        ).catch(e => console.error("Renew User Card Update Error:", e.message));
+    } else {
+        await saveCards();
+    }
 
     // 记录操作日志
     logUserAction('renew', username, {
@@ -482,8 +543,8 @@ function renewUser(username, cardCode) {
     return { ok: true, card: user.card };
 }
 
-function getAllUsers() {
-    loadUsers();
+async function getAllUsers() {
+    await loadUsers();
     return users.map(u => ({
         username: u.username,
         role: u.role,
@@ -491,8 +552,8 @@ function getAllUsers() {
     }));
 }
 
-function getAllUsersWithPassword() {
-    loadUsers();
+async function getAllUsersWithPassword() {
+    await loadUsers();
     return users.map(u => ({
         username: u.username,
         password: u.plainPassword || '',
@@ -501,8 +562,8 @@ function getAllUsersWithPassword() {
     }));
 }
 
-function updateUser(username, updates) {
-    loadUsers();
+async function updateUser(username, updates) {
+    await loadUsers();
     const user = users.find(u => u.username === username);
     if (!user) return null;
 
@@ -521,14 +582,23 @@ function updateUser(username, updates) {
 
     console.log('[更新后] 用户状态:', JSON.stringify(user.card));
 
-    saveUsers();
-    console.log('[保存完成] 用户状态已保存到文件');
+    const pool = getPool();
+    if (pool) {
+        // cards 结构更新
+        await pool.query(
+            "UPDATE cards SET expires_at=?, enabled=? WHERE used_by=(SELECT id FROM users WHERE username = ?)",
+            [user.card.expiresAt ? new Date(user.card.expiresAt) : null, user.card.enabled ? 1 : 0, username]
+        ).catch(e => console.error("Update User Card Data Error:", e.message));
+    } else {
+        await saveUsers();
+    }
+    console.log('[保存完成] 用户状态已保存到数据库');
 
     return { username: user.username, role: user.role, card: user.card };
 }
 
-function deleteUser(username) {
-    loadUsers();
+async function deleteUser(username) {
+    await loadUsers();
     const idx = users.findIndex(u => u.username === username);
     if (idx === -1) return { ok: false, error: '用户不存在' };
 
@@ -538,12 +608,19 @@ function deleteUser(username) {
     }
 
     users.splice(idx, 1);
-    saveUsers();
+
+    const pool = getPool();
+    if (pool) {
+        // MySQL 带有级联删除或者独立删除
+        await pool.query("DELETE FROM users WHERE username=?", [username]).catch(e => console.error("Delete User Error:", e.message));
+    } else {
+        await saveUsers();
+    }
     return { ok: true };
 }
 
-function changePassword(username, oldPassword, newPassword) {
-    loadUsers();
+async function changePassword(username, oldPassword, newPassword) {
+    await loadUsers();
     const user = users.find(u => u.username === username);
     if (!user) {
         return { ok: false, error: '用户不存在' };
@@ -561,46 +638,60 @@ function changePassword(username, oldPassword, newPassword) {
 
     user.password = security.hashPassword(newPassword);
     user.plainPassword = newPassword;
-    saveUsers();
+
+    const pool = getPool();
+    if (pool) {
+        await pool.query("UPDATE users SET password_hash=? WHERE username=?", [user.password, username]).catch(e => console.error("Change Password DB Error:", e.message));
+    } else {
+        await saveUsers();
+    }
 
     return { ok: true };
 }
 
-function getAllCards() {
-    loadCards();
+async function getAllCards() {
+    await loadCards();
     return cards;
 }
 
-function createCard(description, type, days) {
-    loadCards();
+async function createCard(description, type, days, forcedCode) {
+    await loadCards();
 
     // 验证卡密类型，使用统一枚举
     if (!isValidCardType(type)) {
         type = CARD_TYPES.MONTH; // 默认月卡
     }
 
-    const parsedDays = parseInt(days, 10) || getDefaultDaysForType(type);
+    const parsedDays = Number.parseInt(days, 10) || getDefaultDaysForType(type);
 
     const newCard = {
-        code: generateCardCode(),
+        code: forcedCode || generateCardCode(),
         description,
         type,
         typeChar: type,
         days: parsedDays,
         enabled: true,
         usedBy: null,
-        usedAt: null,
+        usedAt: null, // 修正为 usedAt
         createdAt: Date.now()
     };
 
     cards.push(newCard);
-    saveCards();
+    const pool = getPool();
+    if (pool) {
+        await pool.query(
+            "INSERT INTO cards (code, type, description, enabled) VALUES (?, ?, ?, ?)",
+            [newCard.code, newCard.type, newCard.description || '', 1]
+        ).catch(e => console.error("Insert New Card Error:", e.message));
+    } else {
+        await saveCards();
+    }
 
     return newCard;
 }
 
-function updateCard(code, updates) {
-    loadCards();
+async function updateCard(code, updates) {
+    await loadCards();
     const card = cards.find(c => c.code === code);
     if (!card) return null;
 
@@ -612,25 +703,47 @@ function updateCard(code, updates) {
         card.enabled = updates.enabled;
     }
 
-    saveCards();
+    const pool = getPool();
+    if (pool) {
+        await pool.query(
+            "UPDATE cards SET description=?, enabled=? WHERE code=?",
+            [card.description || '', card.enabled ? 1 : 0, card.code]
+        ).catch(e => console.error("Update Card Data Error:", e.message));
+    } else {
+        await saveCards();
+    }
     return card;
 }
 
-function deleteCard(code) {
-    loadCards();
+async function deleteCard(code) {
+    await loadCards();
     const idx = cards.findIndex(c => c.code === code);
     if (idx === -1) return false;
 
     cards.splice(idx, 1);
-    saveCards();
+
+    const pool = getPool();
+    if (pool) {
+        await pool.query("DELETE FROM cards WHERE code=?", [code]).catch(e => console.error("Delete Card Error:", e.message));
+    } else {
+        await saveCards();
+    }
     return true;
 }
 
 // 初始化
-initDefaultAdmin();
+async function loadAllFromDB() {
+    await await loadUsers();
+    await await loadCards();
+}
+
+// initDefaultAdmin();
 loadIPHistory();
 
 module.exports = {
+    loadAllFromDB,
+    loadUsers,
+    loadCards,
     validateUser,
     registerUser,
     renewUser,

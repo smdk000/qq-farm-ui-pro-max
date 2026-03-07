@@ -30,7 +30,7 @@ class QwenAIAssistant {
   /**
    * 生成代码上下文感知的回复
    * @param {string} prompt - 用户提示
-   * @param {Object} options - 选项
+   * @param {object} options - 选项
    */
   async generateWithContext(prompt, options = {}) {
     try {
@@ -72,7 +72,7 @@ class QwenAIAssistant {
       // 调用 API
       const response = await this.client.post('/chat/completions', {
         model: this.model,
-        messages: messages,
+        messages,
         temperature: options.temperature || 0.7,
         max_tokens: options.maxTokens || 4096,
         top_p: options.topP || 0.9,
@@ -109,7 +109,7 @@ class QwenAIAssistant {
    * 代码生成
    * @param {string} description - 代码功能描述
    * @param {string} language - 编程语言
-   * @param {Object} options - 选项
+   * @param {object} options - 选项
    */
   async generateCode(description, language = 'javascript', options = {}) {
     const prompt = `请生成${language}代码，实现以下功能：\n\n${description}\n\n要求：
@@ -128,7 +128,7 @@ class QwenAIAssistant {
    * 代码审查
    * @param {string} code - 代码内容
    * @param {string} language - 编程语言
-   * @param {Object} options - 选项
+   * @param {object} options - 选项
    */
   async reviewCode(code, language = 'javascript', options = {}) {
     const prompt = `请审查以下${language}代码，指出潜在的问题并提供改进建议：\n\n\`\`\`${language}\n${code}\n\`\`\`\n\n请从以下方面进行审查：
@@ -148,7 +148,7 @@ class QwenAIAssistant {
    * 代码解释
    * @param {string} code - 代码内容
    * @param {string} language - 编程语言
-   * @param {Object} options - 选项
+   * @param {object} options - 选项
    */
   async explainCode(code, language = 'javascript', options = {}) {
     const prompt = `请详细解释以下${language}代码的功能和实现逻辑：\n\n\`\`\`${language}\n${code}\n\`\`\`\n\n请说明：
@@ -167,7 +167,7 @@ class QwenAIAssistant {
    * 调试帮助
    * @param {string} code - 代码内容
    * @param {string} error - 错误信息
-   * @param {Object} options - 选项
+   * @param {object} options - 选项
    */
   async debugCode(code, error, options = {}) {
     const prompt = `我在运行以下代码时遇到了错误：\n\n错误信息：\n${error}\n\n代码：\n\`\`\`\n${code}\n\`\`\`\n\n请帮我：

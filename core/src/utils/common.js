@@ -96,7 +96,7 @@ async function withRetry(fn, maxRetries = 3, delay = 1000, options = {}) {
             }
 
             const waitMs = exponentialBackoff
-                ? delay * Math.pow(2, attempt)
+                ? delay * 2**attempt
                 : delay;
             await new Promise(r => setTimeout(r, waitMs));
         }

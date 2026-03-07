@@ -1,3 +1,17 @@
+
+2026-03-06 分布式集群流控与架构重构 (Phase 8) 前端：v4.4.0 后端：v4.4.0
+  - 🌍 [分布式] 集群智能流控架构：基于 `Least Load` 向最小负荷的节点智能定向发送任务，杜绝了以前的轮询洗牌重连导致的掉线潮。
+  - 🛡️ [高可用] StickySession 粘性保活机制：已经分配至工作节点的账号不会被系统状态变动挤掉。
+  - 🚪 [网关] 融入 NGINX 原生防护屏障：正式抽象化 WebSocket 网关（支持跨服务器部署和负载均摊），由 docker-compose.yml 新增。
+  - ⚙️ [控制台] 设置后台更新：在前端面板 Settings.vue 中加入分布式集流控开关，完全可视化管理。
+  - 🐛 [修复] 偶发性日志空转闪断Bug根除：系统重新进入或 WS 尝试重连时不会再将原有长篇系统日志直接覆盖成空，实现了平缓时序衔接（Pinia 并发排重护航）。
+
+2026-03-06 Phase 1-4 深度性能治理发布 v4.3.0 补充
+新增：多端 Webhook 平台级推送告警能力。现对于系统被踢以及1002003风控休眠将触发跨设备警告。
+新增：网络端 Request Dropping，超5秒超时的一般操作实施防堵塞强清策略机制。
+调整：彻底使用 MySQL 接管文件配置写入方案，弃用旧式的 FS JSON 同步。
+调整：对平台标记进行全方位隔离。涉及特征为(wx)的微信扫码端被阻断执行全量列表以及跨组偷菜，且周期拉长，保证低频率苟活。
+调整：前端面板数据结构精简约束。
 2026-03-06 日志系统重构与全栈架构优化 前端：v4.3.0 后端：v4.3.0
   - 🎨 [UI] 微信端无底线优化：突破微信跨域防盗链墙（403 Forbidden），全面找回微信好友丢失的头像。
   - 🎨 [UI] 视觉信息补全：为所有满足条件的好友重新点亮高亮农场等级（Lv）的玻璃态徽章，并在底层规避极长颜文字名称打乱响应式网格布局。
@@ -373,3 +387,9 @@
 自动控制设置卡片从概览页面调整到设置页面
 删除前端模块的日志输出
 
+
+## [2026-03-06] System Evolution Phase 2: Reliability & Decoupling
+- **Security & ACID**: Wrapped `saveUsers` and `saveGlobalConfig` inside MySQL transactions (`withTransaction`), preventing deadlocks during auto-saves.
+- **QoS Upgrades**: Implemented Weighted TTL (Time-To-Live) for `enqueueSend`. Low-priority reads decay after 3000ms, while seed/harvest tasks persist up to 15000ms. Throws recoverable timeouts.
+- **Strategy Pattern (Decoupling)**: Removed hardcoded `platform.startsWith('wx')` from `friend.js`. Created `PlatformFactory` with `WeChatPlatform` and `QQPlatform` specific implementations for graceful degradation.
+- **System Logs Persistence**: Intercepted IPC logs in `worker-manager.js` and bulk-inserted them into `system_logs` MySQL table every 5 seconds to provide unbounded historical auditing beyond the UI's 300-log LRU limit.

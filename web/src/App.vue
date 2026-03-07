@@ -8,6 +8,7 @@ import { adminToken } from '@/utils/auth'
 
 // Async lazy load heavy components
 const NotificationModal = defineAsyncComponent(() => import('@/components/NotificationModal.vue'))
+const AnnouncementDialog = defineAsyncComponent(() => import('@/components/AnnouncementDialog.vue'))
 const ToastContainer = defineAsyncComponent(() => import('@/components/ToastContainer.vue'))
 
 const appStore = useAppStore()
@@ -46,7 +47,21 @@ watch(adminToken, (newToken) => {
       <div class="mesh-orb orb-3" />
     </div>
 
-    <RouterView class="relative z-10" />
+    <RouterView v-slot="{ Component }" class="relative z-10">
+      <template v-if="Component">
+        <Suspense>
+          <component :is="Component" />
+          <template #fallback>
+            <div class="h-screen w-screen flex flex-col items-center justify-center bg-theme-bg/80 backdrop-blur-sm dark:bg-theme-darkbg/80">
+              <div class="i-carbon-circle-dash mb-4 h-12 w-12 animate-spin text-primary-500" />
+              <p class="text-gray-500 dark:text-gray-400">
+                正在按需分配计算层...
+              </p>
+            </div>
+          </template>
+        </Suspense>
+      </template>
+    </RouterView>
     <ToastContainer class="relative z-50" />
     <!-- 全局首次更新大弹窗 -->
     <NotificationModal
@@ -54,6 +69,8 @@ watch(adminToken, (newToken) => {
       class="relative z-50"
       @close="showUpdateModal = false"
     />
+    <!-- 管理员公告弹窗（登录后展示，可关闭并记录已读） -->
+    <AnnouncementDialog />
   </div>
 </template>
 

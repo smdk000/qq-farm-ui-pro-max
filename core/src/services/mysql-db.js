@@ -5,11 +5,11 @@ const logger = createModuleLogger('mysql-db');
 
 // 从环境变量读取配置，兼容 docker-compose 和本地开发
 const DB_HOST = process.env.MYSQL_HOST || '127.0.0.1';
-const DB_PORT = parseInt(process.env.MYSQL_PORT || '4409', 10);
+const DB_PORT = Number.parseInt(process.env.MYSQL_PORT || '4409', 10);
 const DB_USER = process.env.MYSQL_USER || 'root';
 const DB_PASS = process.env.MYSQL_PASSWORD || '123456';
 const DB_NAME = process.env.MYSQL_DATABASE || 'qq_farm_bot';
-const DB_LIMIT = parseInt(process.env.MYSQL_POOL_LIMIT || '100', 10);
+const DB_LIMIT = Number.parseInt(process.env.MYSQL_POOL_LIMIT || '100', 10);
 
 // MySQL 连接池配置 — Phase 2 扩容
 // connectionLimit: 100 可支撑数百账号的 Worker 并发 + UI 面板查询
@@ -21,7 +21,8 @@ const pool = mysql.createPool({
     database: DB_NAME,
     waitForConnections: true,
     connectionLimit: DB_LIMIT,
-    queueLimit: 0,
+    queueLimit: DB_LIMIT * 2, // 排队上限为连接池的2倍，超额直接抛出快速失败
+    acquireTimeout: 10000,    // 取连接最大容忍 10 秒死等，防止高并发夯死
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
     // 空闲连接超时回收（毫秒），避免连接囤积占用 MySQL 资源
@@ -124,6 +125,17 @@ async function initMysql() {
                 }
             }
 
+            // 检查 accounts 表是否缺少 code 列（微信登录 code 持久化）
+            const [codeCols] = await pool.execute(
+                `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'accounts' AND COLUMN_NAME = 'code'`,
+                [DB_NAME]
+            );
+            if (codeCols.length === 0) {
+                logger.info('检测到 accounts 表缺少 code 列，正在添加...');
+                await pool.query(`ALTER TABLE accounts ADD COLUMN code VARCHAR(512) DEFAULT '' AFTER uin`);
+                logger.info('✅ accounts.code 列添加完成');
+            }
+
             // 检查 account_configs 表并执行增量迁移 002-account-mode.sql
             const [modeCols] = await pool.execute(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'account_configs' AND COLUMN_NAME = 'account_mode'`,
@@ -146,6 +158,79 @@ async function initMysql() {
                     await migConn.end();
                     logger.info('✅ account_mode 新列迁移完成');
                 }
+            }
+
+            // 检查 system_logs 表并执行增量迁移 006-system-logs.sql
+            const [logsTable] = await pool.execute(`SHOW TABLES LIKE 'system_logs'`);
+            if (logsTable.length === 0) {
+                const logsMigrationPath = path.join(migrationsDir, '006-system-logs.sql');
+                if (fs.existsSync(logsMigrationPath)) {
+                    logger.info('检测到缺少 system_logs 表，正在执行迁移 006-system-logs.sql...');
+                    const migConn = await mysql.createConnection({
+                        host: DB_HOST,
+                        port: DB_PORT,
+                        user: DB_USER,
+                        password: DB_PASS,
+                        database: DB_NAME,
+                        multipleStatements: true
+                    });
+                    const migSql = fs.readFileSync(logsMigrationPath, 'utf8');
+                    await migConn.query(migSql);
+                    await migConn.end();
+                    logger.info('✅ system_logs 日志归档表迁移完成');
+                }
+            }
+
+            // 检查 announcements 表并执行增量迁移 007-announcements.sql
+            const [annTable] = await pool.execute(`SHOW TABLES LIKE 'announcements'`);
+            if (annTable.length === 0) {
+                const annMigrationPath = path.join(migrationsDir, '007-announcements.sql');
+                if (fs.existsSync(annMigrationPath)) {
+                    logger.info('检测到缺少 announcements 表，正在执行迁移 007-announcements.sql...');
+                    const migConn = await mysql.createConnection({
+                        host: DB_HOST,
+                        port: DB_PORT,
+                        user: DB_USER,
+                        password: DB_PASS,
+                        database: DB_NAME,
+                        multipleStatements: true
+                    });
+                    const migSql = fs.readFileSync(annMigrationPath, 'utf8');
+                    await migConn.query(migSql);
+                    await migConn.end();
+                    logger.info('✅ announcements 公告表迁移完成');
+                }
+            } else {
+                // 如果表存在，检查是否需要追加 version 和 publish_date 字段 (防旧版未创建)
+                const [verCols] = await pool.execute(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'announcements' AND COLUMN_NAME = 'version'`,
+                    [DB_NAME]
+                );
+                if (verCols.length === 0) {
+                    logger.info('检测到 announcements 表缺少 version 和 publish_date 列，正在添加...');
+                    await pool.query(`ALTER TABLE announcements ADD COLUMN version VARCHAR(50) DEFAULT '' AFTER title, ADD COLUMN publish_date VARCHAR(50) DEFAULT '' AFTER version`);
+                    logger.info('✅ announcements.version 列添加完成');
+                }
+            }
+
+            // 检查 stats_daily 表并执行增量建表
+            const [statsTable] = await pool.execute(`SHOW TABLES LIKE 'stats_daily'`);
+            if (statsTable.length === 0) {
+                logger.info('检测到缺少 stats_daily 表，正在自动创建...');
+                const createStatsSql = `
+                CREATE TABLE IF NOT EXISTS stats_daily (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    record_date DATE NOT NULL,
+                    total_exp INT DEFAULT 0,
+                    total_gold INT DEFAULT 0,
+                    total_steal INT DEFAULT 0,
+                    total_help INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY \`uk_date\` (\`record_date\`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                `;
+                await pool.query(createStatsSql);
+                logger.info('✅ stats_daily 收益表创建完成');
             }
         }
 

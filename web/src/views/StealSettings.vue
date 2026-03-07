@@ -80,6 +80,7 @@ const localSettings = ref({
     stealFriendFilterEnabled: false,
     stealFriendFilterMode: 'blacklist' as 'blacklist' | 'whitelist',
     stealFriendFilterIds: [] as number[],
+    skipStealRadishEnabled: false,
   } as Record<string, any>,
 })
 
@@ -99,6 +100,7 @@ function syncLocalSettings() {
       stealFriendFilterEnabled: s.stealFriendFilterEnabled ?? false,
       stealFriendFilterMode: s.stealFriendFilterMode ?? 'blacklist',
       stealFriendFilterIds: (s.stealFriendFilterIds || []).map((id: any) => Number(id)),
+      skipStealRadishEnabled: s.skipStealRadishEnabled ?? false,
     }
   }
 }
@@ -320,6 +322,15 @@ async function saveAccountSettings() {
     </div>
 
     <template v-else>
+      <!-- 跳过白萝卜偷菜 -->
+      <div class="glass-panel mb-3 flex items-center justify-between gap-4 rounded-lg border border-white/20 p-3 dark:border-white/10">
+        <div class="flex items-center gap-2">
+          <span class="glass-text-main text-sm font-medium">🥕 跳过白萝卜偷菜</span>
+          <span class="glass-text-muted text-xs">开启后偷菜时自动跳过白萝卜，不偷取该作物</span>
+        </div>
+        <BaseSwitch v-model="localSettings.automation.skipStealRadishEnabled" size="sm" />
+      </div>
+
       <!-- Tabs -->
       <div class="mb-3 flex shrink-0 gap-4 overflow-x-auto border-b border-gray-100/50 dark:border-gray-700/50">
         <button
@@ -351,107 +362,104 @@ async function saveAccountSettings() {
             :placeholder="activeTab === 'friends' ? '搜索好友昵称/备注...' : '搜索作物名称...'"
             class="glass-text-main m-0 box-border block h-[36px] w-full border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-9 pr-3 text-sm font-medium leading-5 transition-colors dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:bg-black/40 placeholder-gray-500 dark:placeholder-gray-400"
           >
+        </div>
 
-          <!-- Divider -->
-          <div class="mx-1 h-6 w-px bg-gray-200/50 dark:bg-gray-700/50" />
+        <!-- Divider -->
+        <div class="mx-1 h-6 w-px bg-gray-200/50 dark:bg-gray-700/50" />
 
-          <!-- Master Switch -->
-          <div class="flex items-center gap-1.5">
-            <span class="glass-text-muted text-xs font-medium">总控:</span>
-            <BaseSwitch v-if="activeTab === 'friends'" v-model="localSettings.automation.stealFriendFilterEnabled" size="sm" />
-            <BaseSwitch v-else v-model="localSettings.automation.stealFilterEnabled" size="sm" />
-          </div>
+        <!-- Master Switch -->
+        <div class="flex items-center gap-1.5">
+          <span class="glass-text-muted text-xs font-medium">总控:</span>
+          <BaseSwitch v-if="activeTab === 'friends'" v-model="localSettings.automation.stealFriendFilterEnabled" size="sm" />
+          <BaseSwitch v-else v-model="localSettings.automation.stealFilterEnabled" size="sm" />
+        </div>
 
-          <!-- Divider -->
-          <div class="mx-1 h-6 w-px bg-gray-200/50 dark:bg-gray-700/50" />
+        <!-- Divider -->
+        <div class="mx-1 h-6 w-px bg-gray-200/50 dark:bg-gray-700/50" />
 
-          <!-- Mode Select -->
-          <div class="flex items-center gap-1.5">
-            <select
-              v-if="activeTab === 'friends'"
-              v-model="localSettings.automation.stealFriendFilterMode"
-              class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
-            >
-              <option value="blacklist" class="bg-white dark:bg-gray-900">
-                黑名单
-              </option>
-              <option value="whitelist" class="bg-white dark:bg-gray-900">
-                白名单
-              </option>
-            </select>
-            <select
-              v-else
-              v-model="localSettings.automation.stealFilterMode"
-              class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
-            >
-              <option value="blacklist" class="bg-white dark:bg-gray-900">
-                黑名单
-              </option>
-              <option value="whitelist" class="bg-white dark:bg-gray-900">
-                白名单
-              </option>
-            </select>
-          </div>
+        <!-- Mode Select -->
+        <div class="flex items-center gap-1.5">
+          <select
+            v-if="activeTab === 'friends'"
+            v-model="localSettings.automation.stealFriendFilterMode"
+            class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
+          >
+            <option value="blacklist" class="bg-white dark:bg-gray-900">
+              黑名单
+            </option>
+            <option value="whitelist" class="bg-white dark:bg-gray-900">
+              白名单
+            </option>
+          </select>
+          <select
+            v-else
+            v-model="localSettings.automation.stealFilterMode"
+            class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
+          >
+            <option value="blacklist" class="bg-white dark:bg-gray-900">
+              黑名单
+            </option>
+            <option value="whitelist" class="bg-white dark:bg-gray-900">
+              白名单
+            </option>
+          </select>
+        </div>
 
-          <!-- Divider -->
-          <div class="mx-1 hidden h-6 w-px bg-gray-200/50 sm:block dark:bg-gray-700/50" />
+        <!-- Divider -->
+        <div class="mx-1 hidden h-6 w-px bg-gray-200/50 sm:block dark:bg-gray-700/50" />
 
-          <!-- Action Buttons -->
-          <div class="ml-auto flex gap-2">
-            <!-- Select All Button - Blue gradient for visibility -->
-            <BaseButton
-              v-if="activeTab === 'friends'"
-              size="sm"
-              class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
-              @click="selectAllFriends"
-            >
-              <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
-            </BaseButton>
-            <BaseButton
-              v-else
-              size="sm"
-              class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
-              @click="selectAllPlants"
-            >
-              <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
-            </BaseButton>
+        <!-- Action Buttons -->
+        <div class="ml-auto flex gap-2">
+          <BaseButton
+            v-if="activeTab === 'friends'"
+            size="sm"
+            class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
+            @click="selectAllFriends"
+          >
+            <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
+          </BaseButton>
+          <BaseButton
+            v-else
+            size="sm"
+            class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
+            @click="selectAllPlants"
+          >
+            <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
+          </BaseButton>
 
-            <!-- Invert All Button -->
-            <BaseButton
-              v-if="activeTab === 'friends'"
-              size="sm"
-              class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
-              @click="invertAllFriends"
-            >
-              反选
-            </BaseButton>
-            <BaseButton
-              v-else
-              size="sm"
-              class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
-              @click="invertAllPlants"
-            >
-              反选
-            </BaseButton>
+          <BaseButton
+            v-if="activeTab === 'friends'"
+            size="sm"
+            class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
+            @click="invertAllFriends"
+          >
+            反选
+          </BaseButton>
+          <BaseButton
+            v-else
+            size="sm"
+            class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
+            @click="invertAllPlants"
+          >
+            反选
+          </BaseButton>
 
-            <!-- Clear All Button - Red gradient for visibility -->
-            <BaseButton
-              v-if="activeTab === 'friends'"
-              size="sm"
-              class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
-              @click="clearAllFriends"
-            >
-              <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
-            </BaseButton>
-            <BaseButton
-              v-else
-              size="sm"
-              class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
-              @click="clearAllPlants"
-            >
-              <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
-            </BaseButton>
-          </div>
+          <BaseButton
+            v-if="activeTab === 'friends'"
+            size="sm"
+            class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
+            @click="clearAllFriends"
+          >
+            <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
+          </BaseButton>
+          <BaseButton
+            v-else
+            size="sm"
+            class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
+            @click="clearAllPlants"
+          >
+            <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
+          </BaseButton>
         </div>
 
         <!-- Main Visual Grid Area -->

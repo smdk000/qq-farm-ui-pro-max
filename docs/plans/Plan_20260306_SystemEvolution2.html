@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>架构演进计划: 稳健性与防腐重构 Phase 2</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            color: transparent;
+            margin: 0;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .bg-p0 {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border: 1px solid #ef4444;
+        }
+
+        .bg-p1 {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: #fcd34d;
+            border: 1px solid #f59e0b;
+        }
+
+        .bg-p2 {
+            background-color: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            border: 1px solid #3b82f6;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .mermaid-container {
+            background: rgba(15, 23, 42, 0.5);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th,
+        td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .highlight {
+            color: var(--primary);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Antigravity 架构演进与防腐重构 <span>[Phase 2]</span></h1>
+            <p style="color: var(--text-muted)">制定于 2026-03-06 | 基于上一轮审查报告的深化填补</p>
+        </div>
+
+        <div class="card">
+            <h2>一、全局重构蓝图</h2>
+            <p>本次演进聚焦于解决粗放优化带来的“技术债”与“代码腐化”，通过引入设计模式与数据库原则，提升应用在微信弱网下与极端并发请求下的抗查抗毁能力。</p>
+            <div class="mermaid-container">
+                <div class="mermaid">
+                    graph TD
+                    classDef current fill:#334155,stroke:#94a3b8,color:#fff;
+                    classDef target fill:#1e3a8a,stroke:#3b82f6,color:#fff;
+
+                    subgraph 数据安全层 (ACID)
+                    LegacyDB[原始无锁异步覆盖]:::current --> SafeDB[MySQL Transaction Helper 事务裹挟]:::target
+                    end
+
+                    subgraph 平台调度层 (Pattern)
+                    IfElse[满屏 if platform === 'wx']:::current --> Strategy[平台特征工厂接口多态化注入]:::target
+                    end
+
+                    subgraph 底层队列流控策 (QoS)
+                    HardDrop[5秒硬性丢弃异常报错]:::current --> WeightedTTL[加权TTL保活与分级退回]:::target
+                    end
+
+                    subgraph 审查与追溯层 (Audit)
+                    MemLeak[前端超频泄露&记录受限300]:::current --> MysqlLog[分离冷热: MySQL冷数据按批入库查询]:::target
+                    end
+                </div>
+            </div>
+        </div>
+
+        <h2>二、执行路径拆解 (Atomized Milestones)</h2>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p0">Task 1 (P0)</span> MySQL 原子更新与死锁防护</h3>
+                <p><strong>目标：</strong> 隔离底层读写污染并实施高阶同步闭环。</p>
+                <ul>
+                    <li>在 <code>mysql-db.js</code> 引入 <code>withTransaction</code> 闭包辅助。</li>
+                    <li>对核心经济和数据变更实施 <code>BEGIN</code> -> <code>COMMIT</code> 防护，错误时 <code>ROLLBACK</code>。</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p1">Task 2 (P1)</span> QoS 下沉：动态 TTL 权重策略</h3>
+                <p><strong>目标：</strong> 规避一刀切拦截导致的 UI 长效白屏假死。</p>
+                <ul>
+                    <li>队列入栈挂载动态 <code>ttl</code>: 常规接口(3s)，写入接口(15s)，抢收(无限)。</li>
+                    <li>超时不再直接抛掷 Error，而是传递给业务层一个静默可恢复重试的特征码。</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p1">Task 3 (P1)</span> 战略隔离：平台策略模式解耦</h3>
+                <p><strong>目标：</strong> 剔除 <code>friend.js</code> 里极度难看的微信端判定硬编码代码。</p>
+                <ul>
+                    <li>建立 <code>platform/</code> 设计模式接口。将 QQ 版独有的偷菜，微信版的休眠统合入多态类内部隔离。主干只调用
+                        <code>executeFriendCycle()</code> 通用接口。</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p2">Task 4 (P2)</span> 冷数据入库引擎：全链条落库</h3>
+                <p><strong>目标：</strong> 补足前端由于 LRU 被限制到 300 条后丧失的问题追踪能力。</p>
+                <ul>
+                    <li>新增表格专门用作 Log 归档。挂载到批量插入 Batch 队列里减少 I/O 成本。</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>三、演进验收与风险自评</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>里程碑</th>
+                        <th>影响控制面</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Task 1 - TCC 级事务</strong></td>
+                        <td>由于抛弃 Promise Fire-And-Forget 并强拉起 Connection 对象，这期间必须严格注意回调死锁可能阻塞 Pool (连接池枯竭) 的致命伤。</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Task 2 - 权重 TTL</strong></td>
+                        <td>需修改网络层，可能会波及极少数依赖瞬间响应返回错误链的老业务，必须严格自测其无缝性。</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Task 3 - 平台抽象层</strong></td>
+                        <td>代码大量重构大手术（重灾区），为了避免闪退，将逐步剥离，并严格维持单元入参出参不变。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            securityLevel: 'loose'
+        });
+    </script>
+</body>
+
+</html>

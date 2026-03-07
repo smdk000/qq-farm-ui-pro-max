@@ -13,6 +13,7 @@ const { recordOperation } = require('../services/stats');
 const { types } = require('./proto');
 const { toLong, toNum, syncServerTime, log, logWarn } = require('./utils');
 const store = require('../models/store'); // Phase 3: 引入 store 用于持久化风控锁
+const { circuitBreaker } = require('../services/circuit-breaker');
 
 // ============ 事件发射器 (用于推送通知) ============
 const networkEvents = new EventEmitter();
@@ -97,8 +98,8 @@ let urgentConsecutiveCount = 0;     // 当前已连续处理的紧急请求数
 /**
  * 将一个发送任务推入令牌桶队列尾部（常规优先级），按 FIFO 顺序限速消费
  */
-function enqueueSend(task) {
-    normalQueue.push(task);
+function enqueueSend(task, reject = null, methodName = '') {
+    normalQueue.push({ task, reject, methodName, enqueuedAt: Date.now() });
     if (!drainRunning) drainQueue();
 }
 
@@ -106,8 +107,8 @@ function enqueueSend(task) {
  * [紧急通道] 将发送任务推入高优先队列尾部，优先于所有常规请求被消费
  * 用途：防偷抢收等时效敏感操作，避免被好友巡查等长队列阻塞
  */
-function enqueueSendUrgent(task) {
-    urgentQueue.push(task);
+function enqueueSendUrgent(task, reject = null) {
+    urgentQueue.push({ task, reject, enqueuedAt: Date.now() });
     if (!drainRunning) drainQueue();
 }
 
@@ -118,10 +119,14 @@ async function drainQueue() {
     if (drainRunning) return;
     drainRunning = true;
     while (urgentQueue.length > 0 || normalQueue.length > 0) {
-        // P2: 队列深度监控 - 堆积超过 5 帧时打印警告
+        // P2: 队列深度监控 - 堆积超过 5 帧时打印警告并向前端抛送
         const totalDepth = urgentQueue.length + normalQueue.length;
         if (totalDepth >= 5) {
             logWarn('限流', `令牌桶排队深度 = ${totalDepth} (Urgent:${urgentQueue.length})，请求可能延迟`);
+            networkEvents.emit('local_debug_log', {
+                category: 'sys',
+                msg: `📡 接口请求积压(${totalDepth}条)，等待释放限制...`
+            });
         }
         const now = Date.now();
         const elapsed = now - lastSendTimestamp;
@@ -133,25 +138,71 @@ async function drainQueue() {
             await new Promise(r => setTimeout(r, jitteredInterval - elapsed));
         }
 
+        // Phase 4: Circuit Breaker Interception. If OPEN, suspend all outgoing traffic and drop queues.
+        if (!circuitBreaker.allowRequest()) {
+            while (normalQueue.length > 0) {
+                const dropped = normalQueue.shift();
+                if (dropped.reject) {
+                    const err = new Error(`全局断路器已开启，请求被强制熔断放弃`);
+                    err.code = 'CIRCUIT_BREAKER_OPEN';
+                    err.isRecoverable = false;
+                    dropped.reject(err);
+                }
+            }
+            while (urgentQueue.length > 0) {
+                const dropped = urgentQueue.shift();
+                if (dropped.reject) {
+                    const err = new Error(`全局断路器已开启，紧急请求被强制熔断放弃`);
+                    err.code = 'CIRCUIT_BREAKER_OPEN';
+                    err.isRecoverable = false;
+                    dropped.reject(err);
+                }
+            }
+            drainRunning = false;
+            return;
+        }
+
+        // 增加 5s 超时丢弃逻辑: 此处只丢弃 normal 队列超时的非关键任务，从而让权
+        while (normalQueue.length > 0) {
+            const first = normalQueue[0];
+            const name = first.methodName || '';
+            let ttl = 5000;
+            if (/getAllFriends|friend|scan|status|shop/i.test(name)) ttl = 3000;
+            else if (/plant|harvest|steal|help|weed|bug|buy|upgrade/i.test(name)) ttl = 15000;
+
+            if (Date.now() - first.enqueuedAt > ttl) {
+                const dropped = normalQueue.shift();
+                if (dropped.reject) {
+                    const err = new Error(`请求积压超时(${ttl}ms)，为保障抢收已静默丢弃: ${name}`);
+                    err.code = 'API_QUEUE_TIMEOUT';
+                    err.isRecoverable = true; // Phase 2: 静默重试标记
+                    dropped.reject(err);
+                }
+                logWarn('限流', `已静默丢弃 1 个排队超过 ${ttl}ms 的普通请求 [${name}]`);
+            } else {
+                break;
+            }
+        }
+
         // 优先消费紧急队列，但防止完全饿死普通队列 (Anti-Starvation)
-        let task = null;
+        let queueItem = null;
         if (urgentQueue.length > 0) {
             if (urgentConsecutiveCount >= MAX_CONSECUTIVE_URGENT && normalQueue.length > 0) {
                 // 强制释放一个普通请求，防止极端阻塞
-                task = normalQueue.shift();
+                queueItem = normalQueue.shift();
                 urgentConsecutiveCount = 0;
             } else {
-                task = urgentQueue.shift();
+                queueItem = urgentQueue.shift();
                 urgentConsecutiveCount++;
             }
-        } else {
-            task = normalQueue.shift();
+        } else if (normalQueue.length > 0) {
+            queueItem = normalQueue.shift();
             urgentConsecutiveCount = 0; // 只要消费了普通请求，就重置紧急计数
         }
 
-        if (task) {
+        if (queueItem) {
             lastSendTimestamp = Date.now();
-            task();
+            queueItem.task();
         }
     }
     drainRunning = false;
@@ -192,7 +243,7 @@ function sendMsgAsync(serviceName, methodName, bodyBytes, timeout = 10000) {
                 networkScheduler.clear(timeoutKey);
                 reject(new Error(`发送失败: ${methodName}`));
             }
-        });
+        }, reject, methodName);
     });
 }
 
@@ -224,7 +275,7 @@ function sendMsgAsyncUrgent(serviceName, methodName, bodyBytes, timeout = 10000)
                 networkScheduler.clear(timeoutKey);
                 reject(new Error(`发送失败: ${methodName}`));
             }
-        });
+        }, reject);
     });
 }
 
@@ -254,13 +305,20 @@ function handleMessage(data) {
             const errorCode = toNum(meta.error_code);
             const clientSeqVal = toNum(meta.client_seq);
 
-            // Phase 2: 拦截 1002003 封禁信号，启动自恢复休眠 (30分钟)
+            // Phase 2/4: 拦截 1002003 封禁信号，拉响断路器并启动自恢复休眠 (30分钟)
             if (errorCode === 1002003) {
+                // 向 CircuitBreaker 报告严重错误
+                circuitBreaker.recordFailure('1002003风控验证码拦截');
+
                 userState.suspendUntil = Date.now() + 30 * 60 * 1000;
                 if (CONFIG.accountId) {
                     store.recordSuspendUntil(CONFIG.accountId, userState.suspendUntil);
                 }
-                logWarn('风控', `接口受到频率限制或被临时封禁 (1002003)，账号进入 30 分钟保护性休眠`);
+                logWarn('风控', `接口受到频率限制或被临时封禁 (1002003)，账号尝试挂起休眠`);
+                networkEvents.emit('ban', { reason: '1002003' });
+            } else if (errorCode === 0) {
+                // 请求健康，如果有半开状态，则尝试恢复
+                circuitBreaker.recordSuccess();
             }
 
             const cb = pendingCallbacks.get(clientSeqVal);
@@ -609,7 +667,9 @@ function connect(code, openId, onLoginSuccess) {
         // 如果是因为 400 错误关闭的（code 已失效），不自动重连
         // 自动重连使用旧 code 只会无限循环 400→close→reconnect→400
         if (savedLoginCallback && wsErrorState.code !== 400) {
-            networkScheduler.setTimeoutTask('auto_reconnect', 5000, () => {
+            // [防雪崩]：将固定的 5 秒修改为 5~25 秒不等的散列抖动时间，把峰值大军炸散
+            const jitterDelay = 5000 + Math.random() * 20000;
+            networkScheduler.setTimeoutTask('auto_reconnect', Math.floor(jitterDelay), () => {
                 log('系统', '[WS] 尝试自动重连...');
                 reconnect(null);
             });

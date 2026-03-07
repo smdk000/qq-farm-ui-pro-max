@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const process = require('node:process');
 const express = require('express');
+const cron = require('node-cron');
 const { Server: SocketIOServer } = require('socket.io');
 const { version } = require('../../package.json');
 const { CONFIG } = require('../config/config');
@@ -18,6 +19,8 @@ const store = require('../models/store');
 const { addOrUpdateAccount, deleteAccount } = store;
 const { findAccountByRef, normalizeAccountRef, resolveAccountId } = require('../services/account-resolver');
 const { createModuleLogger } = require('../services/logger');
+const { getPool } = require('../services/mysql-db');
+const { getAnnouncements, saveAnnouncement, deleteAnnouncement } = require('../services/database');
 const { MiniProgramLoginSession } = require('../services/qrlogin');
 const { getSchedulerRegistrySnapshot } = require('../services/scheduler');
 const { validateSettings } = require('../services/config-validator');
@@ -96,6 +99,67 @@ function startAdminServer(dataProvider) {
         req.currentUser = tokenUserMap.get(token);
         next();
     };
+
+    // 避免 Dirty Write（如 NTP 失步导致短时间内多次运行导致双倍或多倍累加，仅通过日期字符串锁来拦截同一天的多次并发写库）
+    let lastCronSyncDate = '';
+
+    // 在系统启动时挂载全局清算 CRON (每天 23:59:50 触发)
+    cron.schedule('50 59 23 * * *', async () => {
+        try {
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (lastCronSyncDate === todayStr) {
+                adminLogger.warn(`【CRON】清算拦截: 今日 (${todayStr}) 的账单已聚合写库，防止 Dirty Write 双倍数据`);
+                return;
+            }
+            lastCronSyncDate = todayStr;
+
+            adminLogger.info("触发每日系统产出清算，正在聚合所有运行中账号收益并落表...");
+
+            if (!provider || typeof provider.getAccounts !== 'function') return;
+            const data = await provider.getAccounts();
+            if (!data || !Array.isArray(data.accounts)) return;
+
+            let tExp = 0; let tGold = 0; let tSteal = 0; let tHelp = 0;
+            for (const acc of data.accounts) {
+                if (acc.stats) {
+                    tExp += (acc.stats.sessionExpGained || 0);
+                    tGold += (acc.stats.sessionGoldGained || 0);
+                    tSteal += (acc.stats.operations?.steal || 0);
+                    tHelp += (acc.stats.operations?.helpWater || 0) + (acc.stats.operations?.helpWeed || 0) + (acc.stats.operations?.helpBug || 0);
+
+                    // 清理内存会话的数据增量（否则如果应用不主动重启将不断累加到明天）
+                    acc.stats.sessionExpGained = 0;
+                    acc.stats.sessionGoldGained = 0;
+                    if (acc.stats.operations) {
+                        acc.stats.operations.steal = 0;
+                        acc.stats.operations.helpWater = 0;
+                        acc.stats.operations.helpWeed = 0;
+                        acc.stats.operations.helpBug = 0;
+                    }
+                }
+            }
+
+            const pool = getPool();
+            if (pool) {
+                const today = new Date();
+                const yyyyMMdd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                await pool.query(
+                    `INSERT INTO stats_daily (record_date, total_exp, total_gold, total_steal, total_help) 
+                     VALUES (?, ?, ?, ?, ?) 
+                     ON DUPLICATE KEY UPDATE 
+                     total_exp = total_exp + VALUES(total_exp), 
+                     total_gold = total_gold + VALUES(total_gold), 
+                     total_steal = total_steal + VALUES(total_steal), 
+                     total_help = total_help + VALUES(total_help)`,
+                    [yyyyMMdd, tExp, tGold, tSteal, tHelp]
+                );
+                adminLogger.info(`【CRON】清算完成: 经验+${tExp}, 金币+${tGold}, 偷取+${tSteal}`);
+            }
+        } catch (e) {
+            adminLogger.error("CRON 清算产生异常:", e.message);
+        }
+    });
 
     // 用户状态检查中间件
     const userRequired = (req, res, next) => {
@@ -198,7 +262,7 @@ function startAdminServer(dataProvider) {
         if (!username) {
             const input = String(password || '');
             // 统一走 user-store 验证，消除双轨密码体系
-            const adminUser = userStore.validateUser('admin', input);
+            const adminUser = await userStore.validateUser('admin', input);
             const ok = adminUser && !adminUser.error;
             if (!ok) {
                 security.loginLock.recordFailure(lockKey);
@@ -211,7 +275,7 @@ function startAdminServer(dataProvider) {
             return res.json({ ok: true, data: { token, user: { username: 'admin', role: 'admin', card: null } } });
         }
 
-        const user = userStore.validateUser(username, password);
+        const user = await userStore.validateUser(username, password);
         if (!user) {
             security.loginLock.recordFailure(lockKey);
             return res.status(401).json({ ok: false, error: '用户名或密码错误' });
@@ -239,50 +303,108 @@ function startAdminServer(dataProvider) {
         });
     });
 
-    // Farm Tools 原生集成 API
-    app.get('/api/time_crops', (req, res) => {
-        try {
-            res.json(farmCalculator.calculate_time_crops());
-        } catch (e) {
-            res.status(500).json({ ok: false, error: e.message });
-        }
-    });
-
-    app.get('/api/lands_for_level', (req, res) => {
-        try {
-            res.json(farmCalculator.calculate_lands_for_level(req.query.level || 1));
-        } catch (e) {
-            res.status(500).json({ ok: false, error: e.message });
-        }
-    });
-
-    app.get('/api/calculator', (req, res) => {
-        try {
-            res.json(farmCalculator.calculate_main(req.query));
-        } catch (e) {
-            res.status(500).json({ ok: false, error: e.message });
-        }
-    });
-
-    app.get('/api/level_exp_calc', (req, res) => {
-        try {
-            res.json(farmCalculator.calculate_exp_plan({ ...req.query, _path: req.path }));
-        } catch (e) {
-            res.status(500).json({ ok: false, error: e.message });
-        }
-    });
-
-    app.get('/api/level_exp_calc_save', (req, res) => {
-        try {
-            res.json(farmCalculator.calculate_exp_plan({ ...req.query, _path: req.path }));
-        } catch (e) {
-            res.status(500).json({ ok: false, error: e.message });
-        }
-    });
+    // Farm Tools API 微服务接管
+    app.use('/api', require('./farm-tools-routing'));
 
     app.use('/api', (req, res, next) => {
         if (req.path === '/login' || req.path === '/auth/register' || req.path === '/qr/create' || req.path === '/qr/check' || req.path === '/notifications' || req.path === '/trial-card' || req.path === '/ui-config') return next();
         return authRequired(req, res, next);
+    });
+
+    app.get('/api/system-logs', async (req, res) => {
+        try {
+            const pool = getPool();
+            if (!pool) return res.status(500).json({ ok: false, error: 'Database pool not initialized' });
+
+            const page = Math.max(1, Number.parseInt(req.query.page) || 1);
+            const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit) || 50));
+            const offset = (page - 1) * limit;
+
+            const { level, accountId, keyword } = req.query;
+
+            let querySql = "SELECT * FROM system_logs WHERE 1=1";
+            let countSql = "SELECT COUNT(*) as total FROM system_logs WHERE 1=1";
+            const params = [];
+
+            if (level) {
+                querySql += " AND level = ?";
+                countSql += " AND level = ?";
+                params.push(level);
+            }
+            if (accountId) {
+                querySql += " AND account_id = ?";
+                countSql += " AND account_id = ?";
+                params.push(accountId);
+            }
+            if (keyword) {
+                querySql += " AND text LIKE ?";
+                countSql += " AND text LIKE ?";
+                params.push(`%${keyword}%`);
+            }
+
+            querySql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+            const queryParams = [...params, limit, offset];
+
+            const [countRows] = await pool.query(countSql, params);
+            const [rows] = await pool.query(querySql, queryParams);
+
+            res.json({
+                ok: true,
+                data: {
+                    total: countRows[0].total,
+                    page,
+                    limit,
+                    items: rows
+                }
+            });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message });
+        }
+    });
+
+    // Phase 4/5: Echarts 数据走势聚合真实下发
+    app.get('/api/stats/trend', async (req, res) => {
+        try {
+            const pool = getPool();
+            if (!pool) return res.status(500).json({ ok: false, error: 'Database not ready' });
+
+            const [rows] = await pool.query(
+                `SELECT DATE_FORMAT(record_date, '%m-%d') as short_date, total_exp, total_gold, total_steal
+                 FROM stats_daily
+                 ORDER BY record_date DESC LIMIT 7`
+            );
+
+            // 倒序以便图表从左到右显示时间线
+            rows.reverse();
+
+            const dates = [];
+            const exp = [];
+            const gold = [];
+            const steal = [];
+
+            // 防止空库导致的完全空图表，至少返回一天空数据
+            if (rows.length === 0) {
+                const d = new Date();
+                dates.push(`${d.getMonth() + 1}-${d.getDate()}`);
+                exp.push(0);
+                gold.push(0);
+                steal.push(0);
+            } else {
+                for (const row of rows) {
+                    dates.push(row.short_date);
+                    exp.push(row.total_exp || 0);
+                    gold.push(row.total_gold || 0);
+                    steal.push(row.total_steal || 0);
+                }
+            }
+
+            res.json({
+                ok: true,
+                data: { dates, series: { exp, gold, steal } }
+            });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message });
+        }
     });
 
     app.post('/api/admin/change-password', async (req, res) => {
@@ -296,7 +418,7 @@ function startAdminServer(dataProvider) {
         }
 
         // 使用 user-store 统一验证和修改密码
-        const result = userStore.changePassword('admin', oldPassword, newPassword);
+        const result = await userStore.changePassword('admin', oldPassword, newPassword);
         if (!result.ok) {
             return res.status(400).json({ ok: false, error: result.error });
         }
@@ -422,6 +544,20 @@ function startAdminServer(dataProvider) {
             // 偷采过滤配置使用独立存储方法
             const stealFilterKeys = ['stealFilterEnabled', 'stealFilterMode', 'stealFilterPlantIds'];
             const stealFriendFilterKeys = ['stealFriendFilterEnabled', 'stealFriendFilterMode', 'stealFriendFilterIds'];
+            const skipStealRadishKeys = ['skipStealRadishEnabled'];
+            const forceGetAllKeys = ['forceGetAllEnabled'];
+            if (store.setSkipStealRadishConfig && skipStealRadishKeys.some(k => body[k] !== undefined)) {
+                const cur = store.getSkipStealRadishConfig ? store.getSkipStealRadishConfig(id) : { enabled: false };
+                store.setSkipStealRadishConfig(id, {
+                    enabled: body.skipStealRadishEnabled !== undefined ? !!body.skipStealRadishEnabled : cur.enabled,
+                });
+            }
+            if (store.setForceGetAllConfig && forceGetAllKeys.some(k => body[k] !== undefined)) {
+                const cur = store.getForceGetAllConfig ? store.getForceGetAllConfig(id) : { enabled: false };
+                store.setForceGetAllConfig(id, {
+                    enabled: body.forceGetAllEnabled !== undefined ? !!body.forceGetAllEnabled : cur.enabled,
+                });
+            }
             if (store.setStealFilterConfig && stealFilterKeys.some(k => body[k] !== undefined)) {
                 const cur = store.getStealFilterConfig ? store.getStealFilterConfig(id) : { enabled: false, mode: 'blacklist', plantIds: [] };
                 store.setStealFilterConfig(id, {
@@ -440,7 +576,7 @@ function startAdminServer(dataProvider) {
             }
             let lastData = null;
             for (const [k, v] of Object.entries(body)) {
-                if (stealFilterKeys.includes(k) || stealFriendFilterKeys.includes(k)) continue;
+                if (stealFilterKeys.includes(k) || stealFriendFilterKeys.includes(k) || skipStealRadishKeys.includes(k) || forceGetAllKeys.includes(k)) continue;
                 lastData = await provider.setAutomation(id, k, v);
             }
             res.json({ ok: true, data: lastData || {} });
@@ -712,12 +848,15 @@ function startAdminServer(dataProvider) {
         }
     });
 
-    // API: 数据分析
+    // API: 种植效率排行（数据分析）
     app.get('/api/analytics', async (req, res) => {
         try {
             const sortBy = req.query.sort || 'exp';
+            const levelRaw = req.query.level;
+            const levelMax = (levelRaw !== undefined && levelRaw !== '' && Number.isFinite(Number(levelRaw)))
+                ? Number(levelRaw) : null;
             const { getPlantRankings } = require('../services/analytics');
-            const data = getPlantRankings(sortBy);
+            const data = getPlantRankings(sortBy, levelMax);
             res.json({ ok: true, data });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
@@ -869,6 +1008,8 @@ function startAdminServer(dataProvider) {
             const stealFilter = store.getStealFilterConfig ? store.getStealFilterConfig(id) : { enabled: false, mode: 'blacklist', plantIds: [] };
             const stealFriendFilter = store.getStealFriendFilterConfig ? store.getStealFriendFilterConfig(id) : { enabled: false, mode: 'blacklist', friendIds: [] };
             const stakeoutSteal = store.getStakeoutStealConfig ? store.getStakeoutStealConfig(id) : { enabled: false, delaySec: 3 };
+            const skipStealRadish = store.getSkipStealRadishConfig ? store.getSkipStealRadishConfig(id) : { enabled: false };
+            const forceGetAll = store.getForceGetAllConfig ? store.getForceGetAllConfig(id) : { enabled: false };
             // 前端期望 automation 内包含偷菜/偷好友过滤字段，合并后返回
             const automation = {
                 ...automationRaw,
@@ -878,6 +1019,8 @@ function startAdminServer(dataProvider) {
                 stealFriendFilterEnabled: stealFriendFilter.enabled,
                 stealFriendFilterMode: stealFriendFilter.mode,
                 stealFriendFilterIds: stealFriendFilter.friendIds || [],
+                skipStealRadishEnabled: skipStealRadish.enabled,
+                forceGetAllEnabled: forceGetAll.enabled,
             };
             const ui = store.getUI();
             const offlineReminder = store.getOfflineReminder
@@ -903,12 +1046,54 @@ function startAdminServer(dataProvider) {
                 accountList = accountList.filter(a => a.username === req.currentUser.username);
             }
 
+            // 优化：将在线运行中的账号排在前面，离线的排在后面，同状态按等级排序
+            accountList.sort((a, b) => {
+                if (a.running && !b.running) return -1;
+                if (!a.running && b.running) return 1;
+                return (b.level || 0) - (a.level || 0);
+            });
+
             // Console log to trace running status issue reported by user
             let runningMap = {};
             accountList.forEach(a => runningMap[a.id] = a.running);
             console.log('[DEBUG /api/accounts] accounts running map:', runningMap, provider.workers ? Object.keys(provider.workers) : 'No workers accessible');
 
             res.json({ ok: true, data: { ...data, accounts: accountList } });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    // API: 排行榜分页数据接口 (前端重排解耦)
+    app.get('/api/leaderboard', async (req, res) => {
+        try {
+            const sortBy = String(req.query.sort_by || 'level');
+            const limit = Number.parseInt(req.query.limit || '50', 10);
+
+            const data = await provider.getAccounts();
+            let accountList = [...(data.accounts || [])];
+
+            // 抹除敏感信息并附加 worker 数据
+            accountList = accountList.map(acc => {
+                const safeAcc = { ...acc, level: acc.level || 0, gold: acc.gold || 0, coupon: acc.coupon || 0, uptime: acc.uptime || 0 };
+                delete safeAcc.password;
+                return safeAcc;
+            });
+
+            // 后端执行高速排序：完全活跃 (running) > 不活跃，之后再通过 sortBy 第二关键字
+            accountList.sort((a, b) => {
+                if (a.running && !b.running) return -1;
+                if (!a.running && b.running) return 1;
+                return (b[sortBy] || 0) - (a[sortBy] || 0);
+            });
+
+            // 附带排名
+            accountList = accountList.map((acc, index) => ({ ...acc, ranking: index + 1 }));
+
+            // 执行分页切割
+            const pagedList = accountList.slice(0, limit);
+
+            res.json({ ok: true, data: { accounts: pagedList, total: accountList.length } });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
         }
@@ -1074,7 +1259,7 @@ function startAdminServer(dataProvider) {
                 return res.status(400).json({ ok: false, error: cardCodeValidation.error });
             }
 
-            const result = userStore.registerUser(username, password, cardCode);
+            const result = await userStore.registerUser(username, password, cardCode);
             if (!result.ok) {
                 return res.status(400).json(result);
             }
@@ -1105,7 +1290,7 @@ function startAdminServer(dataProvider) {
                 return res.status(400).json({ ok: false, error: cardCodeValidation.error });
             }
 
-            const result = userStore.renewUser(req.currentUser.username, cardCode);
+            const result = await userStore.renewUser(req.currentUser.username, cardCode);
             if (!result.ok) {
                 return res.status(400).json(result);
             }
@@ -1232,7 +1417,7 @@ function startAdminServer(dataProvider) {
     app.post('/api/trial-card', trialRateLimiter, async (req, res) => {
         try {
             const clientIP = getClientIP(req);
-            const result = userStore.createTrialCard(clientIP);
+            const result = await userStore.createTrialCard(clientIP);
             if (!result.ok) {
                 return res.status(400).json(result);
             }
@@ -1276,7 +1461,7 @@ function startAdminServer(dataProvider) {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
         try {
-            const result = userStore.renewTrialUser(req.params.username, 'admin');
+            const result = await userStore.renewTrialUser(req.params.username, 'admin');
             if (!result.ok) {
                 return res.status(400).json(result);
             }
@@ -1289,7 +1474,7 @@ function startAdminServer(dataProvider) {
     // 用户自助续费体验卡
     app.post('/api/auth/trial-renew', authRequired, async (req, res) => {
         try {
-            const result = userStore.renewTrialUser(req.currentUser.username, 'user');
+            const result = await userStore.renewTrialUser(req.currentUser.username, 'user');
             if (!result.ok) {
                 return res.status(400).json(result);
             }
@@ -1298,6 +1483,94 @@ function startAdminServer(dataProvider) {
             tokenUserMap.set(req.adminToken, req.currentUser);
             res.json({ ok: true, data: { card: result.card } });
         } catch (e) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    // ============ 公告管理 API ============
+
+    // 获取所有公告日志（无需认证，公开接口，前台手风琴弹窗直接渲染）
+    app.get('/api/announcement', async (req, res) => {
+        try {
+            const data = await getAnnouncements();
+            res.json({ ok: true, data: data || [] });
+        } catch (e) {
+            adminLogger.error('getAnnouncements failed:', e.message);
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    // 发布/更新公告（仅管理员）
+    app.put('/api/announcement', authRequired, userRequired, async (req, res) => {
+        if (req.currentUser.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        try {
+            const body = (req.body && typeof req.body === 'object') ? req.body : {};
+            const { id, title = '', version = '', publish_date = '', content = '', enabled = true } = body;
+            await saveAnnouncement({
+                id: id ? Number(id) : null,
+                title: String(title),
+                version: String(version),
+                publish_date: String(publish_date),
+                content: String(content),
+                enabled: !!enabled,
+                createdBy: req.currentUser.username || null,
+            });
+            if (io) io.emit('announcement:update', { ok: true });
+            res.json({ ok: true });
+        } catch (e) {
+            adminLogger.error('saveAnnouncement failed:', e.message);
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    // 删除公告（仅管理员）
+    app.delete('/api/announcement', authRequired, userRequired, async (req, res) => {
+        if (req.currentUser.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        try {
+            const id = req.query.id ? Number(req.query.id) : null;
+            await deleteAnnouncement(id);
+            if (io) io.emit('announcement:update', { ok: true });
+            res.json({ ok: true });
+        } catch (e) {
+            adminLogger.error('deleteAnnouncement failed:', e.message);
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    // 从 Update.log 同步系统日记为公告（仅管理员）
+    app.post('/api/announcement/sync', authRequired, userRequired, async (req, res) => {
+        if (req.currentUser.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        try {
+            const entries = parseUpdateLog().reverse(); // 反转，使旧日志排在前面插入，这样最新的ID就最大，查询时 ORDER BY id DESC 会在前面 
+            const existing = await getAnnouncements() || [];
+            let addedCount = 0;
+            for (const entry of entries) {
+                // 根据时间+标题查重，若没有则推入数据库
+                const ex = existing.find(a => (a.version === entry.version && a.title === entry.title) || (a.publish_date === entry.date && a.title === entry.title));
+                if (!ex) {
+                    await saveAnnouncement({
+                        title: entry.title,
+                        version: entry.version || '',
+                        publish_date: entry.date || '',
+                        content: entry.content || '',
+                        enabled: true,
+                        createdBy: 'system_sync'
+                    });
+                    addedCount++;
+                }
+            }
+            if (addedCount > 0 && io) io.emit('announcement:update', { ok: true });
+            // 更新一下缓存引用
+            await getAnnouncements();
+            res.json({ ok: true, added: addedCount, totalParsed: entries.length });
+        } catch (e) {
+            adminLogger.error('sync announcements failed:', e.message);
             res.status(500).json({ ok: false, error: e.message });
         }
     });
@@ -1325,6 +1598,33 @@ function startAdminServer(dataProvider) {
         try {
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
             const data = store.setThirdPartyApiConfig(body);
+            res.json({ ok: true, data });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    // ============ Cluster Config API管理 ============
+    app.get('/api/admin/cluster-config', authRequired, userRequired, async (req, res) => {
+        if (req.currentUser.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        try {
+            const config = store.getClusterConfig ? store.getClusterConfig() : { dispatcherStrategy: 'round_robin' };
+            res.json({ ok: true, data: config });
+        } catch (error) {
+            adminLogger.error('获取集群调度配置失败', error);
+            res.status(500).json({ ok: false, error: '获取集群调度配置失败' });
+        }
+    });
+
+    app.post('/api/admin/cluster-config', authRequired, userRequired, async (req, res) => {
+        if (req.currentUser.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        try {
+            const body = (req.body && typeof req.body === 'object') ? req.body : {};
+            const data = store.setClusterConfig ? store.setClusterConfig(body) : body;
             res.json({ ok: true, data });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
@@ -1421,9 +1721,9 @@ function startAdminServer(dataProvider) {
         if (!fs.existsSync(logPath)) return [];
         const raw = fs.readFileSync(logPath, 'utf-8');
         // 按连续空行（1个以上空行即可）分割条目
-        const blocks = raw.split(/\n\s*\n+/).filter(b => b.trim());
+        const blocks = raw.split(/\n\s*\n/).filter(b => b.trim());
         const entries = [];
-        const dateRe = /^(\d{4}-\d{2}-\d{2})\s+(.+?)$/;
+        const dateRe = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/;
         const versionRe = /前端[：:]\s*(v[\d.]+)/;
         for (const block of blocks) {
             const lines = block.trim().split('\n');
@@ -1749,7 +2049,7 @@ function startAdminServer(dataProvider) {
                     const appid = '1112386029';
 
                     const authCode = await MiniProgramLoginSession.getAuthCode(ticket, appid);
-                    console.log(`[QR登录] 代理登录成功, authCode=${authCode ? authCode.substring(0, 20) + '...' : '空'}`);
+                    console.log(`[QR登录] 代理登录成功, authCode=${authCode ? `${authCode.substring(0, 20)}...` : '空'}`);
 
                     let avatar = '';
                     if (uin) {
@@ -1783,13 +2083,55 @@ function startAdminServer(dataProvider) {
     });
 
     const applySocketSubscription = async (socket, accountRef = '') => {
-        const incoming = String(accountRef || '').trim();
-        const resolved = incoming && incoming !== 'all' ? await resolveAccId(incoming) : '';
         for (const room of socket.rooms) {
             if (room.startsWith('account:')) socket.leave(room);
         }
 
         const currentUser = socket.data.currentUser;
+
+        // 分页订阅模式（Room Pagination）
+        if (Array.isArray(accountRef)) {
+            socket.data.accountId = ''; // 标记为非单账号模式
+            socket.data.accountIds = accountRef;
+            const targetIds = [];
+
+            for (const ref of accountRef) {
+                const incoming = String(ref || '').trim();
+                const resolved = incoming && incoming !== 'all' ? (await resolveAccId(incoming)) : '';
+                if (resolved) {
+                    let allow = true;
+                    if (currentUser && currentUser.role !== 'admin') {
+                        const allAccounts = await store.getAccounts();
+                        const account = allAccounts.accounts.find(a => String(a.id) === String(resolved));
+                        if (!account || account.username !== currentUser.username) {
+                            allow = false;
+                        }
+                    }
+                    if (allow) targetIds.push(resolved);
+                }
+            }
+
+            for (const uid of targetIds) {
+                socket.join(`account:${uid}`);
+            }
+            socket.emit('subscribed', { accountId: 'multi', count: targetIds.length });
+
+            // 下发这批账号的状态快照
+            try {
+                if (provider && typeof provider.getStatus === 'function') {
+                    for (const targetId of targetIds) {
+                        const currentStatus = await provider.getStatus(targetId);
+                        socket.emit('status:update', { accountId: targetId, status: currentStatus });
+                    }
+                }
+                // 多账号模式暂不下发全量日志快照，避免 Array size limit 爆内存
+            } catch { }
+
+            return;
+        }
+
+        const incoming = String(accountRef || '').trim();
+        const resolved = incoming && incoming !== 'all' ? await resolveAccId(incoming) : '';
 
         if (resolved) {
             // 请求订阅特定账号，检查权限
@@ -1877,6 +2219,8 @@ function startAdminServer(dataProvider) {
 
     io = new SocketIOServer(server, {
         path: '/socket.io',
+        pingTimeout: 5000,
+        pingInterval: 10000,
         cors: {
             origin: '*',
             methods: ['GET', 'POST'],
@@ -1909,9 +2253,17 @@ function startAdminServer(dataProvider) {
 
         socket.on('subscribe', async (payload) => {
             const body = (payload && typeof payload === 'object') ? payload : {};
-            await applySocketSubscription(socket, body.accountId || '');
+            if (Array.isArray(body.accountIds)) {
+                await applySocketSubscription(socket, body.accountIds);
+            } else {
+                await applySocketSubscription(socket, body.accountId || '');
+            }
         });
     });
+}
+
+function getIO() {
+    return io;
 }
 
 module.exports = {
@@ -1919,4 +2271,5 @@ module.exports = {
     emitRealtimeStatus,
     emitRealtimeLog,
     emitRealtimeAccountLog,
+    getIO
 };

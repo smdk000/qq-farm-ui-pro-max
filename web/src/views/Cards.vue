@@ -7,6 +7,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
+import { useToastStore } from '@/stores/toast'
 
 interface Card {
   code: string
@@ -22,6 +23,7 @@ interface Card {
 
 const cards = ref<Card[]>([])
 const loading = ref(false)
+const toast = useToastStore()
 const showGenerateModal = ref(false)
 const showEditModal = ref(false)
 const editingCard = ref<Card | null>(null)
@@ -221,13 +223,40 @@ function formatDateTime(timestamp: number | null) {
   })
 }
 
+async function copyText(text: string, successMsg: string) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+    }
+    else {
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      textArea.style.top = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      const successful = document.execCommand('copy')
+      textArea.remove()
+      if (!successful)
+        throw new Error('Copy failed')
+    }
+    toast.success(successMsg)
+  }
+  catch (err) {
+    console.error('复制失败:', err)
+    toast.error('复制失败，请手动选择复制')
+  }
+}
+
 function copyToText(code: string) {
-  navigator.clipboard.writeText(code)
+  copyText(code, '复制成功')
 }
 
 function copyAllGenerated() {
   const text = generatedCards.value.map(c => c.code).join('\n')
-  navigator.clipboard.writeText(text)
+  copyText(text, '复制全部成功')
 }
 </script>
 

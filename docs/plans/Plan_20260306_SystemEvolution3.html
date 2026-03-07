@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>架构演进计划: 领域解耦与安全追溯 Phase 3</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #09090b;
+            --bg-card: #18181b;
+            --text-main: #fafafa;
+            --text-muted: #a1a1aa;
+            --primary: #8b5cf6;
+            --border: #27272a;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 2rem;
+            margin-bottom: 2.5rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #c084fc, #ec4899);
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .badge {
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .badge-backend {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #93c5fd;
+        }
+
+        .badge-frontend {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #6ee7b7;
+        }
+
+        .badge-core {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #fcd34d;
+        }
+
+        .mermaid-wrapper {
+            background: #121214;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Antigravity 生态系统升维 <span>Phase 3</span></h1>
+            <p style="color: var(--text-muted)">深水区排雷：巨石模块瓦解与数据资产透视 (2026-03-06)</p>
+        </div>
+
+        <div class="card">
+            <h2>一、战略解构全景与链路透视</h2>
+            <p>Phase 3 是针对我们在历次补丁累积中遗留的“代码坏味道”以及对“系统掌控力不透明”发起的清理战役。</p>
+            <div class="mermaid-wrapper">
+                <div class="mermaid">
+                    flowchart LR
+                    classDef default fill:#18181b,stroke:#3f3f46,color:#e4e4e7
+                    classDef hl fill:#2e1065,stroke:#8b5cf6,color:#c4b5fd
+
+                    UI[Frontend App] -->|1. 新增 SystemLogs 界面| Dashboard[审计中控台]:::hl
+                    Dashboard -.分页/条件查.-> API[log.js 路由]
+                    API --> MySQL[(MySQL 归档池)]
+
+                    subgraph 核心解构区: 破除 2000行大泥球
+                    Origin[friend.js门面]:::hl --> Scanner[扫描与轮询]
+                    Origin --> Decision[过滤与评估大脑]
+                    Origin --> Action[原生操作集:偷/水/草]
+                    end
+                </div>
+            </div>
+        </div>
+
+        <h2>二、原子级阶段任务 (Atomized Execution)</h2>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3><span class="badge badge-backend">Module 1</span> 赋视: MySQL 日志翻链 API</h3>
+                <ul>
+                    <li>由于内存中的保留被缩减到 300，我们需要开放 <code>GET /api/logs</code> 以拉取全量。</li>
+                    <li>实现动态组装 SQL（防注）：根据 Level、时间戳范围、UID 进行多维翻查。</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3><span class="badge badge-frontend">Module 2</span> 搭台: Frontend 审计台 (UI)</h3>
+                <ul>
+                    <li>开发 <code>SystemLogs.vue</code> 组件挂载至后台主界面菜单。</li>
+                    <li>利用 Vue 编写交互友好的日期筛选器、严重级别级联选项器和分页表组件。</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3><span class="badge badge-core">Module 3</span> 削石: 瓦解巨物 friend.js</h3>
+                <ul>
+                    <li>该文件承载了过多的业务域。将在 <code>core/src/services/friend/</code> 下创建分形。</li>
+                    <li>将原先杂糅的 HTTP 封装、策略调度、结果判定拆散，依靠 Façade (门面对象) 重绑，对外部入口 0 损耗变更。</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>三、演进收益 (Impact Matrix)</h2>
+            <p>1. <strong>开发体验 (DX)</strong>: friend.js 拆分后，下一期开发人员将不必再面对极其容易合错代码产生冲突的单体结构。</p>
+            <p>2. <strong>客户成功 (CS)</strong>: 随着多账号的横向扩展，前端 300 条 LRU 缓存只需 1
+                分钟就能被冲刷干净（特别是有微信被禁掉时）。现在全量查询台可随时支持故障溯源，做到“死后可对证”。</p>
+        </div>
+    </div>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</body>
+
+</html>

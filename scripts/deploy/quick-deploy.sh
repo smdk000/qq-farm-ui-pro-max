@@ -19,7 +19,7 @@ print_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 print_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
-REPO_BASE="https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main"
+REPO_BASE="https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main"
 DEPLOY_DIR="${PWD}/qq-farm"
 
 echo ""
@@ -72,7 +72,7 @@ cd "${DEPLOY_DIR}"
 # 6. 下载编排文件
 print_info "下载部署文件..."
 curl -sL "${REPO_BASE}/deploy/docker-compose.yml" -o docker-compose.yml
-curl -sL "${REPO_BASE}/deploy/.env.example" -o .env
+curl -sL "${REPO_BASE}/deploy/.env" -o .env
 
 # 下载 init-db（如有）
 curl -sL "${REPO_BASE}/deploy/init-db/init.sql" -o init-db/init.sql 2>/dev/null || true

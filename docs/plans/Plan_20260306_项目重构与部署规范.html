@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目重构与运维规范 Plan</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./assets/plan_style.css">
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#0f172a', primaryTextColor: '#f8fafc', primaryBorderColor: '#38bdf8', lineColor: '#475569', secondaryColor: '#1e293b', tertiaryColor: '#111827' } });
+    </script>
+</head>
+
+<body>
+    <header>
+        <h1>【方案规划】项目目录深度治理与统一部署规范</h1>
+        <p style="color: var(--text-muted);">主创：高级全栈架构师 | 阶段体系：Stage 1 - Align & Architect</p>
+    </header>
+
+    <div class="card" id="part1">
+        <h2>📌 1. 核心痛点与环境关联诊断</h2>
+        <ul>
+            <li><strong>根目录重度污染：</strong>堆积大量散乱的 <code>.sh</code> 脚本、<code>.md</code> 说明文档、归档包（<code>*.tar</code>,
+                <code>*.zip</code>）与数据 SQL，导致文件索骥成本极高。</li>
+            <li><strong>防范网破洞：</strong>先前的 <code>.dockerignore</code> 及源码同步脚本使用了词汇泛匹配
+                <code>data</code>/<code>logs</code>，误伤屏蔽了工程必须层 <code>web/src/data</code>，这导致构建流程强行阻滞。</li>
+            <li><strong>单向分化与自动化断层：</strong>开源侧 <code>github-sync</code> 尚未制定分离壁垒同步原则；项目缺乏集成 “打包-文件校验-传输-构建热更”
+                一体化防挂主控引擎。</li>
+        </ul>
+    </div>
+
+    <div class="card" id="part2">
+        <h2>📐 2. 目录重整体系与逻辑划分映射</h2>
+        <p>实行“绝对隔离，高内聚低耦合”分类沉淀：</p>
+        <pre class="mermaid">
+        graph TD
+            Root["/ (根目录基座)"] --> Docs["/docs (管控所有架构方案、Plan及其它子级说明书)"]
+            Root --> Scripts["/scripts (集中存放隔离后的所有 Shell 逻辑)"]
+            Scripts --> SDeploy["/scripts/deploy (部署引擎、环境网络预装联通脚本)"]
+            Scripts --> SUtils["/scripts/utils (修复密码、依赖清理、其他日常辅助)"]
+            Root --> Arch["/.archives (隐蔽的打包容器、历史日志归属地，常驻阻断名单防上传)"]
+            Root --> GithubSync["/github-sync (双生隔离库：剔除敏感隐私文件的映射极净仓库)"]
+            Root --> Configs["保留零碎原位配置 (package.json, Dockerfile)"]
+        </pre>
+    </div>
+
+    <div class="card" id="part3">
+        <h2>🛡️ 3. 部署坑点规避机制预设与影响面(Impact)评估</h2>
+        <ul>
+            <li><strong>硬链接级隔离规则：</strong>文件阻断清单强制由原本的自由泛匹配更改为绝对定解路径（例如只对 <code>/data</code> 或 <code>/core/data</code>
+                截留），杜绝次级重要结构由于同名被无情绞杀！</li>
+            <li><strong>纯净依赖抗灾筑基：</strong>后续生成的一键起服及新 <code>Dockerfile</code> 将从底层绑定好所有的加速基石（包括注入阿里系
+                <code>npmmirror</code> & <code>alpine apk mirrors</code>）。</li>
+            <li><strong>运维影响面副作用：</strong>部分开发者习惯于通过在主目录直接运行 <code>./quick-start.sh</code>
+                的起服旧路将被截断。对于此副作用，后续我们将对外提供统一聚合启动脚本（包裹器），同时必须修正定时 Crontab 里指向老的路由信息。</li>
+        </ul>
+    </div>
+</body>
+
+</html>

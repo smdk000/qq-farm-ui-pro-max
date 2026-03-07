@@ -4,6 +4,7 @@ const process = require('node:process');
  */
 
 const { getDataFile, ensureDataDir } = require('../config/runtime-paths');
+const { getPool, transaction } = require('../services/mysql-db');
 const { readTextFile, readJsonFile, writeJsonFileAtomic } = require('../services/json-db');
 
 const STORE_FILE = getDataFile('store.json');
@@ -55,12 +56,12 @@ const DEFAULT_ACCOUNT_CONFIG = {
     plantingStrategy: 'preferred',
     preferredSeedId: 0,
     intervals: {
-        farm: 2,
-        friend: 10,
-        farmMin: 2,
-        farmMax: 2,
-        friendMin: 10,
-        friendMax: 10,
+        farm: 30,
+        friend: 60,
+        farmMin: 30,
+        farmMax: 120,
+        friendMin: 60,
+        friendMax: 180,
     },
     friendQuietHours: {
         enabled: false,
@@ -68,6 +69,11 @@ const DEFAULT_ACCOUNT_CONFIG = {
         end: '07:00',
     },
     friendBlacklist: [],
+    stealFilter: { enabled: false, mode: 'blacklist', plantIds: [] },
+    stealFriendFilter: { enabled: false, mode: 'blacklist', friendIds: [] },
+    stakeoutSteal: { enabled: false, delaySec: 3 },
+    skipStealRadish: { enabled: false },
+    forceGetAll: { enabled: false },
 };
 const ALLOWED_AUTOMATION_KEYS = new Set(Object.keys(DEFAULT_ACCOUNT_CONFIG.automation));
 
@@ -88,6 +94,9 @@ const globalConfig = {
     adminPasswordHash: '',
     thirdPartyApi: {},
     timingConfig: {},
+    clusterConfig: {
+        dispatcherStrategy: 'round_robin', // 'round_robin' or 'least_load'
+    },
     suspendUntilMap: {},
 };
 
@@ -146,6 +155,21 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
     }
 
     const rawBlacklist = Array.isArray(base.friendBlacklist) ? base.friendBlacklist : [];
+    const stealFilter = (base.stealFilter && typeof base.stealFilter === 'object')
+        ? { enabled: !!base.stealFilter.enabled, mode: base.stealFilter.mode === 'whitelist' ? 'whitelist' : 'blacklist', plantIds: Array.isArray(base.stealFilter.plantIds) ? base.stealFilter.plantIds.map(String) : [] }
+        : DEFAULT_ACCOUNT_CONFIG.stealFilter;
+    const stealFriendFilter = (base.stealFriendFilter && typeof base.stealFriendFilter === 'object')
+        ? { enabled: !!base.stealFriendFilter.enabled, mode: base.stealFriendFilter.mode === 'whitelist' ? 'whitelist' : 'blacklist', friendIds: Array.isArray(base.stealFriendFilter.friendIds) ? base.stealFriendFilter.friendIds.map(String) : [] }
+        : DEFAULT_ACCOUNT_CONFIG.stealFriendFilter;
+    const stakeoutSteal = (base.stakeoutSteal && typeof base.stakeoutSteal === 'object')
+        ? { enabled: !!base.stakeoutSteal.enabled, delaySec: Math.max(1, Number.parseInt(base.stakeoutSteal.delaySec, 10) || 3) }
+        : DEFAULT_ACCOUNT_CONFIG.stakeoutSteal;
+    const skipStealRadish = (base.skipStealRadish && typeof base.skipStealRadish === 'object')
+        ? { enabled: !!base.skipStealRadish.enabled }
+        : DEFAULT_ACCOUNT_CONFIG.skipStealRadish;
+    const forceGetAll = (base.forceGetAll && typeof base.forceGetAll === 'object')
+        ? { enabled: !!base.forceGetAll.enabled }
+        : DEFAULT_ACCOUNT_CONFIG.forceGetAll;
     return {
         ...base,
         automation,
@@ -156,6 +180,11 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
             ? String(base.plantingStrategy)
             : DEFAULT_ACCOUNT_CONFIG.plantingStrategy,
         preferredSeedId: Math.max(0, Number.parseInt(base.preferredSeedId, 10) || 0),
+        stealFilter,
+        stealFriendFilter,
+        stakeoutSteal,
+        skipStealRadish,
+        forceGetAll,
     };
 }
 
@@ -213,6 +242,33 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
         cfg.friendBlacklist = src.friendBlacklist.map(Number).filter(n => Number.isFinite(n) && n > 0);
     }
 
+    if (src.stealFilter && typeof src.stealFilter === 'object') {
+        cfg.stealFilter = {
+            enabled: !!src.stealFilter.enabled,
+            mode: src.stealFilter.mode === 'whitelist' ? 'whitelist' : 'blacklist',
+            plantIds: Array.isArray(src.stealFilter.plantIds) ? src.stealFilter.plantIds.map(String) : (cfg.stealFilter?.plantIds || []),
+        };
+    }
+    if (src.stealFriendFilter && typeof src.stealFriendFilter === 'object') {
+        cfg.stealFriendFilter = {
+            enabled: !!src.stealFriendFilter.enabled,
+            mode: src.stealFriendFilter.mode === 'whitelist' ? 'whitelist' : 'blacklist',
+            friendIds: Array.isArray(src.stealFriendFilter.friendIds) ? src.stealFriendFilter.friendIds.map(String) : (cfg.stealFriendFilter?.friendIds || []),
+        };
+    }
+    if (src.stakeoutSteal && typeof src.stakeoutSteal === 'object') {
+        cfg.stakeoutSteal = {
+            enabled: !!src.stakeoutSteal.enabled,
+            delaySec: Math.max(1, Number.parseInt(src.stakeoutSteal.delaySec, 10) || 3),
+        };
+    }
+    if (src.skipStealRadish && typeof src.skipStealRadish === 'object') {
+        cfg.skipStealRadish = { enabled: !!src.skipStealRadish.enabled };
+    }
+    if (src.forceGetAll && typeof src.forceGetAll === 'object') {
+        cfg.forceGetAll = { enabled: !!src.forceGetAll.enabled };
+    }
+
     return cfg;
 }
 
@@ -260,52 +316,60 @@ function ensureAccountConfig(accountId, options = {}) {
 }
 
 // 加载全局配置
-function loadGlobalConfig() {
-    ensureDataDir();
+async function loadGlobalConfigFromDB() {
     try {
-        const data = readJsonFile(STORE_FILE, () => ({}));
-        if (data && typeof data === 'object') {
-            if (data.defaultAccountConfig && typeof data.defaultAccountConfig === 'object') {
-                accountFallbackConfig = normalizeAccountConfig(data.defaultAccountConfig, DEFAULT_ACCOUNT_CONFIG);
-            } else {
-                accountFallbackConfig = cloneAccountConfig(DEFAULT_ACCOUNT_CONFIG);
-            }
-            globalConfig.defaultAccountConfig = cloneAccountConfig(accountFallbackConfig);
+        const pool = getPool();
+        if (!pool) return;
+        const [rows] = await pool.query('SELECT * FROM account_configs');
+        accountFallbackConfig = cloneAccountConfig(DEFAULT_ACCOUNT_CONFIG);
+        globalConfig.defaultAccountConfig = cloneAccountConfig(accountFallbackConfig);
+        globalConfig.accountConfigs = {};
 
-            const cfgMap = (data.accountConfigs && typeof data.accountConfigs === 'object')
-                ? data.accountConfigs
-                : {};
-            globalConfig.accountConfigs = {};
-            for (const [id, cfg] of Object.entries(cfgMap)) {
-                const sid = String(id || '').trim();
-                if (!sid) continue;
-                globalConfig.accountConfigs[sid] = normalizeAccountConfig(cfg, accountFallbackConfig);
+        for (const r of rows) {
+            let automation = {};
+            if (r.automation_farm === 1) automation.farm = true;
+            if (r.automation_farm_push === 1) automation.farm_push = true;
+            if (r.automation_land_upgrade === 1) automation.land_upgrade = true;
+            if (r.automation_friend === 1) automation.friend = true;
+            if (r.automation_friend_steal === 1) automation.friend_steal = true;
+            if (r.automation_friend_help === 1) automation.friend_help = true;
+            if (r.automation_task === 1) automation.task = true;
+            if (r.automation_email === 1) automation.email = true;
+
+            let adv = {};
+            if (r.advanced_settings) {
+                try { adv = JSON.parse(r.advanced_settings); } catch (err) { }
             }
-            // 统一规范化，确保内存中不残留旧字段（如 automation.friend）
-            globalConfig.defaultAccountConfig = cloneAccountConfig(accountFallbackConfig);
-            for (const [id, cfg] of Object.entries(globalConfig.accountConfigs)) {
-                globalConfig.accountConfigs[id] = normalizeAccountConfig(cfg, accountFallbackConfig);
+
+            globalConfig.accountConfigs[r.account_id] = normalizeAccountConfig({
+                automation,
+                plantingStrategy: r.planting_strategy,
+                preferredSeedId: r.preferred_seed_id,
+                intervals: adv.intervals || {},
+                friendQuietHours: adv.friendQuietHours || {},
+                friendBlacklist: adv.friendBlacklist || [],
+                stealFilter: adv.stealFilter,
+                stealFriendFilter: adv.stealFriendFilter,
+                stakeoutSteal: adv.stakeoutSteal,
+                skipStealRadish: adv.skipStealRadish,
+                forceGetAll: adv.forceGetAll,
+            }, accountFallbackConfig);
+
+            if (adv.ui) {
+                globalConfig.ui = { ...globalConfig.ui, ...adv.ui };
             }
-            globalConfig.ui = { ...globalConfig.ui, ...(data.ui || {}) };
-            const theme = String(globalConfig.ui.theme || '').toLowerCase();
-            globalConfig.ui.theme = theme === 'light' ? 'light' : 'dark';
-            globalConfig.offlineReminder = normalizeOfflineReminder(data.offlineReminder);
-            if (typeof data.adminPasswordHash === 'string') {
-                globalConfig.adminPasswordHash = data.adminPasswordHash;
-            }
-            if (data.thirdPartyApi && typeof data.thirdPartyApi === 'object') {
-                globalConfig.thirdPartyApi = {
-                    ...data.thirdPartyApi,
-                    aineisheKey: typeof data.thirdPartyApi.aineisheKey === 'string' ? data.thirdPartyApi.aineisheKey : ''
-                };
-            } else {
-                globalConfig.thirdPartyApi = { aineisheKey: '' };
+
+            // Cluster Config (Optional backwards compat from adv)
+            if (adv.clusterConfig) {
+                globalConfig.clusterConfig = { ...globalConfig.clusterConfig, ...adv.clusterConfig };
             }
         }
+
     } catch (e) {
-        console.error('加载配置失败:', e.message);
+        console.error('加载全局配置失败:', e.message);
     }
 }
+function loadGlobalConfig() { }
 
 function sanitizeGlobalConfigBeforeSave() {
     // default 配置统一白名单净化
@@ -325,22 +389,65 @@ function sanitizeGlobalConfigBeforeSave() {
     globalConfig.accountConfigs = nextMap;
 }
 
-// 保存全局配置
-function saveGlobalConfig() {
-    ensureDataDir();
+// 保存全局配置 (加入 3000ms 防抖，避免狂刷数据库事务阻塞连接池)
+let _globalConfigSaveTimer = null;
+function saveGlobalConfigImmediate() {
+    sanitizeGlobalConfigBeforeSave();
+    const pool = getPool();
+    if (!pool) return;
     try {
-        const oldJson = readTextFile(STORE_FILE, '');
+        transaction(async (conn) => {
+            for (const [id, cfg] of Object.entries(globalConfig.accountConfigs)) {
+                const advSetting = JSON.stringify({
+                    intervals: cfg.intervals || {},
+                    friendQuietHours: cfg.friendQuietHours || {},
+                    friendBlacklist: cfg.friendBlacklist || [],
+                    stealFilter: cfg.stealFilter || { enabled: false, mode: 'blacklist', plantIds: [] },
+                    stealFriendFilter: cfg.stealFriendFilter || { enabled: false, mode: 'blacklist', friendIds: [] },
+                    stakeoutSteal: cfg.stakeoutSteal || { enabled: false, delaySec: 3 },
+                    skipStealRadish: cfg.skipStealRadish || { enabled: false },
+                    forceGetAll: cfg.forceGetAll || { enabled: false },
+                    ui: globalConfig.ui || {},
+                    clusterConfig: globalConfig.clusterConfig || { dispatcherStrategy: 'round_robin' }
+                });
+                const automationKeys = cfg.automation || {};
+                await conn.query(`
+                    INSERT INTO account_configs (account_id, planting_strategy, preferred_seed_id, 
+                    automation_farm, automation_farm_push, automation_land_upgrade,
+                    automation_friend, automation_friend_steal, automation_friend_help,
+                    automation_friend_bad, automation_task, automation_email,
+                    automation_free_gifts, automation_share_reward, automation_vip_gift,
+                    automation_month_card, automation_sell, automation_fertilizer,
+                    advanced_settings) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                    planting_strategy=VALUES(planting_strategy), preferred_seed_id=VALUES(preferred_seed_id),
+                    automation_farm=VALUES(automation_farm), automation_farm_push=VALUES(automation_farm_push), automation_land_upgrade=VALUES(automation_land_upgrade),
+                    automation_friend=VALUES(automation_friend), automation_friend_steal=VALUES(automation_friend_steal), automation_friend_help=VALUES(automation_friend_help),
+                    automation_friend_bad=VALUES(automation_friend_bad), automation_task=VALUES(automation_task), automation_email=VALUES(automation_email),
+                    automation_free_gifts=VALUES(automation_free_gifts), automation_share_reward=VALUES(automation_share_reward), automation_vip_gift=VALUES(automation_vip_gift),
+                    automation_month_card=VALUES(automation_month_card), automation_sell=VALUES(automation_sell), automation_fertilizer=VALUES(automation_fertilizer),
+                    advanced_settings=VALUES(advanced_settings)
+                `, [
+                    id, cfg.plantingStrategy || 'preferred', cfg.preferredSeedId || 0,
+                    automationKeys.farm === false ? 0 : 1, automationKeys.farm_push === false ? 0 : 1, automationKeys.land_upgrade === false ? 0 : 1,
+                    automationKeys.friend === false ? 0 : 1, automationKeys.friend_steal === false ? 0 : 1, automationKeys.friend_help === false ? 0 : 1,
+                    automationKeys.friend_bad === true ? 1 : 0, automationKeys.task === false ? 0 : 1, automationKeys.email === false ? 0 : 1,
+                    automationKeys.free_gifts === false ? 0 : 1, automationKeys.share_reward === false ? 0 : 1, automationKeys.vip_gift === false ? 0 : 1,
+                    automationKeys.month_card === false ? 0 : 1, automationKeys.sell === false ? 0 : 1, automationKeys.fertilizer || 'none',
+                    advSetting
+                ]);
+            }
+        }).catch(err => console.error("Update Global Config DB Error: ", err.message));
+    } catch (e) { console.error('保存全局配置失败:', e.message); }
+}
 
-        sanitizeGlobalConfigBeforeSave();
-        const newJson = JSON.stringify(globalConfig, null, 2);
-
-        if (oldJson !== newJson) {
-            console.warn('[系统] 正在保存配置到:', STORE_FILE);
-            writeJsonFileAtomic(STORE_FILE, globalConfig);
-        }
-    } catch (e) {
-        console.error('保存配置失败:', e.message);
-    }
+function saveGlobalConfig() {
+    if (_globalConfigSaveTimer) clearTimeout(_globalConfigSaveTimer);
+    _globalConfigSaveTimer = setTimeout(() => {
+        _globalConfigSaveTimer = null;
+        saveGlobalConfigImmediate();
+    }, 3000);
 }
 
 function getAdminPasswordHash() {
@@ -508,6 +615,77 @@ function setFriendBlacklist(accountId, list) {
     return [...next.friendBlacklist];
 }
 
+function getStealFilterConfig(accountId) {
+    return { ...(getAccountConfigSnapshot(accountId).stealFilter || { enabled: false, mode: 'blacklist', plantIds: [] }) };
+}
+
+function setStealFilterConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.stealFilter = {
+        enabled: !!cfg.enabled,
+        mode: cfg.mode === 'whitelist' ? 'whitelist' : 'blacklist',
+        plantIds: Array.isArray(cfg.plantIds) ? cfg.plantIds.map(String) : [],
+    };
+    setAccountConfigSnapshot(accountId, next);
+    return getStealFilterConfig(accountId);
+}
+
+function getStealFriendFilterConfig(accountId) {
+    return { ...(getAccountConfigSnapshot(accountId).stealFriendFilter || { enabled: false, mode: 'blacklist', friendIds: [] }) };
+}
+
+function setStealFriendFilterConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.stealFriendFilter = {
+        enabled: !!cfg.enabled,
+        mode: cfg.mode === 'whitelist' ? 'whitelist' : 'blacklist',
+        friendIds: Array.isArray(cfg.friendIds) ? cfg.friendIds.map(String) : [],
+    };
+    setAccountConfigSnapshot(accountId, next);
+    return getStealFriendFilterConfig(accountId);
+}
+
+function getStakeoutStealConfig(accountId) {
+    return { ...(getAccountConfigSnapshot(accountId).stakeoutSteal || { enabled: false, delaySec: 3 }) };
+}
+
+function setStakeoutStealConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.stakeoutSteal = {
+        enabled: !!cfg.enabled,
+        delaySec: Math.max(1, Math.min(300, Number.parseInt(cfg.delaySec, 10) || 3)),
+    };
+    setAccountConfigSnapshot(accountId, next);
+    return getStakeoutStealConfig(accountId);
+}
+
+function getSkipStealRadishConfig(accountId) {
+    return { ...(getAccountConfigSnapshot(accountId).skipStealRadish || { enabled: false }) };
+}
+
+function setSkipStealRadishConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.skipStealRadish = { enabled: !!(cfg && cfg.enabled) };
+    setAccountConfigSnapshot(accountId, next);
+    return getSkipStealRadishConfig(accountId);
+}
+
+function getForceGetAllConfig(accountId) {
+    return { ...(getAccountConfigSnapshot(accountId).forceGetAll || { enabled: false }) };
+}
+
+function setForceGetAllConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.forceGetAll = { enabled: !!(cfg && cfg.enabled) };
+    setAccountConfigSnapshot(accountId, next);
+    return getForceGetAllConfig(accountId);
+}
+
 function getUI() {
     return { ...globalConfig.ui };
 }
@@ -530,15 +708,57 @@ function setOfflineReminder(cfg) {
 }
 
 // ============ 账号管理 ============
-function loadAccounts() {
-    ensureDataDir();
-    const data = readJsonFile(ACCOUNTS_FILE, () => ({ accounts: [], nextId: 1 }));
-    return normalizeAccountsData(data);
+async function loadAccountsFromDB() {
+    try {
+        const pool = getPool();
+        if (!pool) return;
+        const [rows] = await pool.query('SELECT * FROM accounts');
+        let mapped = rows.map(r => ({
+            id: r.id,
+            uin: r.uin,
+            code: r.code || '',
+            nick: r.nick || '',
+            name: r.name || '',
+            platform: r.platform || 'qq',
+            running: r.running === 1,
+            avatar: r.avatar || '',
+            qq: r.qq || r.uin,
+            username: r.username || '',
+            createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+            updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
+        }));
+        cachedAccountsData = normalizeAccountsData({ accounts: mapped, nextId: 1000 + mapped.length });
+    } catch (e) { console.error('加载账号数据失败:', e.message); }
 }
 
+let cachedAccountsData = { accounts: [], nextId: 1 };
+function loadAccounts() {
+    return cachedAccountsData;
+}
+
+let _accountsSaveTimer = null;
 function saveAccounts(data) {
-    ensureDataDir();
-    writeJsonFileAtomic(ACCOUNTS_FILE, normalizeAccountsData(data));
+    cachedAccountsData = normalizeAccountsData(data); // 内存立即生效
+    if (_accountsSaveTimer) clearTimeout(_accountsSaveTimer);
+
+    _accountsSaveTimer = setTimeout(() => {
+        _accountsSaveTimer = null;
+        const pool = getPool();
+        if (!pool) return;
+        try {
+            for (const acc of cachedAccountsData.accounts) {
+                pool.query(
+                    "INSERT INTO accounts (id, uin, nick, name, platform, running, code, username) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nick=?, name=?, platform=?, running=?, code=COALESCE(NULLIF(VALUES(code),''), code), username=COALESCE(NULLIF(VALUES(username),''), username)",
+                    [
+                        acc.id, acc.uin, acc.nick || '', acc.name || '', acc.platform || 'qq', acc.running ? 1 : 0, acc.code || '', acc.username || '',
+                        acc.nick || '', acc.name || '', acc.platform || 'qq', acc.running ? 1 : 0
+                    ]
+                ).catch(e => console.error("DB Async Insert Account Failed", e.message));
+            }
+        } catch (e) {
+            console.error('保存账号数据失败:', e.message);
+        }
+    }, 2000);
 }
 
 function getAccounts() {
@@ -560,7 +780,8 @@ function addOrUpdateAccount(acc) {
     const data = normalizeAccountsData(loadAccounts());
     let touchedAccountId = '';
     if (acc.id) {
-        const idx = data.accounts.findIndex(a => a.id === acc.id);
+        const accIdStr = String(acc.id).trim();
+        const idx = data.accounts.findIndex(a => String(a.id).trim() === accIdStr);
         if (idx >= 0) {
             data.accounts[idx] = { ...data.accounts[idx], ...acc, name: acc.name !== undefined ? acc.name : data.accounts[idx].name, updatedAt: Date.now() };
             touchedAccountId = String(data.accounts[idx].id || '');
@@ -576,6 +797,7 @@ function addOrUpdateAccount(acc) {
             uin: acc.uin ? String(acc.uin) : '',
             qq: acc.qq ? String(acc.qq) : (acc.uin ? String(acc.uin) : ''),
             avatar: acc.avatar || acc.avatarUrl || '',
+            username: acc.username || '',
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });
@@ -589,12 +811,21 @@ function addOrUpdateAccount(acc) {
 
 function deleteAccount(id) {
     const data = normalizeAccountsData(loadAccounts());
-    data.accounts = data.accounts.filter(a => a.id !== String(id));
+    data.accounts = data.accounts.filter(a => String(a.id) !== String(id));
     if (data.accounts.length === 0) {
         data.nextId = 1;
     }
     saveAccounts(data);
     removeAccountConfig(id);
+
+    // 修复 bug：仅 saveAccounts(data) 会触发 UPSERT（更新或插入），但不会对被 filter 剔除的数据做 DELETE，必须单独在 DB 中删除该行
+    const pool = getPool();
+    if (pool) {
+        pool.query('DELETE FROM accounts WHERE id = ?', [String(id)]).catch(e => console.error("DB Delete Account Failed:", e.message));
+        // 同时清理可能关联的 config 数据
+        pool.query('DELETE FROM account_configs WHERE account_id = ?', [String(id)]).catch(e => console.error("DB Delete Account Configs Failed:", e.message));
+    }
+
     return data;
 }
 
@@ -603,12 +834,23 @@ const DEFAULT_TIMING_CONFIG = {
     // Ghosting 打盹参数
     ghostingCooldownMin: 240,       // 冷却期（分钟），两次打盹之间最少间隔
     ghostingProbability: 0.02,      // 每次巡查触发打盹的概率
-    ghostingMinMin: 30,             // 最短打盹时长（分钟）
-    ghostingMaxMin: 90,             // 最长打盹时长（分钟）
+    ghostingMinMin: 5,              // 最短打盹时长（分钟）
+    ghostingMaxMin: 10,             // 最长打盹时长（分钟）
     // 令牌桶限流参数
     rateLimitIntervalMs: 334,       // 两次 WS 请求之间的最小间隔（毫秒）
     // 邀请码处理延迟
     inviteRequestDelay: 2000,       // 邀请码逐条处理间隔（毫秒）
+};
+
+// ============ 体验卡相关配置 ============
+const DEFAULT_TRIAL_CARD_CONFIG = {
+    enabled: true,           // 是否允许生成体验卡
+    dailyLimit: 100,         // 每日最大发卡数量
+    cooldownMs: 4 * 60 * 60 * 1000, // IP申请冷却时间 (默认 4 小时)
+    days: 1,                 // 体验卡默认天数
+    maxAccounts: 1,          // 结合使用，体验卡最多只能添加 1 个账号
+    adminRenewEnabled: true, // 管理员是否可以一键续费该类型
+    userRenewEnabled: false, // 用户是否可以自助续费该类型
 };
 
 /**
@@ -641,6 +883,40 @@ function setTimingConfig(cfg) {
     return getTimingConfig();
 }
 
+/**
+ * 获取体验卡配置（合并默认值）
+ */
+function getTrialCardConfig() {
+    const saved = (globalConfig.trialCardConfig && typeof globalConfig.trialCardConfig === 'object')
+        ? globalConfig.trialCardConfig
+        : {};
+    return { ...DEFAULT_TRIAL_CARD_CONFIG, ...saved };
+}
+
+/**
+ * 保存体验卡配置（局部更新）
+ */
+function setTrialCardConfig(cfg) {
+    const current = getTrialCardConfig();
+    const input = (cfg && typeof cfg === 'object') ? cfg : {};
+    const next = {};
+    for (const key of Object.keys(DEFAULT_TRIAL_CARD_CONFIG)) {
+        if (input[key] !== undefined) {
+            if (typeof DEFAULT_TRIAL_CARD_CONFIG[key] === 'boolean') {
+                next[key] = !!input[key];
+            } else {
+                next[key] = Number(input[key]);
+                if (!Number.isFinite(next[key])) next[key] = current[key];
+            }
+        } else {
+            next[key] = current[key];
+        }
+    }
+    globalConfig.trialCardConfig = next;
+    saveGlobalConfig();
+    return getTrialCardConfig();
+}
+
 // ============ 风控休眠持久化 ============
 /**
  * 记录账号休眠到期时间戳（持久化到 store.json）
@@ -663,7 +939,13 @@ function getSuspendUntil(accountId) {
     return Number(globalConfig.suspendUntilMap[id]) || 0;
 }
 
+async function loadAllFromDB() {
+    await loadAccountsFromDB();
+    await loadGlobalConfigFromDB();
+}
+
 module.exports = {
+    loadAllFromDB,
     DEFAULT_ACCOUNT_CONFIG,
     DEFAULT_TIMING_CONFIG,
     getAccountConfigSnapshot,
@@ -680,6 +962,16 @@ module.exports = {
     getFriendQuietHours,
     getFriendBlacklist,
     setFriendBlacklist,
+    getStealFilterConfig,
+    setStealFilterConfig,
+    getStealFriendFilterConfig,
+    setStealFriendFilterConfig,
+    getStakeoutStealConfig,
+    setStakeoutStealConfig,
+    getSkipStealRadishConfig,
+    setSkipStealRadishConfig,
+    getForceGetAllConfig,
+    setForceGetAllConfig,
     getUI,
     setUITheme,
     getOfflineReminder,
@@ -695,7 +987,21 @@ module.exports = {
     setAdminPasswordHash,
     getAccounts,
     getThirdPartyApiConfig,
-    setThirdPartyApiConfig
+    setThirdPartyApiConfig,
+    getTrialCardConfig,
+    setTrialCardConfig,
+
+    getClusterConfig: () => {
+        if (!globalConfig.clusterConfig) {
+            globalConfig.clusterConfig = { dispatcherStrategy: 'round_robin' };
+        }
+        return { ...globalConfig.clusterConfig };
+    },
+    setClusterConfig: (cfg) => {
+        globalConfig.clusterConfig = { ...globalConfig.clusterConfig, ...(cfg || {}) };
+        saveGlobalConfig();
+        return { ...globalConfig.clusterConfig };
+    }
 };
 
 function getAccountsFullPaged(page = 1, pageSize = 20) {

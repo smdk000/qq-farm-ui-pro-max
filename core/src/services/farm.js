@@ -1366,7 +1366,7 @@ function scheduleNextFarmCheck(delayMs = CONFIG.farmCheckInterval) {
 
     // Phase 3: 根据连续报错情况计算退避。前3次不退避，第4次开始成倍激增
     if (consecutiveErrors > 3) {
-        const backoff = Math.min(300000, 5000 * Math.pow(2, consecutiveErrors - 3));
+        const backoff = Math.min(300000, 5000 * 2**(consecutiveErrors - 3));
         finalDelay = Math.max(finalDelay, backoff);
         logWarn('系统', `连续 ${consecutiveErrors} 次异常，启动风控退避，下次巡田延迟 ${Math.round(finalDelay / 1000)} 秒`);
     }

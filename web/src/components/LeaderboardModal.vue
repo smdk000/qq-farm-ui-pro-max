@@ -14,48 +14,26 @@ const emit = defineEmits<{
 
 const leaderboardData = ref<any[]>([])
 const loading = ref(false)
-const sortBy = ref('experience') // 默认按经验/等级
+const sortBy = ref('level') // 默认按等级
 
 const sortOptions = [
-  { label: '按等级', value: 'experience' },
+  { label: '按等级', value: 'level' },
   { label: '按金币', value: 'gold' },
-  { label: '按点券', value: 'coupons' },
+  { label: '按点券', value: 'coupon' },
   { label: '按挂机时长', value: 'uptime' },
 ]
 
 async function fetchLeaderboard() {
   loading.value = true
   try {
-    // 假设后端可能已经实现了全局数据获取，通过现有接口参数扩展或直接拉取
-    // 优先使用 /api/accounts 尝试获取排行榜所需全量基础数据（若后端未返回全量字段后续需调整API）
-    const res = await api.get('/api/accounts')
-    if (res.data.ok && res.data.data && res.data.data.accounts) {
-      let data = res.data.data.accounts
-      if (!Array.isArray(data)) {
-        data = []
-      }
-
-      // 临时在前端补齐默认字段用于 UI 展示。实际生产中此计算最好由后端完成。
-      let sorted = data.map((item: any) => ({
-        ...item,
-        gold: item.gold || Math.floor(Math.random() * 5000000), // 临时占位演示
-        experience: item.experience || Math.floor(Math.random() * 100), // 临时占位演示
-        coupons: item.coupons || Math.floor(Math.random() * 10000), // 临时占位演示
-        uptime: item.uptime || Math.floor(Math.random() * 1440), // 临时占位演示，分钟
-      }))
-
-      // 执行前端排序
-      sorted.sort((a: any, b: any) => {
-        return (b[sortBy.value] || 0) - (a[sortBy.value] || 0)
-      })
-
-      // 附加排名
-      sorted = sorted.map((item: any, index: number) => ({
-        ...item,
-        ranking: index + 1,
-      }))
-
-      leaderboardData.value = sorted
+    const res = await api.get('/api/leaderboard', {
+      params: {
+        sort_by: sortBy.value,
+        limit: 50,
+      },
+    })
+    if (res.data.ok && res.data.data && Array.isArray(res.data.data.accounts)) {
+      leaderboardData.value = res.data.data.accounts
     }
   }
   catch (error) {
@@ -123,17 +101,20 @@ function getRankingClass(rank: number) {
 }
 
 function formatNumber(num: number) {
+  if (!num && num !== 0)
+    return '0'
   if (num >= 10000) {
     return `${(num / 10000).toFixed(1)}w`
   }
   return num ? num.toLocaleString() : '0'
 }
 
-function formatUptime(minutes: number) {
-  if (!minutes)
+function formatUptime(seconds: number) {
+  if (!seconds)
     return '0m'
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
+  const totalMinutes = Math.floor(seconds / 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
   if (hours > 0)
     return `${hours}h ${mins}m`
   return `${mins}m`
@@ -284,8 +265,8 @@ onMounted(() => {
                     </div>
                     <div class="truncate text-xs text-gray-500">
                       {{ getUinLabel(item) }}
-                      <span v-if="item.experience" class="ml-1 text-primary-500 opacity-80">
-                        Lv.{{ item.experience }}
+                      <span v-if="item.level" class="ml-1 text-primary-500 opacity-80">
+                        Lv.{{ item.level }}
                       </span>
                     </div>
                   </div>
@@ -293,12 +274,12 @@ onMounted(() => {
 
                 <!-- 金币 -->
                 <div class="col-span-2 truncate text-right text-amber-600 font-medium dark:text-amber-500">
-                  {{ formatNumber(item.gold) }}
+                  {{ item.running ? formatNumber(item.gold) : '-' }}
                 </div>
 
                 <!-- 点券 -->
                 <div class="col-span-1 truncate text-right text-gray-600 dark:text-gray-300">
-                  {{ formatNumber(item.coupons) }}
+                  {{ item.running ? formatNumber(item.coupon) : '-' }}
                 </div>
 
                 <!-- 时长 -->

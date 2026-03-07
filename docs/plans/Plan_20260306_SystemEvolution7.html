@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统演进与护航：Phase 7 隐患治理计划</title>
+    <!-- 暗黑模式原生 CSS -->
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f1f5f9;
+            --heading-color: #38bdf8;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --accent-color: #0ea5e9;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--heading-color);
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+
+        .alert-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: var(--heading-color);
+        }
+
+        pre {
+            background: #000;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            color: #10b981;
+        }
+    </style>
+    <!-- 引入 Mermaid -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+</head>
+
+<body>
+
+    <h1>🚀 Phase 7: 隐患治理与体验护航 (Hotfix & Enhancement)</h1>
+    <p>日期：2026-03-06 | 架构师：Antigravity Agent</p>
+
+    <div class="alert alert-warning">
+        🎯 <strong>核心目标：</strong>彻底消灭 v4.3.0 分布式架构进化过程中的尾部遗留隐患。拒绝卡死、拒绝白屏、防范小白配库崩盘。
+    </div>
+
+    <!-- 架构流程图 -->
+    <div class="section">
+        <h2>一、架构优化流向图 (Mermaid)</h2>
+        <div class="mermaid">
+            graph TD
+            A[管理员修改账户密码] -->|Master 广播下发| B(Worker Node)
+            B --> C{Diff Loading: 比对内存集合}
+            C -->|账号无变更| D[不操作，跳过重载]
+            C -->|仅密码发生变化| E[停止原先的 Timeout，重新构建并登录新线程]
+            C -->|账号被前端删除| F[释放该 Worker 下的对应内存销毁]
+
+            G[节点启动] --> H{环境侦测器 MySQL Health Check}
+            H -->|通过| I[拉起主干程序]
+            H -->|连接或 Schema 丢失| J[红字拦截抛出建议, process.exit]
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>二、影响面分析 (Impact Analysis)</h2>
+        <table>
+            <tr>
+                <th>优化模块</th>
+                <th>影响文件层级</th>
+                <th>核心目标与益处</th>
+            </tr>
+            <tr>
+                <td><strong>防错退避机制</strong></td>
+                <td><code>core/client.js</code><br><code>core/src/data/data-provider.js</code></td>
+                <td>避免小白由于无数据库或表结构出错，触发 Node.js 死亡级的 UnhandledRejection 炸毁所有屏幕日志。提供中文处方。</td>
+            </tr>
+            <tr>
+                <td><strong>Worker 极速差分同步</strong></td>
+                <td><code>core/src/cluster/worker-client.js</code></td>
+                <td>打破了分配=全重启的时序阻断，数十个大服下只针对需要变动的账户进行“定点替换”，完全隔离对其他平行运行卡片的重连打扰。</td>
+            </tr>
+            <tr>
+                <td><strong>UI 骨架屏或 Suspense 遮罩</strong></td>
+                <td><code>web/src/App.vue</code></td>
+                <td>为首切大屏或图鉴加载巨大的 Chunk 开辟过渡期动画，完全填补毫秒级的渲染白屏期。</td>
+            </tr>
+            <tr>
+                <td><strong>纯净根目录</strong></td>
+                <td><code>*.sh</code> 转移至 <code>scripts/legacy</code></td>
+                <td>消灭运维认知负担，防止使用裸机进程与新版 Docker 出现“端口互卡”和文件污染，全线强推 Docker 并轨。</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>三、交付输出与步骤节点</h2>
+        <ol>
+            <li><strong>原子任务 1 (Atomize)</strong> - 实现 MySQL <code>mysql_ping</code> 的防身机制并捕获连接错误。</li>
+            <li><strong>原子任务 2 (Atomize)</strong> - 开发对比算法，重写 Worker Client 中繁厚的循环重新绑定机制。</li>
+            <li><strong>原子任务 3 (Atomize)</strong> - 到前端注入 <code>&lt;Suspense&gt;</code> 容器，提升体验感知边界。</li>
+            <li><strong>交付整合 (Assess)</strong> - 测试集群模式下的重启效果，提交完整的 Final 报告。</li>
+        </ol>
+    </div>
+
+</body>
+
+</html>

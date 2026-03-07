@@ -1,12 +1,12 @@
 const Redis = require('ioredis');
 const { createModuleLogger } = require('./logger');
-const circuitBreaker = require('./circuit-breaker');
+const { circuitBreaker } = require('./circuit-breaker');
 
 const logger = createModuleLogger('redis-cache');
 
 // 从环境变量读取配置，兼容 docker-compose 和本地开发
 const REDIS_HOST = process.env.REDIS_HOST || '127.0.0.1';
-const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
+const REDIS_PORT = Number.parseInt(process.env.REDIS_PORT || '6379', 10);
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || '1234abcd';
 
 // Redis 实例
@@ -67,7 +67,7 @@ async function initRedis() {
  */
 async function setCache(key, value, expireSecs = 0) {
     // 熔断器检查：Redis 不可用时直接跳过写入
-    if (!circuitBreaker.isAvailable()) return;
+    if (!circuitBreaker.allowRequest()) return;
     try {
         const strVal = typeof value === 'object' ? JSON.stringify(value) : String(value);
         if (expireSecs > 0) {
@@ -88,7 +88,7 @@ async function setCache(key, value, expireSecs = 0) {
  */
 async function getCache(key) {
     // 熔断器检查：Redis 不可用时直接返回 null
-    if (!circuitBreaker.isAvailable()) return null;
+    if (!circuitBreaker.allowRequest()) return null;
     try {
         const val = await redis.get(key);
         circuitBreaker.recordSuccess();
@@ -109,7 +109,7 @@ async function getCache(key) {
  * 提供分布式锁简单实现 (SET NX)（接入熔断器）
  */
 async function acquireLock(lockKey, expireMs = 5000) {
-    if (!circuitBreaker.isAvailable()) return false;
+    if (!circuitBreaker.allowRequest()) return false;
     try {
         // PX = 毫秒， NX = 不存在才创建
         const result = await redis.set(lockKey, 'LOCKED', 'PX', expireMs, 'NX');
@@ -123,7 +123,7 @@ async function acquireLock(lockKey, expireMs = 5000) {
 }
 
 async function releaseLock(lockKey) {
-    if (!circuitBreaker.isAvailable()) return;
+    if (!circuitBreaker.allowRequest()) return;
     try {
         await redis.del(lockKey);
         circuitBreaker.recordSuccess();
