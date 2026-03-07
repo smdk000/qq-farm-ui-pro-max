@@ -29,7 +29,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/m
 - 安装或检查 Docker / Docker Compose
 - 检查 Web 端口占用
 - 在 `/opt/YYYY_MM_DD/qq-farm-bot` 创建部署目录
-- 下载 `docker-compose.yml`、`.env`、初始化 SQL、更新脚本
+- 下载 `docker-compose.yml`、`.env.example`、初始化 SQL、更新脚本
 - 启动全部 4 个容器并等待健康检查
 
 ### 手动部署
@@ -39,7 +39,7 @@ mkdir -p /opt/$(date +%Y_%m_%d)/qq-farm-bot
 cd /opt/$(date +%Y_%m_%d)/qq-farm-bot
 
 cp /path/to/deploy/docker-compose.yml .
-cp /path/to/deploy/.env .
+cp /path/to/deploy/.env.example .env
 mkdir -p init-db
 cp /path/to/deploy/init-db/01-init.sql init-db/
 cp /path/to/scripts/deploy/update-app.sh .
@@ -99,6 +99,7 @@ curl http://localhost:3080/api/ping
 qq-farm-bot/
 ├── docker-compose.yml
 ├── .env
+├── .env.example
 ├── update-app.sh
 ├── README.md
 └── init-db/

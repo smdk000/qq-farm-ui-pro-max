@@ -31,7 +31,7 @@ SUDO=""
 trap 'print_error "脚本执行失败，请检查上方日志。"' ERR
 
 if [ -f "${REPO_ROOT}/deploy/docker-compose.yml" ] \
-    && [ -f "${REPO_ROOT}/deploy/.env" ] \
+    && [ -f "${REPO_ROOT}/deploy/.env.example" ] \
     && [ -f "${REPO_ROOT}/deploy/init-db/01-init.sql" ]; then
     USE_LOCAL_BUNDLE=1
 fi
@@ -131,18 +131,19 @@ copy_or_download_bundle() {
 
     if [ "${USE_LOCAL_BUNDLE}" -eq 1 ]; then
         cp "${REPO_ROOT}/deploy/docker-compose.yml" "${target_dir}/docker-compose.yml"
-        cp "${REPO_ROOT}/deploy/.env" "${target_dir}/.env"
+        cp "${REPO_ROOT}/deploy/.env.example" "${target_dir}/.env.example"
         cp "${REPO_ROOT}/deploy/init-db/01-init.sql" "${target_dir}/init-db/01-init.sql"
         cp "${REPO_ROOT}/deploy/README.md" "${target_dir}/README.md"
         cp "${REPO_ROOT}/scripts/deploy/update-app.sh" "${target_dir}/update-app.sh"
     else
         download_file "deploy/docker-compose.yml" "${target_dir}/docker-compose.yml"
-        download_file "deploy/.env" "${target_dir}/.env"
+        download_file "deploy/.env.example" "${target_dir}/.env.example"
         download_file "deploy/init-db/01-init.sql" "${target_dir}/init-db/01-init.sql"
         download_file "deploy/README.md" "${target_dir}/README.md"
         download_file "scripts/deploy/update-app.sh" "${target_dir}/update-app.sh"
     fi
 
+    cp "${target_dir}/.env.example" "${target_dir}/.env"
     chmod +x "${target_dir}/update-app.sh"
 }
 

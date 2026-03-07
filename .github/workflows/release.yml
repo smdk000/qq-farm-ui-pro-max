@@ -9,7 +9,7 @@ on:
       version:
         description: 'Version'
         required: false
-        default: 'v4.5.2'
+        default: 'v4.5.3'
       latest:
         description: 'Latest'
         required: false
@@ -66,7 +66,7 @@ jobs:
           tar -C core/dist -czf "release-assets/qq-farm-bot-${VERSION}-macos-arm64.tar.gz" qq-farm-bot-macos-arm64
 
           cp deploy/docker-compose.yml release-assets/qq-farm-deploy/
-          cp deploy/.env release-assets/qq-farm-deploy/
+          cp deploy/.env.example release-assets/qq-farm-deploy/
           cp deploy/README.md release-assets/qq-farm-deploy/
           cp -r deploy/init-db release-assets/qq-farm-deploy/
           cp scripts/deploy/fresh-install.sh release-assets/qq-farm-deploy/

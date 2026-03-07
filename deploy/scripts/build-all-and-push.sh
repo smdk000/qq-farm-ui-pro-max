@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # 配置
-VERSION=${1:-"4.5.2"}
+VERSION=${1:-"4.5.3"}
 DOCKERHUB_USER="smdk000"
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
@@ -140,7 +140,7 @@ export_offline() {
     print_info "打包部署文件..."
     TMP_DEPLOY_DIR="$(mktemp -d /tmp/qq-farm-bot-deploy.XXXXXX)"
     cp "${PROJECT_ROOT}/deploy/docker-compose.yml" "${TMP_DEPLOY_DIR}/"
-    cp "${PROJECT_ROOT}/deploy/.env" "${TMP_DEPLOY_DIR}/"
+    cp "${PROJECT_ROOT}/deploy/.env.example" "${TMP_DEPLOY_DIR}/.env.example"
     cp "${PROJECT_ROOT}/deploy/README.md" "${TMP_DEPLOY_DIR}/"
     cp -r "${PROJECT_ROOT}/deploy/init-db" "${TMP_DEPLOY_DIR}/"
     cp "${PROJECT_ROOT}/scripts/deploy/fresh-install.sh" "${TMP_DEPLOY_DIR}/"
@@ -155,7 +155,9 @@ export_offline() {
     print_info "生成一体化安装包..."
     mkdir -p /tmp/qq-farm-bot-release
     cp "${EXPORT_DIR}/qq-farm-bot-images.tar.gz" /tmp/qq-farm-bot-release/
-    cp -r deploy/docker-compose.yml deploy/.env deploy/init-db deploy/README.md /tmp/qq-farm-bot-release/
+    cp deploy/docker-compose.yml /tmp/qq-farm-bot-release/
+    cp deploy/.env.example /tmp/qq-farm-bot-release/
+    cp -r deploy/init-db deploy/README.md /tmp/qq-farm-bot-release/
     cp scripts/deploy/fresh-install.sh scripts/deploy/update-app.sh scripts/deploy/quick-deploy.sh /tmp/qq-farm-bot-release/
 
     # 生成安装脚本
@@ -170,6 +172,11 @@ echo ""
 echo "📦 加载 Docker 镜像..."
 docker load < qq-farm-bot-images.tar.gz
 echo ""
+
+# 生成运行配置
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+fi
 
 # 启动服务
 echo "🚀 启动所有服务..."
