@@ -23,17 +23,25 @@ services:
       - TZ=${TZ:-Asia/Shanghai}
       - NODE_ENV=production
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - COOKIE_SECURE=${COOKIE_SECURE:-auto}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - JWT_SECRET=${JWT_SECRET:-}
       # 数据库（Docker 内部网络自动解析）
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
       - MYSQL_USER=${MYSQL_USER:-qq_farm_user}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD:-qq007qq008}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-qq_farm}
+      - MYSQL_POOL_LIMIT=${MYSQL_POOL_LIMIT:-100}
       # Redis
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       # 微信协议服务
       - IPAD860_URL=http://ipad860:8058
+      - WX_API_KEY=${WX_API_KEY:-}
+      - WX_API_URL=${WX_API_URL:-}
+      - WX_APP_ID=${WX_APP_ID:-}
 
     depends_on:
       mysql:
@@ -118,7 +126,19 @@ services:
     container_name: qq-farm-redis
     restart: unless-stopped
 
-    command: redis-server --appendonly yes
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+
+    entrypoint:
+      - /bin/sh
+      - -lc
+
+    command:
+      - |
+        if [ -n "$${REDIS_PASSWORD:-}" ]; then
+          exec redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"
+        fi
+        exec redis-server --appendonly yes
 
     volumes:
       - redis-data:/data
@@ -149,9 +169,21 @@ services:
 
     environment:
       - TZ=${TZ:-Asia/Shanghai}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
 
     depends_on:
       - redis
+
+    entrypoint:
+      - /bin/sh
+      - -lc
+
+    command:
+      - |
+        set -eu
+        REDIS_PASS_ESCAPED=$$(printf '%s' "$${REDIS_PASSWORD:-}" | sed 's/[\\&|]/\\&/g')
+        sed -i "s|^redispass = .*|redispass = \"$${REDIS_PASS_ESCAPED}\"|" /app/conf/app.conf
+        exec /app/main
 
     networks:
       - farm-net

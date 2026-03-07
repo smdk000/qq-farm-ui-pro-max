@@ -103,8 +103,6 @@ const thirdPartyApiConfig = ref({
 })
 const thirdPartyApiSaving = ref(false)
 
-
-
 const trialCooldownOptions = [
   { label: '1 小时', value: 3600000 },
   { label: '2 小时', value: 7200000 },
@@ -201,8 +199,6 @@ async function saveThirdPartyApiConfig() {
     thirdPartyApiSaving.value = false
   }
 }
-
-
 
 const modalVisible = ref(false)
 const modalConfig = ref({
@@ -1633,8 +1629,6 @@ async function restoreTimingDefaults() {
           </BaseButton>
         </div>
       </div>
-
-
 
       <!-- Card 4: 第三方 API 配置（仅管理员可见） -->
       <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">

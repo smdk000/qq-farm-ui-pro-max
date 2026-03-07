@@ -757,6 +757,7 @@ async function deleteCard(code) {
 async function loadAllFromDB() {
     await loadUsers();
     await loadCards();
+    await initDefaultAdmin();
 }
 
 // initDefaultAdmin();

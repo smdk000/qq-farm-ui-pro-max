@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import api from '@/api'
-import { adminToken } from '@/utils/auth'
 import { useStatusStore } from '@/stores/status'
+import { adminToken } from '@/utils/auth'
 
 interface Announcement {
   id: number
@@ -27,7 +27,8 @@ const DISMISSED_KEY = 'announcement_dismissed_id'
 function getDismissedId(): string {
   try {
     return String(localStorage.getItem(DISMISSED_KEY) || '')
-  } catch {
+  }
+  catch {
     return ''
   }
 }
@@ -35,7 +36,8 @@ function getDismissedId(): string {
 function setDismissedId(id: number) {
   try {
     localStorage.setItem(DISMISSED_KEY, String(id))
-  } catch {
+  }
+  catch {
     /* ignore */
   }
 }
@@ -43,23 +45,28 @@ function setDismissedId(id: number) {
 async function fetchAnnouncement() {
   loading.value = true
   try {
-    const { data } = await api.get<{ ok: boolean; data: Announcement[] }>('/api/announcement')
+    const { data } = await api.get<{ ok: boolean, data: Announcement[] }>('/api/announcement')
     if (data?.ok && Array.isArray(data.data)) {
       announcements.value = data.data.filter(a => a.enabled && a.title?.trim())
-    } else {
+    }
+    else {
       announcements.value = []
     }
-  } catch {
+  }
+  catch {
     announcements.value = []
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
 
 function shouldShow(list: Announcement[]): boolean {
-  if (list.length === 0) return false
+  if (list.length === 0)
+    return false
   const latest = list[0]
-  if (!latest) return false
+  if (!latest)
+    return false
   const dismissed = getDismissedId()
   return dismissed !== String(latest.id)
 }
@@ -155,17 +162,17 @@ watch(adminToken, async (token) => {
         </div>
         <div
           v-else
-          class="custom-scrollbar flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50/30 dark:bg-gray-900/30"
+          class="custom-scrollbar flex-1 overflow-y-auto bg-gray-50/30 p-4 space-y-2 dark:bg-gray-900/30"
         >
           <div
             v-for="(entry, idx) in announcements"
             :key="entry.id"
-            class="overflow-hidden border border-gray-200 rounded-lg transition-all dark:border-gray-700 bg-white dark:bg-gray-800"
+            class="overflow-hidden border border-gray-200 rounded-lg bg-white transition-all dark:border-gray-700 dark:bg-gray-800"
             :class="{ 'ring-1 ring-primary-500/30 shadow-md': expandedIdx === idx }"
           >
             <!-- 条目头部（可点击展开） -->
             <button
-              class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-750"
+              class="dark:hover:bg-gray-750 w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50"
               @click="toggle(idx)"
             >
               <!-- 展开指示器 -->
@@ -203,7 +210,7 @@ watch(adminToken, async (token) => {
 
             <!-- 展开内容 -->
             <div v-show="expandedIdx === idx" class="border-t border-gray-100 bg-gray-50/50 px-5 py-4 dark:border-gray-700 dark:bg-gray-800/80">
-              <pre class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed dark:text-gray-300 font-sans" style="font-family: inherit;">{{ entry.content }}</pre>
+              <pre class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed font-sans dark:text-gray-300" style="font-family: inherit;">{{ entry.content }}</pre>
             </div>
           </div>
         </div>

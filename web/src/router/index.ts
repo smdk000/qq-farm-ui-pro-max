@@ -1,4 +1,5 @@
 import NProgress from 'nprogress'
+import { watch } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import api from '@/api'
 import { adminToken, clearLocalAuthState } from '@/utils/auth'
@@ -9,6 +10,16 @@ NProgress.configure({ showSpinner: false })
 
 let validatedUser = ''
 let validatingPromise: Promise<boolean> | null = null
+let validatingMarker = ''
+
+watch(adminToken, (nextMarker, prevMarker) => {
+  const next = String(nextMarker || '').trim()
+  const prev = String(prevMarker || '').trim()
+  if (next !== prev)
+    validatedUser = ''
+  if (!next)
+    validatingMarker = ''
+})
 
 async function ensureTokenValid() {
   const loginMarker = String(adminToken.value || '').trim()
@@ -18,21 +29,27 @@ async function ensureTokenValid() {
   if (validatedUser && validatedUser === loginMarker)
     return true
 
-  if (validatingPromise)
+  if (validatingPromise && validatingMarker === loginMarker)
     return validatingPromise
 
-  validatingPromise = api.get('/api/auth/validate', {
+  const requestMarker = loginMarker
+  validatingMarker = requestMarker
+  const promise = api.get('/api/auth/validate', {
     timeout: 6000,
   }).then((res) => {
     const ok = !!(res.data && res.data.ok)
-    if (ok)
-      validatedUser = loginMarker
+    if (ok && String(adminToken.value || '').trim() === requestMarker)
+      validatedUser = requestMarker
     return ok
   }).catch(() => false).finally(() => {
-    validatingPromise = null
+    if (validatingMarker === requestMarker) {
+      validatingPromise = null
+      validatingMarker = ''
+    }
   })
 
-  return validatingPromise
+  validatingPromise = promise
+  return promise
 }
 
 const router = createRouter({

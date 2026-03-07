@@ -65,7 +65,7 @@ export const useFriendStore = defineStore('friend', () => {
     friends.value[idx] = { ...friends.value[idx], plant: nextPlant }
   }
 
-  async function fetchFriends(accountId: string): Promise<{ ok: boolean; fromCache?: boolean }> {
+  async function fetchFriends(accountId: string): Promise<{ ok: boolean, fromCache?: boolean }> {
     if (!accountId)
       return { ok: false }
     loading.value = true

@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # 配置
-VERSION=${1:-"4.3.0"}
+VERSION=${1:-"4.5.0"}
 IMAGE_NAME="qq-farm-bot-ui"
 DOCKERHUB_USER="smdk000"
 REPO="${DOCKERHUB_USER}/${IMAGE_NAME}"
@@ -196,8 +196,8 @@ show_info() {
     print_info "平台标签：latest"
     echo ""
     print_info "使用复合一键编排行驶(推荐):"
-    echo "  curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/deploy/docker-compose.yml"
-    echo "  docker compose -f docker-compose.prod.yml up -d"
+    echo "  bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/fresh-install.sh)"
+    echo "  cd /opt/YYYY_MM_DD/qq-farm-bot && ./update-app.sh"
     echo ""
     print_info "若需要直接单开容器调试 (无MySQL依赖报错风险请自负):"
     echo "  docker run -d \\"

@@ -9,6 +9,9 @@ on:
     paths:
       - 'core/**'
       - 'web/**'
+      - 'deploy/**'
+      - 'scripts/deploy/**'
+      - 'README.md'
       - 'core/Dockerfile'
       - '.github/workflows/docker-build-push.yml'
   workflow_dispatch:
@@ -16,7 +19,7 @@ on:
       version:
         description: 'Version (e.g., v3.6.0)'
         required: false
-        default: 'v4.3.0'
+        default: 'v4.5.0'
       push_to_docker_hub:
         description: 'Push to Docker Hub'
         required: false
@@ -57,7 +60,7 @@ jobs:
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             VERSION="${{ github.ref_name }}"
           else
-            VERSION="v4.3.0"
+            VERSION="main-${GITHUB_SHA::7}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
@@ -136,13 +139,9 @@ jobs:
           echo "### 🚀 快速部署" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo '# ARM 服务器' >> $GITHUB_STEP_SUMMARY
-          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
-          echo 'chmod +x deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
-          echo './deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
+          echo '# 全新服务器完整部署' >> $GITHUB_STEP_SUMMARY
+          echo 'bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/fresh-install.sh)' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo '# x86 服务器' >> $GITHUB_STEP_SUMMARY
-          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
-          echo 'chmod +x deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
-          echo './deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
+          echo '# 已部署服务器仅更新主程序' >> $GITHUB_STEP_SUMMARY
+          echo 'cd /opt/YYYY_MM_DD/qq-farm-bot && ./update-app.sh' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

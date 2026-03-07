@@ -138,7 +138,7 @@ async function cleanExpiredTokens() {
     }
 }
 
-const isProduction = process.env.NODE_ENV === 'production';
+const COOKIE_SECURE_MODE = String(process.env.COOKIE_SECURE || 'auto').trim().toLowerCase();
 
 function getMaxAgeMs(role) {
     const cfg = TOKEN_CONFIG[role] || TOKEN_CONFIG.user;
@@ -148,25 +148,52 @@ function getMaxAgeMs(role) {
     return 36000000;
 }
 
-function setTokenCookies(res, accessToken, refreshToken, role) {
-    res.cookie('access_token', accessToken, {
+function getForwardedProto(req) {
+    const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase();
+    if (forwardedProto) return forwardedProto;
+
+    const forwarded = String(req?.headers?.forwarded || '').toLowerCase();
+    const match = forwarded.match(/proto=(https?)/);
+    return match ? match[1] : '';
+}
+
+function shouldUseSecureCookies(req) {
+    if (COOKIE_SECURE_MODE === 'true' || COOKIE_SECURE_MODE === '1' || COOKIE_SECURE_MODE === 'always')
+        return true;
+
+    if (COOKIE_SECURE_MODE === 'false' || COOKIE_SECURE_MODE === '0' || COOKIE_SECURE_MODE === 'never')
+        return false;
+
+    return Boolean(req?.secure || getForwardedProto(req) === 'https');
+}
+
+function getBaseCookieOptions(req) {
+    return {
         httpOnly: true,
-        secure: isProduction,
+        secure: shouldUseSecureCookies(req),
         sameSite: 'lax',
+    };
+}
+
+function setTokenCookies(req, res, accessToken, refreshToken, role) {
+    const baseOpts = getBaseCookieOptions(req);
+    res.cookie('access_token', accessToken, {
+        ...baseOpts,
         path: '/',
         maxAge: getMaxAgeMs(role),
     });
     res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: 'lax',
+        ...baseOpts,
         path: '/api/auth',
         maxAge: (TOKEN_CONFIG[role] || TOKEN_CONFIG.user).refreshExpiresInMs,
     });
 }
 
-function clearTokenCookies(res) {
-    const baseOpts = { httpOnly: true, secure: isProduction, sameSite: 'lax' };
+function clearTokenCookies(req, res) {
+    const baseOpts = getBaseCookieOptions(req);
     res.clearCookie('access_token', { ...baseOpts, path: '/' });
     res.clearCookie('refresh_token', { ...baseOpts, path: '/api/auth' });
 }
@@ -181,6 +208,7 @@ module.exports = {
     revokeAllUserTokens,
     atomicConsumeRefreshToken,
     cleanExpiredTokens,
+    shouldUseSecureCookies,
     setTokenCookies,
     clearTokenCookies,
     TOKEN_CONFIG,

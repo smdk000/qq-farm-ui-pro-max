@@ -7,20 +7,27 @@ const logger = createModuleLogger('redis-cache');
 // 从环境变量读取配置，兼容 docker-compose 和本地开发
 const REDIS_HOST = process.env.REDIS_HOST || '127.0.0.1';
 const REDIS_PORT = Number.parseInt(process.env.REDIS_PORT || '6379', 10);
-const REDIS_PASSWORD = process.env.REDIS_PASSWORD || '1234abcd';
+const REDIS_PASSWORD = typeof process.env.REDIS_PASSWORD === 'string'
+    ? process.env.REDIS_PASSWORD
+    : '';
 
 // Redis 实例
-const redis = new Redis({
+const redisOptions = {
     host: REDIS_HOST,
     port: REDIS_PORT,
-    password: REDIS_PASSWORD,
     commandTimeout: 5000,
     retryStrategy(times) {
         // 重连策略: 延迟重试，最大不超过 2 秒
         const delay = Math.min(times * 50, 2000);
         return delay;
     }
-});
+};
+
+if (REDIS_PASSWORD) {
+    redisOptions.password = REDIS_PASSWORD;
+}
+
+const redis = new Redis(redisOptions);
 
 // === Redis 连接事件 → 同步更新熔断器状态 ===
 

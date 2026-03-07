@@ -304,7 +304,7 @@ function startAdminServer(dataProvider) {
             const accessToken = jwtService.signAccessToken(validatedUser);
             const refreshToken = jwtService.generateRefreshToken();
             await jwtService.storeRefreshToken(validatedUser.username, refreshToken, validatedUser.role, req);
-            jwtService.setTokenCookies(res, accessToken, refreshToken, validatedUser.role);
+            jwtService.setTokenCookies(req, res, accessToken, refreshToken, validatedUser.role);
 
             const defaultPwd = CONFIG.adminPassword || 'admin';
             const isDefaultPassword = (password === defaultPwd);
@@ -340,7 +340,7 @@ function startAdminServer(dataProvider) {
             const newAccess = jwtService.signAccessToken(userInfo);
             const newRefresh = jwtService.generateRefreshToken();
             await jwtService.storeRefreshToken(userInfo.username, newRefresh, userInfo.role, req);
-            jwtService.setTokenCookies(res, newAccess, newRefresh, userInfo.role);
+            jwtService.setTokenCookies(req, res, newAccess, newRefresh, userInfo.role);
 
             res.json({ ok: true });
         } catch (err) {
@@ -356,7 +356,7 @@ function startAdminServer(dataProvider) {
         } catch (err) {
             logger.error('Logout error:', err.message);
         }
-        jwtService.clearTokenCookies(res);
+        jwtService.clearTokenCookies(req, res);
         res.json({ ok: true });
     });
 
@@ -532,7 +532,7 @@ function startAdminServer(dataProvider) {
         } catch (err) {
             logger.error('Legacy logout error:', err.message);
         }
-        jwtService.clearTokenCookies(res);
+        jwtService.clearTokenCookies(req, res);
         res.json({ ok: true });
     });
 
@@ -1334,7 +1334,7 @@ function startAdminServer(dataProvider) {
             const accessToken = jwtService.signAccessToken(result.user);
             const refreshToken = jwtService.generateRefreshToken();
             await jwtService.storeRefreshToken(result.user.username, refreshToken, result.user.role, req);
-            jwtService.setTokenCookies(res, accessToken, refreshToken, result.user.role);
+            jwtService.setTokenCookies(req, res, accessToken, refreshToken, result.user.role);
 
             res.json({ ok: true, data: { user: result.user } });
         } catch (error) {

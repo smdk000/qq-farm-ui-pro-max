@@ -76,8 +76,8 @@ if (isWorkerProcess) {
             console.error('2. 您使用的旧版 SQLite/JSON 未成功转译至新版的 MySQL 连接池。');
             console.error('3. 数据库 3306 端口离线，或者 `.env` 中的账密连不上。');
             console.error('\n💡 【处方建议】：');
-            console.error('👉 不想折腾？请直接采用一键容器化启动。在根目录运行: docker-compose up -d');
-            console.error('👉 需要裸机部署？请立刻运行: ./quick-start.sh 以完成数据库校验。');
+            console.error('👉 不想折腾？请直接采用一键容器化启动。在根目录运行: docker compose -f deploy/docker-compose.yml up -d');
+            console.error('👉 需要全新服务器一键部署？请运行: ./scripts/deploy/fresh-install.sh');
             console.error('\n[底层抛错信息]:', err.message);
             console.error(`${'='.repeat(70)  }\n`);
             process.exit(1);

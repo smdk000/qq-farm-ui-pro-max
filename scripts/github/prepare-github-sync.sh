@@ -33,6 +33,9 @@ mkdir -p "$SYNC_DIR/web/src"
 mkdir -p "$SYNC_DIR/docs"
 mkdir -p "$SYNC_DIR/pic"
 mkdir -p "$SYNC_DIR/assets"
+mkdir -p "$SYNC_DIR/docker"
+mkdir -p "$SYNC_DIR/nginx"
+mkdir -p "$SYNC_DIR/services"
 mkdir -p "$SYNC_DIR/.github/workflows"
 mkdir -p "$SYNC_DIR/openviking-service"
 
@@ -73,6 +76,12 @@ fi
 echo "📄 复制配置文件..."
 if [ -f "package.json" ]; then
     cp package.json "$SYNC_DIR/"
+fi
+if [ -f "LICENSE" ]; then
+    cp LICENSE "$SYNC_DIR/"
+fi
+if [ -f ".dockerignore" ]; then
+    cp .dockerignore "$SYNC_DIR/"
 fi
 if [ -f "core/package.json" ]; then
     cp core/package.json "$SYNC_DIR/core/"
@@ -253,23 +262,27 @@ fi
 if [ -f "start.bat" ]; then
     cp start.bat "$SYNC_DIR/"
 fi
+if [ -f "dev.sh" ]; then
+    cp dev.sh "$SYNC_DIR/"
+fi
 
 # 复制一键脚本
 echo "📄 复制一键部署脚本..."
 mkdir -p "$SYNC_DIR/scripts"
 if [ -d "scripts" ]; then
-    # 部署脚本在 scripts/deploy/ 下
-    if [ -d "scripts/deploy" ]; then
-        cp scripts/deploy/deploy-x86.sh "$SYNC_DIR/scripts/" 2>/dev/null || true
-        cp scripts/deploy/deploy-arm.sh "$SYNC_DIR/scripts/" 2>/dev/null || true
-        cp scripts/deploy/auto-update-docker.sh "$SYNC_DIR/scripts/" 2>/dev/null || true
-    fi
-    cp scripts/deploy-*.sh "$SYNC_DIR/scripts/" 2>/dev/null || true
-    cp scripts/docker-build-*.sh "$SYNC_DIR/scripts/" 2>/dev/null || true
-    if [ -d "scripts/docker" ]; then
-        cp scripts/docker/docker-build-multiarch.sh "$SYNC_DIR/scripts/" 2>/dev/null || true
-        cp scripts/docker/docker-sync.sh "$SYNC_DIR/scripts/" 2>/dev/null || true
-    fi
+    cp -R scripts/* "$SYNC_DIR/scripts/" 2>/dev/null || true
+fi
+
+# 复制 docker / nginx / services 目录
+echo "📄 复制运行所需目录..."
+if [ -d "docker" ]; then
+    cp -R docker/* "$SYNC_DIR/docker/" 2>/dev/null || true
+fi
+if [ -d "nginx" ]; then
+    cp -R nginx/* "$SYNC_DIR/nginx/" 2>/dev/null || true
+fi
+if [ -d "services" ]; then
+    cp -R services/* "$SYNC_DIR/services/" 2>/dev/null || true
 fi
 
 # 复制 GitHub Actions

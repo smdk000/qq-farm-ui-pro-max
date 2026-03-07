@@ -6,7 +6,7 @@
 set -e
 
 # 配置
-NEW_VERSION="${1:-v4.3.0}"
+NEW_VERSION="${1:-v4.5.0}"
 COMMIT_MESSAGE="${2:-自动更新 Docker 镜像}"
 
 # 颜色定义
@@ -105,7 +105,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     
     echo ""
     print_info "GitHub Actions 将自动构建并推送 Docker 镜像"
-    print_info "查看进度：https://github.com/smdk000/qq-farm-bot-ui/actions"
+    print_info "查看进度：https://github.com/smdk000/qq-farm-ui-pro-max/actions"
 else
     print_info "未创建标签，代码推送将触发基于 main 分支的构建"
 fi
@@ -131,14 +131,10 @@ echo "  🚀 部署命令"
 echo "========================================"
 echo ""
 echo "ARM 服务器:"
-echo "  curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-arm.sh"
-echo "  chmod +x deploy-arm.sh"
-echo "  ./deploy-arm.sh"
+echo "  bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/fresh-install.sh)"
 echo ""
-echo "x86 服务器:"
-echo "  curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-x86.sh"
-echo "  chmod +x deploy-x86.sh"
-echo "  ./deploy-x86.sh"
+echo "已部署服务器只更新主程序:"
+echo "  cd /opt/YYYY_MM_DD/qq-farm-bot && ./update-app.sh"
 echo ""
 echo "========================================"
 print_success "自动更新流程已启动！"

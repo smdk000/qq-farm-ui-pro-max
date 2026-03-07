@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QQ农场智能助手 - 完整测试任务清单与执行计划</title>
+    <style>
+        :root {
+            --bg: #08111f;
+            --panel: rgba(15, 23, 42, 0.92);
+            --panel-soft: rgba(15, 23, 42, 0.72);
+            --text: #e5eefb;
+            --muted: #96a8c3;
+            --primary: #38bdf8;
+            --primary-soft: rgba(56, 189, 248, 0.12);
+            --green: #22c55e;
+            --amber: #f59e0b;
+            --red: #f87171;
+            --border: rgba(148, 163, 184, 0.2);
+            --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 28%),
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.12), transparent 24%),
+                linear-gradient(180deg, #07101c 0%, #0b1324 38%, #08111f 100%);
+            line-height: 1.7;
+        }
+
+        .page {
+            max-width: 1360px;
+            margin: 0 auto;
+            padding: 32px 24px 80px;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(8, 17, 31, 0.94), rgba(15, 23, 42, 0.9));
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            padding: 40px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -80px -80px auto;
+            width: 260px;
+            height: 260px;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.28), transparent 66%);
+            pointer-events: none;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 18px 0 12px;
+            font-size: 40px;
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 980px;
+            color: var(--muted);
+            font-size: 16px;
+        }
+
+        .meta-grid,
+        .summary-grid,
+        .risk-grid,
+        .phase-grid,
+        .deliver-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .meta-grid {
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            margin-top: 24px;
+        }
+
+        .summary-grid {
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            margin: 24px 0;
+        }
+
+        .risk-grid {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            margin-top: 18px;
+        }
+
+        .phase-grid {
+            grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+            margin-top: 18px;
+        }
+
+        .deliver-grid {
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            margin-top: 18px;
+        }
+
+        .stat,
+        .panel,
+        .phase,
+        .deliver {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            padding: 22px;
+            box-shadow: var(--shadow);
+        }
+
+        .stat small,
+        .panel small,
+        .phase small,
+        .deliver small {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .stat strong {
+            display: block;
+            font-size: 30px;
+            margin-bottom: 6px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 290px minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .toc {
+            position: sticky;
+            top: 20px;
+            background: var(--panel-soft);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 22px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+        }
+
+        .toc h2 {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+
+        .toc a {
+            display: block;
+            color: var(--muted);
+            text-decoration: none;
+            padding: 8px 10px;
+            border-radius: 10px;
+            transition: 0.2s ease;
+        }
+
+        .toc a:hover {
+            color: var(--text);
+            background: rgba(148, 163, 184, 0.08);
+        }
+
+        section {
+            margin-bottom: 24px;
+        }
+
+        .section-card {
+            background: var(--panel-soft);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            padding: 28px;
+            box-shadow: var(--shadow);
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 28px;
+            line-height: 1.2;
+        }
+
+        h3 {
+            margin: 28px 0 12px;
+            font-size: 20px;
+            line-height: 1.3;
+        }
+
+        p,
+        li {
+            color: var(--muted);
+        }
+
+        strong {
+            color: var(--text);
+        }
+
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+
+        .p0 {
+            color: #d1fae5;
+            background: rgba(34, 197, 94, 0.14);
+            border-color: rgba(34, 197, 94, 0.25);
+        }
+
+        .p1 {
+            color: #fde68a;
+            background: rgba(245, 158, 11, 0.14);
+            border-color: rgba(245, 158, 11, 0.25);
+        }
+
+        .p2 {
+            color: #fecaca;
+            background: rgba(248, 113, 113, 0.14);
+            border-color: rgba(248, 113, 113, 0.24);
+        }
+
+        .note {
+            margin-top: 16px;
+            padding: 16px 18px;
+            border-left: 4px solid var(--primary);
+            border-radius: 16px;
+            background: rgba(56, 189, 248, 0.09);
+            color: var(--text);
+        }
+
+        .subtle {
+            color: var(--muted);
+        }
+
+        ul.clean,
+        ol.clean {
+            margin: 12px 0 0;
+            padding-left: 20px;
+        }
+
+        ul.clean li,
+        ol.clean li {
+            margin: 8px 0;
+        }
+
+        .checklist {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .checklist div {
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+        }
+
+        .checklist code,
+        .phase code,
+        table code {
+            padding: 2px 7px;
+            border-radius: 8px;
+            background: rgba(8, 17, 31, 0.92);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            color: #8be9fd;
+            font-size: 0.92em;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+            overflow: hidden;
+            border-radius: 16px;
+        }
+
+        thead {
+            background: rgba(56, 189, 248, 0.12);
+        }
+
+        th,
+        td {
+            padding: 14px 12px;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+            font-size: 14px;
+        }
+
+        th {
+            color: var(--text);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        td {
+            color: var(--muted);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .matrix {
+            overflow-x: auto;
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            border-radius: 18px;
+            background: rgba(2, 6, 23, 0.32);
+        }
+
+        .phase-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .phase-title strong {
+            font-size: 18px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.12);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .mermaid {
+            margin-top: 18px;
+            background: rgba(255, 255, 255, 0.96);
+            border-radius: 18px;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        footer {
+            margin-top: 28px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 1080px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .toc {
+                position: static;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .page {
+                padding: 16px 14px 56px;
+            }
+
+            .hero,
+            .section-card,
+            .toc,
+            .stat,
+            .panel,
+            .phase,
+            .deliver {
+                padding: 20px;
+                border-radius: 20px;
+            }
+
+            h1 {
+                font-size: 30px;
+            }
+
+            h2 {
+                font-size: 24px;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</head>
+
+<body>
+    <div class="page">
+        <header class="hero">
+            <span class="eyebrow">QA MASTER PLAN</span>
+            <h1>QQ农场智能助手<br>完整测试任务清单与执行计划</h1>
+            <p>
+                本计划基于项目当前真实代码结构整理，覆盖前端页面、Pinia 状态、核心 API、账号生命周期、扫码登录、权限边界、系统设置、工作流、实时日志与后台管理模块。
+                目标不是给出抽象“测试建议”，而是生成一份可以直接执行、直接分工、直接复盘的测试任务清单。
+            </p>
+            <div class="meta-grid">
+                <div class="stat">
+                    <small>文档日期</small>
+                    <strong>2026-03-07</strong>
+                    <span class="subtle">适用于当前仓库主线代码状态</span>
+                </div>
+                <div class="stat">
+                    <small>测试目标</small>
+                    <strong>全量覆盖</strong>
+                    <span class="subtle">功能、逻辑、有效/无效输入、异常、权限、安全、回归</span>
+                </div>
+                <div class="stat">
+                    <small>执行方式</small>
+                    <strong>分阶段推进</strong>
+                    <span class="subtle">先 P0，再 P1，再 P2，最后沉淀自动化</span>
+                </div>
+                <div class="stat">
+                    <small>主要产物</small>
+                    <strong>任务清单 + 缺陷报告</strong>
+                    <span class="subtle">附带测试数据、验收口径、建议排期</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="summary-grid">
+            <div class="panel">
+                <small>核心测试域</small>
+                <strong>12 个</strong>
+                <p>认证与权限、账号管理、扫码登录、设置、好友、偷菜过滤、工作流、仪表盘、后台管理、通知日志、系统鲁棒性、自动化回归。</p>
+            </div>
+            <div class="panel">
+                <small>优先级划分</small>
+                <strong>P0 / P1 / P2</strong>
+                <p>P0 保证系统可用与不越权，P1 验证主要业务逻辑与边界，P2 覆盖性能、长期运行、极端异常和自动化扩展。</p>
+            </div>
+            <div class="panel">
+                <small>建议节奏</small>
+                <strong>8 个工作日</strong>
+                <p>单人 QA 执行建议按 8 天排期；多人协作可并行拆为前端交互、后端接口、权限安全、回归自动化四条线。</p>
+            </div>
+            <div class="panel">
+                <small>高风险模块</small>
+                <strong>认证 / 设置 / 扫码</strong>
+                <p>这些模块同时涉及 Cookie 鉴权、角色隔离、第三方接口、状态回显与真实生效，是最容易出现“看似成功，实际失效”的区域。</p>
+            </div>
+        </div>
+
+        <div class="layout">
+            <aside class="toc">
+                <h2>目录</h2>
+                <a href="#basis">1. 测试计划依据</a>
+                <a href="#scope">2. 测试范围总览</a>
+                <a href="#risk">3. 高风险点与优先级</a>
+                <a href="#roadmap">4. 分阶段执行计划</a>
+                <a href="#checklist">5. 完整测试任务清单</a>
+                <a href="#data">6. 测试数据与环境准备</a>
+                <a href="#deliverables">7. 交付物与验收标准</a>
+                <a href="#schedule">8. 建议排期</a>
+            </aside>
+
+            <main>
+                <section id="basis" class="section-card">
+                    <h2>1. 测试计划依据</h2>
+                    <p>
+                        本测试计划不是凭空猜测，而是直接依据当前项目中的真实路由、状态管理、后端控制器和校验逻辑整理。建议执行测试时，以这些代码文件为基线判断“预期行为”。
+                    </p>
+                    <div class="checklist">
+                        <div><strong>前端入口与页面：</strong><code>web/src/router/index.ts</code>、<code>web/src/router/menu.ts</code>、<code>web/src/views/Login.vue</code>、<code>web/src/views/Accounts.vue</code>、<code>web/src/views/Settings.vue</code>、<code>web/src/views/StealSettings.vue</code>、<code>web/src/views/Workflow.vue</code></div>
+                        <div><strong>核心状态：</strong><code>web/src/stores/account.ts</code>、<code>web/src/stores/setting.ts</code>、<code>web/src/stores/status.ts</code>、<code>web/src/stores/app.ts</code>、<code>web/src/stores/friend.ts</code></div>
+                        <div><strong>关键交互组件：</strong><code>web/src/components/AccountModal.vue</code>、<code>web/src/components/UserInfoCard.vue</code>、<code>web/src/components/Sidebar.vue</code>、<code>web/src/components/NotificationPanel.vue</code></div>
+                        <div><strong>后端主逻辑：</strong><code>core/src/controllers/admin.js</code>、<code>core/src/controllers/users.js</code>、<code>core/src/controllers/cards.js</code>、<code>core/src/models/user-store.js</code></div>
+                        <div><strong>规则与校验：</strong><code>core/src/services/config-validator.js</code>、<code>core/src/utils/validators.js</code>、<code>core/src/services/security.js</code></div>
+                    </div>
+                    <div class="note">
+                        <strong>执行原则：</strong>凡是涉及权限、限流、间隔下限、账号归属、扫码平台分支、主题与全局配置的地方，必须同时验证 <strong>前端显示</strong>、<strong>接口响应</strong>、<strong>刷新后回显</strong> 和 <strong>实际生效</strong> 四个层面。
+                    </div>
+                </section>
+
+                <section id="scope" class="section-card">
+                    <h2>2. 测试范围总览</h2>
+                    <p>建议将本项目测试拆为 12 个测试域，每个测试域对应不同风险和不同验证方式。</p>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>测试域</th>
+                                    <th>包含内容</th>
+                                    <th>验证重点</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>认证与会话</td>
+                                    <td>登录、注册、续费、退出、刷新 token、免责声明、记住用户名</td>
+                                    <td>Cookie 鉴权、401 恢复、锁定、体验卡流转</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>角色与权限</td>
+                                    <td>菜单可见性、页面直达、API 越权、adminOnly 页面</td>
+                                    <td>前后端是否同时拦截、普通用户是否能抓包越权</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>账号管理</td>
+                                    <td>新增、编辑、删除、启动、停止、模式切换、风险规避</td>
+                                    <td>账号归属、重复账号、状态一致性、并发点击</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>扫码登录</td>
+                                    <td>QQ、微信、iPad 微信、车机微信、手动填码</td>
+                                    <td>第三方异常、轮询状态机、二维码过期与成功回流</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>设置中心</td>
+                                    <td>账号配置、间隔、静默时段、自动化、下线提醒、主题、管理配置</td>
+                                    <td>值域校验、普通用户下限保护、保存后真实生效</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>好友与偷菜过滤</td>
+                                    <td>好友加载、缓存回退、黑名单、植物黑白名单、好友黑白名单、跳过白萝卜</td>
+                                    <td>过滤优先级、列表刷新、回显一致性</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>策略流程</td>
+                                    <td>农场流程、好友流程、拖拽编排、参数节点、保存与切换账号</td>
+                                    <td>节点顺序、非法参数、缺少关键节点的逻辑后果</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>仪表盘与实时状态</td>
+                                    <td>概览、日志、倒计时、背包摘要、实时订阅</td>
+                                    <td>日志是否重复/丢失、断连恢复、状态切换准确性</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>后台管理</td>
+                                    <td>用户、卡密、公告、系统日志、通知、排行榜</td>
+                                    <td>管理员操作链路、数据边界、可编辑字段约束</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>鲁棒性与异常恢复</td>
+                                    <td>断网、超时、401、500、本地缓存污染、多标签页冲突</td>
+                                    <td>系统是否崩、是否误跳转、是否出现脏状态</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>安全与滥用防护</td>
+                                    <td>登录尝试锁定、试用卡限流、输入污染、越权、伪造请求</td>
+                                    <td>接口是否拒绝、错误信息是否泄露过多</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>性能与回归自动化</td>
+                                    <td>多账号并发、长时间运行、E2E、API 集成测试</td>
+                                    <td>建立后续稳定回归能力</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="risk" class="section-card">
+                    <h2>3. 高风险点与优先级</h2>
+                    <p>以下 16 个点建议作为首轮测试的强制覆盖项。只要其中任何一项失败，都应该阻断上线或至少阻断对外发布。</p>
+                    <div class="badge-row">
+                        <span class="badge p0">P0 必测</span>
+                        <span class="badge p1">P1 次级关键</span>
+                        <span class="badge p2">P2 增强覆盖</span>
+                    </div>
+                    <div class="risk-grid">
+                        <div class="panel">
+                            <small>P0-01</small>
+                            <strong>空用户名登录分支</strong>
+                            <p><code>/api/login</code> 中存在管理员特殊分支，需要确认空用户名不会绕过正常认证逻辑。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P0-02</small>
+                            <strong>普通用户越权访问后台页</strong>
+                            <p>前端菜单隐藏不代表安全，必须直接访问路由和直接请求 API 进行双重验证。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P0-03</small>
+                            <strong>普通用户设置间隔越界</strong>
+                            <p>普通用户低于 15 秒/60 秒的轮询配置应被后端拒绝，而不是仅前端警告。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P0-04</small>
+                            <strong>扫码登录状态机</strong>
+                            <p>二维码的 <code>Wait</code>、<code>Check</code>、<code>OK</code>、<code>Used</code>、<code>Error</code> 分支要全部跑通。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P0-05</small>
+                            <strong>重复账号添加</strong>
+                            <p>同一 <code>uin + platform</code> 新增时，后端会尝试转成更新；要验证是否会错误覆盖备注或生成重复账号。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P0-06</small>
+                            <strong>体验卡账号数上限</strong>
+                            <p>体验卡用户应被 <code>maxAccounts</code> 限制；新增账号时必须验证后端是否真正阻断。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P0-07</small>
+                            <strong>修改密码规则不一致</strong>
+                            <p>管理员和普通用户密码规则不同，必须分别验证前端和后端是否一致。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P0-08</small>
+                            <strong>刷新 token 与页面恢复</strong>
+                            <p>401 后前端会尝试刷新；要确认成功时自动恢复，失败时清理状态并跳回登录。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P1-09</small>
+                            <strong>主题配置“静默成功”</strong>
+                            <p>普通用户保存全局主题和下线提醒可能返回成功但不落库，需要验证视觉状态与真实配置是否一致。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P1-10</small>
+                            <strong>好友列表缓存回退</strong>
+                            <p>实时获取好友失败时，是否能正确回退缓存且给出准确提示，不出现空白页或误导状态。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P1-11</small>
+                            <strong>偷菜过滤优先级冲突</strong>
+                            <p>好友黑白名单、植物黑白名单、跳过白萝卜、蹲守偷菜叠加时，最容易出现业务逻辑错误。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P1-12</small>
+                            <strong>工作流保存与回显</strong>
+                            <p>流程编排既有前端拖拽状态又有后端配置快照，必须确认刷新、切换账号、重新登录后不丢节点。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P1-13</small>
+                            <strong>扫码后 wsError 防抖</strong>
+                            <p>账号保存后的 8~15 秒窗口内若再出现 <code>wsError</code>，是否会错误弹出账号窗。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P1-14</small>
+                            <strong>试用卡双重限流</strong>
+                            <p>既有公开 API 的请求频率限制，又有 IP 冷却和每日总量，必须分别验证。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P1-15</small>
+                            <strong>系统日志查询边界</strong>
+                            <p>筛选、分页、关键词、查看详情时要确认不会因字段为空或 JSON 异常导致界面崩溃。</p>
+                        </div>
+                        <div class="panel">
+                            <small>P2-16</small>
+                            <strong>多账号长时间运行</strong>
+                            <p>这是后续稳定性关键指标，建议在手工通过后再补自动化和长期运行监控。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="roadmap" class="section-card">
+                    <h2>4. 分阶段执行计划</h2>
+                    <p>建议按阶段推进，不建议一开始就“全量乱测”。先用 P0 打稳基线，再扩大覆盖面，最后沉淀自动化。</p>
+                    <div class="mermaid">
+                        flowchart LR
+                            A["Phase 0<br/>环境与数据基线"] --> B["Phase 1<br/>认证与权限"]
+                            B --> C["Phase 2<br/>账号与扫码登录"]
+                            C --> D["Phase 3<br/>设置中心全量验证"]
+                            D --> E["Phase 4<br/>好友 / 偷菜 / 工作流"]
+                            E --> F["Phase 5<br/>后台管理与可观测性"]
+                            F --> G["Phase 6<br/>鲁棒性 / 安全 / 性能"]
+                            G --> H["Phase 7<br/>回归自动化与最终报告"]
+                    </div>
+
+                    <div class="phase-grid">
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 0 环境与基线</strong>
+                                <span class="tag">0.5 天</span>
+                            </div>
+                            <p>准备测试环境、账号、卡密、体验卡、第三方依赖、日志留痕方式，确保后续问题可复现。</p>
+                            <ul class="clean">
+                                <li>确认管理员基线账号、普通用户、过期用户、封禁用户、体验卡用户。</li>
+                                <li>准备可用卡密、已使用卡密、禁用卡密、无效卡密。</li>
+                                <li>确定第三方扫码接口的可测性与不可控依赖点。</li>
+                                <li>建立缺陷记录模板与测试日志模板。</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 1 认证与权限</strong>
+                                <span class="tag">1.0 天</span>
+                            </div>
+                            <p>先验证系统“能否安全地进来”和“是否只能看到自己该看的东西”。</p>
+                            <ul class="clean">
+                                <li>登录、注册、免责声明、记住用户名、退出、token 刷新。</li>
+                                <li>普通用户和管理员的菜单差异与直接访问差异。</li>
+                                <li>卡密、用户、公告、系统日志等后台接口的越权验证。</li>
+                                <li>登录锁定、体验卡公开接口限流。</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 2 账号与扫码登录</strong>
+                                <span class="tag">1.0 天</span>
+                            </div>
+                            <p>这是项目主链路，必须覆盖新增、更新、自动启动、重复账号、扫码状态机和并发误操作。</p>
+                            <ul class="clean">
+                                <li>手动填码与四种扫码平台分支。</li>
+                                <li>运行中账号更新后的自动重启逻辑。</li>
+                                <li>风险规避模式、一键黑名单、删除与停止。</li>
+                                <li>体验卡用户账号数量上限。</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 3 设置中心全量验证</strong>
+                                <span class="tag">1.5 天</span>
+                            </div>
+                            <p>逐项验证设置项的有效、无效、边界、组合错误和保存后的实际生效，避免出现“只是回显成功”。</p>
+                            <ul class="clean">
+                                <li>账号模式、种植策略、偏好种子、间隔、静默时段。</li>
+                                <li>自动化开关、施肥策略、蹲守偷菜、好友/植物过滤。</li>
+                                <li>下线提醒、主题、体验卡配置、第三方 API、集群配置、时间参数。</li>
+                                <li>切换账号、刷新页面、重新登录后的回显一致性。</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 4 好友 / 偷菜 / 工作流</strong>
+                                <span class="tag">1.0 天</span>
+                            </div>
+                            <p>这一阶段主要查逻辑错误和状态同步问题，特别是过滤优先级和工作流节点配置。</p>
+                            <ul class="clean">
+                                <li>好友列表实时加载与缓存回退。</li>
+                                <li>好友黑名单、植物黑白名单、好友黑白名单、跳过白萝卜。</li>
+                                <li>工作流节点拖拽、删除、参数编辑、保存、回显。</li>
+                                <li>账号未登录或切换账号时的行为。</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 5 后台管理与可观测性</strong>
+                                <span class="tag">1.0 天</span>
+                            </div>
+                            <p>验证管理员能力链路，包括用户、卡密、公告、系统日志、通知、排行榜等。</p>
+                            <ul class="clean">
+                                <li>用户封禁、解封、改到期时间、体验卡续费。</li>
+                                <li>卡密生成、编辑、删除、批量删除、使用状态检查。</li>
+                                <li>公告管理、通知列表、系统日志分页与详情。</li>
+                                <li>排行榜、账号日志、仪表盘实时日志过滤。</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 6 鲁棒性 / 安全 / 性能</strong>
+                                <span class="tag">1.0 天</span>
+                            </div>
+                            <p>通过故障注入和异常输入找脆弱点，防止系统上线后在边缘条件下崩溃。</p>
+                            <ul class="clean">
+                                <li>断网、超时、401、403、500、socket 断连重连。</li>
+                                <li>localStorage 污染、多标签页冲突、快速连点、重复提交。</li>
+                                <li>登录暴力尝试、试用卡刷接口、伪造管理员请求。</li>
+                                <li>多账号并发、长时间运行、日志压力。</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase">
+                            <div class="phase-title">
+                                <strong>Phase 7 自动化与最终验收</strong>
+                                <span class="tag">1.0 天</span>
+                            </div>
+                            <p>将最关键用例固化为自动化，减少回归成本，并产出最终缺陷闭环报告。</p>
+                            <ul class="clean">
+                                <li>定义 API 集成测试、E2E 测试和冒烟回归集合。</li>
+                                <li>固化 P0 用例，建立版本回归基线。</li>
+                                <li>提交最终测试报告、缺陷列表、回归建议。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="checklist" class="section-card">
+                    <h2>5. 完整测试任务清单</h2>
+                    <p>下面这份清单按执行顺序编排。建议在实际执行时维护一个状态列：<strong>未开始 / 进行中 / 通过 / 失败 / 阻塞</strong>。</p>
+
+                    <h3>5.1 Phase 0 环境与数据基线</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>产出</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-ENV-01</td>
+                                    <td>确认部署与启动方式</td>
+                                    <td>验证源码运行、Docker 运行、测试地址、管理员账号、数据库状态、日志落点。</td>
+                                    <td>环境说明、访问地址、账号清单</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ENV-02</td>
+                                    <td>准备测试账号矩阵</td>
+                                    <td>至少准备 admin、正常 user、过期 user、封禁 user、体验卡 user。</td>
+                                    <td>测试数据表</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ENV-03</td>
+                                    <td>准备卡密矩阵</td>
+                                    <td>生成有效卡、已使用卡、禁用卡、体验卡、永久卡，覆盖注册与续费场景。</td>
+                                    <td>卡密样本表</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ENV-04</td>
+                                    <td>准备账号与扫码依赖</td>
+                                    <td>准备可测 QQ/微信扫码账号，明确哪些第三方接口可控、哪些仅能做弱验证。</td>
+                                    <td>第三方依赖清单</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ENV-05</td>
+                                    <td>建立缺陷记录规范</td>
+                                    <td>定义严重级别、复现模板、截图与日志保留规则。</td>
+                                    <td>缺陷模板</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.2 Phase 1 认证与权限</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>重点观察</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-AUTH-01</td>
+                                    <td>管理员登录成功</td>
+                                    <td>使用默认管理员和修改后管理员密码分别登录。</td>
+                                    <td>Dashboard 是否进入成功，是否出现默认密码提醒</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-02</td>
+                                    <td>普通用户登录成功</td>
+                                    <td>使用正常 user 登录，验证免责声明接受后才真正进入系统。</td>
+                                    <td>localStorage、路由跳转、菜单权限</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-03</td>
+                                    <td>拒绝免责声明</td>
+                                    <td>登录或注册成功后拒绝免责声明。</td>
+                                    <td>本地状态是否被清理，是否阻止进入系统</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-04</td>
+                                    <td>登录失败矩阵</td>
+                                    <td>错误密码、空用户名、空密码、封禁用户、过期用户、不存在用户。</td>
+                                    <td>错误提示是否准确，是否泄漏敏感信息</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-05</td>
+                                    <td>登录锁定机制</td>
+                                    <td>连续输错密码达到阈值，验证 429 与解锁时间。</td>
+                                    <td>用户名维度/IP 维度是否按预期锁定</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-06</td>
+                                    <td>注册成功与自动登录</td>
+                                    <td>使用有效卡密注册，并验证自动登录链路。</td>
+                                    <td>卡密消耗、用户角色、到期时间、免责声明</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-07</td>
+                                    <td>注册输入有效/无效边界</td>
+                                    <td>用户名长度、非法字符、密码复杂度、空卡密、过短卡密。</td>
+                                    <td>前后端错误是否一致</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-08</td>
+                                    <td>续费链路</td>
+                                    <td>使用有效、无效、禁用、已使用卡密续费。</td>
+                                    <td>到期时间累计逻辑是否正确</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-09</td>
+                                    <td>修改密码</td>
+                                    <td>分别验证 admin 和 user 的密码修改规则。</td>
+                                    <td>前后端校验差异、旧密码错误处理</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-10</td>
+                                    <td>退出登录</td>
+                                    <td>主动退出后检查 Cookie、本地状态、页面跳转。</td>
+                                    <td>是否真正调用 <code>/api/auth/logout</code> 并清理会话</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-11</td>
+                                    <td>401 自动刷新</td>
+                                    <td>构造 access token 失效但 refresh 仍有效的场景。</td>
+                                    <td>请求是否自动恢复且不丢用户状态</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-12</td>
+                                    <td>refresh 失败回退</td>
+                                    <td>构造 refresh token 失效场景。</td>
+                                    <td>是否清空状态并强制回到登录页</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTH-13</td>
+                                    <td>记住用户名</td>
+                                    <td>验证 remember_username 与 saved_username 的存取与取消。</td>
+                                    <td>是否只记用户名，不误存敏感信息</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-PERM-01</td>
+                                    <td>普通用户菜单隔离</td>
+                                    <td>验证 <code>users/cards/announcements/system-logs</code> 菜单不显示。</td>
+                                    <td>仅前端隐藏是否准确</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-PERM-02</td>
+                                    <td>直接访问后台页面</td>
+                                    <td>普通用户直接访问 <code>/users</code>、<code>/cards</code>、<code>/announcements</code>、<code>/system-logs</code>。</td>
+                                    <td>是否被后端 403 或安全重定向</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-PERM-03</td>
+                                    <td>抓包调用管理员接口</td>
+                                    <td>普通用户直接请求 <code>/api/users</code>、<code>/api/cards</code>、<code>/api/admin/*</code>。</td>
+                                    <td>是否全部拒绝，错误码是否合理</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.3 Phase 2 账号管理与扫码登录</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>重点观察</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-ACC-01</td>
+                                    <td>手动填码新增账号</td>
+                                    <td>使用 QQ、微信、iPad 微信、车机微信的手动 code 新增。</td>
+                                    <td>新增成功后是否自动启动</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-02</td>
+                                    <td>扫码新增 QQ 账号</td>
+                                    <td>验证 QQ 平台必须先输入 QQ 号，扫码成功后自动回填昵称与头像。</td>
+                                    <td>无 QQ 号时是否正确阻止获取二维码</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-03</td>
+                                    <td>扫码新增微信类账号</td>
+                                    <td>分别覆盖 <code>wx</code>、<code>wx_ipad</code>、<code>wx_car</code>。</td>
+                                    <td>第三方返回数据结构差异是否兼容</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-04</td>
+                                    <td>二维码状态机完整验证</td>
+                                    <td>至少覆盖 <code>Wait</code>、<code>Check</code>、<code>OK</code>、<code>Used</code>、<code>Error</code>。</td>
+                                    <td>轮询是否串行、成功后是否立即停止</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-05</td>
+                                    <td>编辑账号</td>
+                                    <td>验证备注修改、code 更新、平台更新。</td>
+                                    <td>运行中账号编辑后是否触发重启且状态一致</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-06</td>
+                                    <td>重复账号添加</td>
+                                    <td>使用同一 <code>uin + platform</code> 反复新增。</td>
+                                    <td>是否转更新而非产生重复账号</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-07</td>
+                                    <td>启动与停止</td>
+                                    <td>单账号、多账号、连续点击启动停止。</td>
+                                    <td>状态切换、日志、按钮禁用状态是否正确</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-08</td>
+                                    <td>删除账号</td>
+                                    <td>删除当前选中账号与非当前账号。</td>
+                                    <td>是否先停止再删除，选中项是否自动清理</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-09</td>
+                                    <td>模式切换</td>
+                                    <td>验证 <code>main</code>、<code>alt</code>、<code>safe</code> 和批量模式设置。</td>
+                                    <td>列表排序、显示标签、后端落库</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-10</td>
+                                    <td>风险规避黑名单</td>
+                                    <td>执行一键分析历史封禁日志生成黑名单。</td>
+                                    <td>成功/失败提示、返回数据、后续配置联动</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-11</td>
+                                    <td>体验卡用户账号数限制</td>
+                                    <td>达到上限后继续新增账号。</td>
+                                    <td>后端是否阻止，前端错误提示是否可理解</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-12</td>
+                                    <td>账号归属隔离</td>
+                                    <td>普通用户修改/删除其他人的账号。</td>
+                                    <td>接口是否严格拒绝</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ACC-13</td>
+                                    <td>扫码后 wsError 防抖</td>
+                                    <td>扫码成功或保存后短时间内模拟 <code>wsError code=400</code>。</td>
+                                    <td>账号弹窗是否被错误再次唤起</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.4 Phase 3 设置中心全量验证</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>重点观察</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-SET-01</td>
+                                    <td>账号设置加载</td>
+                                    <td>切换不同账号进入设置页，确认加载的是对应账号配置。</td>
+                                    <td>切换账号后是否串号或残留上一个账号配置</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-02</td>
+                                    <td>种植策略与偏好种子</td>
+                                    <td>验证所有 strategy 枚举、preferredSeedId 合法与非法值。</td>
+                                    <td>保存回显与实际行为一致性</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-03</td>
+                                    <td>轮询间隔合法值</td>
+                                    <td>常规值、最小值、最大值、字符串数字、空值。</td>
+                                    <td>校验器是否做类型转换和边界修正</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-04</td>
+                                    <td>普通用户轮询越界保护</td>
+                                    <td>提交 <code>farm &lt; 15</code>、<code>friend &lt; 60</code>、<code>workflow minInterval</code> 越界值。</td>
+                                    <td>后端是否明确拦截并给出保护性错误</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-05</td>
+                                    <td>静默时段</td>
+                                    <td>合法时间、非法格式、跨天时段、关闭开关。</td>
+                                    <td>HH:MM 格式与回显是否一致</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-06</td>
+                                    <td>蹲守偷菜</td>
+                                    <td>验证 <code>enabled</code> 与 <code>delaySec 0-60</code> 边界。</td>
+                                    <td>非法负数、大数、字符串是否被处理</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-07</td>
+                                    <td>自动化开关矩阵</td>
+                                    <td>遍历 farm、friend、sell、task、month_card、share_reward 等全部开关。</td>
+                                    <td>保存前后回显、实际日志行为</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-08</td>
+                                    <td>施肥策略</td>
+                                    <td>验证 <code>both/normal/organic/none</code> 与非法枚举。</td>
+                                    <td>非法值是否被拒绝或被校正</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-09</td>
+                                    <td>下线提醒</td>
+                                    <td>channel、token、endpoint、title、msg、offlineDeleteSec 的有效/无效输入。</td>
+                                    <td>普通用户是否只是“静默成功”但不真正修改全局配置</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-10</td>
+                                    <td>主题与 UI 配置</td>
+                                    <td>light、dark、auto、colorTheme、performanceMode、loginBackground。</td>
+                                    <td>普通用户与管理员的行为是否不同，时间戳仲裁是否正确</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-11</td>
+                                    <td>体验卡配置</td>
+                                    <td>管理员修改 enabled、days、dailyLimit、cooldownMs、renew 开关、maxAccounts。</td>
+                                    <td>普通用户读取是否只看到允许字段</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-12</td>
+                                    <td>第三方 API 配置</td>
+                                    <td>修改 <code>wxApiKey</code>、<code>wxApiUrl</code>、<code>wxAppId</code>、<code>ipad860Url</code> 等。</td>
+                                    <td>是否仅管理员可读写，是否影响扫码链路</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-13</td>
+                                    <td>时间参数配置</td>
+                                    <td>管理员修改 heartbeat、rateLimit、ghosting 等参数。</td>
+                                    <td>普通用户是否正确 403，默认值与只读值是否展示正确</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-14</td>
+                                    <td>集群配置</td>
+                                    <td>验证 <code>dispatcherStrategy</code> 的可选值与保存行为。</td>
+                                    <td>是否仅管理员可用，刷新后回显</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SET-15</td>
+                                    <td>刷新与重登回显</td>
+                                    <td>每类设置保存后都至少执行刷新页面、切换账号、重新登录三个动作。</td>
+                                    <td>回显是否与接口数据一致</td>
+                                    <td><span class="badge p0">P0</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.5 Phase 4 好友、偷菜过滤、工作流</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>重点观察</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-FRD-01</td>
+                                    <td>好友列表加载</td>
+                                    <td>在账号在线与离线两种情况下进入好友页。</td>
+                                    <td>在线时实时拉取，离线时明确提示</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-FRD-02</td>
+                                    <td>缓存回退</td>
+                                    <td>模拟实时接口失败，验证 <code>/api/friends/cache</code> 回退。</td>
+                                    <td>是否显示缓存提示且不崩溃</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-FRD-03</td>
+                                    <td>好友土地展开</td>
+                                    <td>展开好友卡片加载土地详情并观察摘要同步。</td>
+                                    <td>是否出现旧好友数据残留</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-FRD-04</td>
+                                    <td>好友操作</td>
+                                    <td>偷菜、浇水、除草、除虫、放草、放虫。</td>
+                                    <td>确认弹窗、执行后局部刷新、异常提示</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-FRD-05</td>
+                                    <td>好友黑名单</td>
+                                    <td>切换黑名单状态并回看列表透明度和后端数据。</td>
+                                    <td>页面回显与接口数据同步</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-STEAL-01</td>
+                                    <td>植物过滤</td>
+                                    <td>黑名单、白名单、全选、反选、清空、搜索。</td>
+                                    <td>plantIds 类型转换和保存稳定性</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-STEAL-02</td>
+                                    <td>好友过滤</td>
+                                    <td>黑名单、白名单、全选、反选、清空、搜索。</td>
+                                    <td>friendIds 与 gid/id 的映射是否正确</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-STEAL-03</td>
+                                    <td>跳过白萝卜</td>
+                                    <td>单独开启与和植物过滤组合开启。</td>
+                                    <td>优先级是否一致，是否重复覆盖</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-STEAL-04</td>
+                                    <td>过滤优先级冲突</td>
+                                    <td>好友白名单 + 植物黑名单 + 跳过白萝卜 + 蹲守偷菜组合验证。</td>
+                                    <td>逻辑是否出现互相覆盖或失效</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-WF-01</td>
+                                    <td>工作流基础保存</td>
+                                    <td>农场与好友 lane 分别保存最小可运行流程。</td>
+                                    <td>刷新后节点顺序与参数回显</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-WF-02</td>
+                                    <td>节点拖拽排序</td>
+                                    <td>拖入节点、重排节点、拖出删除节点。</td>
+                                    <td>是否出现 ghost 节点残留或顺序错乱</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-WF-03</td>
+                                    <td>参数节点</td>
+                                    <td>验证 delay、wait_mature、select_seed、fertilize、stage_fertilize 参数。</td>
+                                    <td>非法值与默认值处理</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-WF-04</td>
+                                    <td>缺少施肥节点警告</td>
+                                    <td>在无施肥节点情况下保存工作流。</td>
+                                    <td>前端是否警告，后端是否仍接受，业务是否符合预期</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-WF-05</td>
+                                    <td>切换账号与未保存改动</td>
+                                    <td>修改流程但不保存，切换账号或离开页面。</td>
+                                    <td>用户提示是否充分，是否误保存</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.6 Phase 5 后台管理与可观测性</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>重点观察</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-USER-01</td>
+                                    <td>用户列表加载</td>
+                                    <td>管理员查看用户列表、状态、卡密类型、到期时间。</td>
+                                    <td>角色和状态标签是否准确</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-USER-02</td>
+                                    <td>用户编辑</td>
+                                    <td>修改到期时间、永久状态、启用/封禁。</td>
+                                    <td>保存后立即生效、刷新后回显</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-USER-03</td>
+                                    <td>用户删除</td>
+                                    <td>删除普通用户，验证管理员不可删。</td>
+                                    <td>接口拒绝管理员删除逻辑</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-USER-04</td>
+                                    <td>体验卡续费</td>
+                                    <td>管理员为体验卡用户一键续费；普通体验卡用户自助续费。</td>
+                                    <td>开关关闭时是否拒绝</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-CARD-01</td>
+                                    <td>卡密生成</td>
+                                    <td>生成 D/W/M/F/T 各类卡密，校验默认天数与生成数量。</td>
+                                    <td>生成后列表、复制、状态是否正确</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-CARD-02</td>
+                                    <td>卡密编辑与删除</td>
+                                    <td>编辑描述、启用状态；删除单个与批量删除。</td>
+                                    <td>使用中卡密被编辑后是否影响已有用户</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ANN-01</td>
+                                    <td>公告管理</td>
+                                    <td>创建、编辑、删除、同步公告，观察前台通知展示。</td>
+                                    <td>普通用户不可进入，前台刷新后可见</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-NOTI-01</td>
+                                    <td>通知列表</td>
+                                    <td>验证通知拉取、展开折叠、已读日期缓存。</td>
+                                    <td>空状态、加载失败静默处理</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-LOG-01</td>
+                                    <td>系统日志查询</td>
+                                    <td>按级别、账号 ID、关键词搜索，查看详情，翻页。</td>
+                                    <td>空数据、脏数据、JSON 详情显示</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-DASH-01</td>
+                                    <td>仪表盘日志筛选</td>
+                                    <td>模块、事件、关键词、警告级别过滤。</td>
+                                    <td>是否误丢日志或排序异常</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-RANK-01</td>
+                                    <td>排行榜</td>
+                                    <td>打开排行榜，切换不同排序维度。</td>
+                                    <td>数据为空与有数据时的 UI 表现</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.7 Phase 6 鲁棒性、安全与性能</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>重点观察</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-ROB-01</td>
+                                    <td>接口超时与网络错误</td>
+                                    <td>模拟 axios 请求失败、超时、网络断开。</td>
+                                    <td>Toast 提示是否准确，不应整页崩溃</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ROB-02</td>
+                                    <td>socket 断开重连</td>
+                                    <td>实时状态已连接后断网再恢复。</td>
+                                    <td>是否自动重连、日志是否继续追加</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ROB-03</td>
+                                    <td>localStorage 污染</td>
+                                    <td>污染 <code>current_user</code>、<code>admin_token</code>、<code>current_account_id</code>、主题配置。</td>
+                                    <td>页面是否容错，不应白屏</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-ROB-04</td>
+                                    <td>多标签页冲突</td>
+                                    <td>两个标签页切换账号、切换主题、登出登录、修改设置。</td>
+                                    <td>状态是否相互污染</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SEC-01</td>
+                                    <td>登录暴力尝试</td>
+                                    <td>多次错误登录，观察锁定、提示、解除。</td>
+                                    <td>429 是否稳定，是否可绕过</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SEC-02</td>
+                                    <td>试用卡刷接口</td>
+                                    <td>高频请求 <code>/api/trial-card</code>。</td>
+                                    <td>公开限流、IP 冷却、每日总量是否分别生效</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-SEC-03</td>
+                                    <td>输入污染</td>
+                                    <td>用户名、密码、公告、搜索框、设置项注入超长字符串、脚本片段、特殊字符。</td>
+                                    <td>是否出现前端渲染异常或服务端异常</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-PERF-01</td>
+                                    <td>多账号并发</td>
+                                    <td>5~10 个账号同时运行。</td>
+                                    <td>CPU、内存、日志、页面响应是否可接受</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-PERF-02</td>
+                                    <td>长时间运行</td>
+                                    <td>连续运行 8 小时或 24 小时。</td>
+                                    <td>内存增长、重连次数、异常日志累计</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-PERF-03</td>
+                                    <td>日志高频刷新</td>
+                                    <td>持续产生大量实时日志。</td>
+                                    <td>前端是否卡顿，日志是否被误清空</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.8 Phase 7 自动化回归落地</h3>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>任务</th>
+                                    <th>执行内容</th>
+                                    <th>产出</th>
+                                    <th>优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>T-AUTO-01</td>
+                                    <td>定义冒烟用例集</td>
+                                    <td>固化登录、权限、添加账号、保存设置、工作流保存等 P0 用例。</td>
+                                    <td>Smoke 清单</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTO-02</td>
+                                    <td>后端 API 集成测试</td>
+                                    <td>建议用 Supertest 覆盖认证、卡密、用户、设置、账号接口。</td>
+                                    <td>API 测试集</td>
+                                    <td><span class="badge p1">P1</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTO-03</td>
+                                    <td>前端 E2E</td>
+                                    <td>建议用 Playwright 覆盖登录、权限菜单、设置保存、工作流、主题切换。</td>
+                                    <td>E2E 测试集</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                                <tr>
+                                    <td>T-AUTO-04</td>
+                                    <td>回归基线与发布门禁</td>
+                                    <td>定义哪些 P0 用例失败时阻断发布，哪些 P1/P2 允许带风险上线。</td>
+                                    <td>发布门禁规则</td>
+                                    <td><span class="badge p2">P2</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="data" class="section-card">
+                    <h2>6. 测试数据与环境准备</h2>
+                    <p>为了避免“测不出来”或“测完无法复现”，建议一开始就准备以下测试资产。</p>
+
+                    <h3>6.1 测试账号</h3>
+                    <ul class="clean">
+                        <li><strong>admin-01：</strong>默认管理员或已修改密码的管理员。</li>
+                        <li><strong>user-01：</strong>正常付费用户。</li>
+                        <li><strong>user-02：</strong>体验卡用户，接近账号上限。</li>
+                        <li><strong>user-03：</strong>已过期用户。</li>
+                        <li><strong>user-04：</strong>已封禁用户。</li>
+                    </ul>
+
+                    <h3>6.2 卡密样本</h3>
+                    <ul class="clean">
+                        <li>可用天卡、周卡、月卡、永久卡、体验卡各至少 1 组。</li>
+                        <li>已使用卡密 1 组，禁用卡密 1 组，随机无效卡密 1 组。</li>
+                        <li>体验卡每日额度打满和 IP 冷却中的场景样本。</li>
+                    </ul>
+
+                    <h3>6.3 账号与好友场景</h3>
+                    <ul class="clean">
+                        <li>至少准备 2 个可正常启动的农场账号。</li>
+                        <li>准备一组好友列表缓存数据，便于验证回退逻辑。</li>
+                        <li>准备包含白萝卜和非白萝卜作物的好友地块样本。</li>
+                    </ul>
+
+                    <h3>6.4 故障注入场景</h3>
+                    <ul class="clean">
+                        <li>网络断开、第三方扫码接口超时、后端返回 401/403/500。</li>
+                        <li>清除或篡改 <code>localStorage</code>。</li>
+                        <li>高频连续点击与重复提交。</li>
+                    </ul>
+                </section>
+
+                <section id="deliverables" class="section-card">
+                    <h2>7. 交付物与验收标准</h2>
+                    <p>如果这项工作交给我来执行，我会把最终交付物控制为“能指导修复、能指导回归、能指导上线”的三类结果，而不是只给一句“测过了”。</p>
+
+                    <div class="deliver-grid">
+                        <div class="deliver">
+                            <small>交付物 01</small>
+                            <strong>测试执行台账</strong>
+                            <p>记录每个任务 ID 的执行状态、测试日期、执行人、环境、结果和备注。</p>
+                        </div>
+                        <div class="deliver">
+                            <small>交付物 02</small>
+                            <strong>缺陷报告</strong>
+                            <p>至少包含严重级别、复现步骤、预期结果、实际结果、截图/日志、影响范围。</p>
+                        </div>
+                        <div class="deliver">
+                            <small>交付物 03</small>
+                            <strong>复测与回归结论</strong>
+                            <p>修复后复测结果、残余风险、建议阻断项和建议放行项。</p>
+                        </div>
+                        <div class="deliver">
+                            <small>交付物 04</small>
+                            <strong>自动化候选清单</strong>
+                            <p>明确哪些用例应该优先固化为自动化，降低后续版本回归成本。</p>
+                        </div>
+                    </div>
+
+                    <h3>7.1 验收标准</h3>
+                    <div class="checklist">
+                        <div><strong>P0 标准：</strong>P0 用例全部执行完毕，且不存在未接受的 P0 缺陷。</div>
+                        <div><strong>P1 标准：</strong>P1 缺陷要么修复，要么有明确风险说明和上线决策。</div>
+                        <div><strong>P2 标准：</strong>P2 可以延后，但必须进入回归或自动化 backlog。</div>
+                        <div><strong>最终结论：</strong>给出“可上线 / 有条件上线 / 不建议上线”三选一结论。</div>
+                    </div>
+                </section>
+
+                <section id="schedule" class="section-card">
+                    <h2>8. 建议排期</h2>
+                    <p>以下排期按单人 QA 执行估算。如果后端开发、前端开发、测试共同参与，可将 Phase 3~6 并行压缩。</p>
+                    <div class="matrix">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>工作日</th>
+                                    <th>主要工作</th>
+                                    <th>目标</th>
+                                    <th>输出</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Day 1</td>
+                                    <td>Phase 0 + Phase 1</td>
+                                    <td>跑通认证、注册、续费、权限、token 恢复基线</td>
+                                    <td>认证与权限问题单</td>
+                                </tr>
+                                <tr>
+                                    <td>Day 2</td>
+                                    <td>Phase 2</td>
+                                    <td>验证账号管理和扫码登录主链路</td>
+                                    <td>账号与扫码问题单</td>
+                                </tr>
+                                <tr>
+                                    <td>Day 3</td>
+                                    <td>Phase 3（上半）</td>
+                                    <td>完成账号配置、轮询、静默时段、自动化开关测试</td>
+                                    <td>设置问题单 Part 1</td>
+                                </tr>
+                                <tr>
+                                    <td>Day 4</td>
+                                    <td>Phase 3（下半）</td>
+                                    <td>完成主题、下线提醒、体验卡配置、第三方 API、集群与时间参数测试</td>
+                                    <td>设置问题单 Part 2</td>
+                                </tr>
+                                <tr>
+                                    <td>Day 5</td>
+                                    <td>Phase 4</td>
+                                    <td>完成好友、偷菜过滤、工作流逻辑测试</td>
+                                    <td>业务逻辑问题单</td>
+                                </tr>
+                                <tr>
+                                    <td>Day 6</td>
+                                    <td>Phase 5</td>
+                                    <td>完成后台管理、通知、系统日志、仪表盘可观测性测试</td>
+                                    <td>后台模块问题单</td>
+                                </tr>
+                                <tr>
+                                    <td>Day 7</td>
+                                    <td>Phase 6</td>
+                                    <td>完成鲁棒性、安全、性能与并发测试</td>
+                                    <td>稳定性问题单</td>
+                                </tr>
+                                <tr>
+                                    <td>Day 8</td>
+                                    <td>Phase 7</td>
+                                    <td>复测、整理结论、沉淀自动化候选与最终报告</td>
+                                    <td>最终测试报告</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="note">
+                        <strong>建议执行方式：</strong>
+                        先把 <strong>Phase 1~3</strong> 跑完，基本就能判断这个版本是否具备继续深入测试的价值。
+                        如果在认证、权限、账号链路或设置保存层就出现大量 P0 问题，优先停下来修，不建议硬着头皮继续做性能和长稳测试。
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <footer>
+            计划文件：Plan_20260307_完整测试任务清单.html
+        </footer>
+    </div>
+</body>
+
+</html>

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 CREATE TABLE IF NOT EXISTS `accounts` (
     `id` int NOT NULL AUTO_INCREMENT,
     `uin` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+    `code` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT '',
     `nick` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `platform` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'qq',
@@ -41,7 +42,9 @@ CREATE TABLE IF NOT EXISTS `accounts` (
     `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
     `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uin` (`uin`)
+    UNIQUE KEY `uin` (`uin`),
+    KEY `idx_accounts_username` (`username`),
+    CONSTRAINT `fk_accounts_username` FOREIGN KEY (`username`) REFERENCES `users` (`username`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- ----------------------------
@@ -146,6 +149,7 @@ CREATE TABLE IF NOT EXISTS `cards` (
     `type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
     `description` text COLLATE utf8mb4_unicode_ci,
     `used_by` int DEFAULT NULL,
+    `used_at` datetime DEFAULT NULL,
     `enabled` tinyint(1) DEFAULT '1',
     `expires_at` datetime DEFAULT NULL,
     `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
@@ -246,6 +250,22 @@ CREATE TABLE IF NOT EXISTS `announcements` (
     `created_by` VARCHAR(100) DEFAULT NULL,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- Refresh Token 表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `refresh_tokens` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `username` VARCHAR(100) NOT NULL,
+    `token_hash` VARCHAR(64) NOT NULL UNIQUE,
+    `expires_at` DATETIME NOT NULL,
+    `user_agent` VARCHAR(512) DEFAULT '',
+    `ip_address` VARCHAR(45) DEFAULT '',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_rt_username` (`username`),
+    INDEX `idx_rt_expires` (`expires_at`),
+    CONSTRAINT `fk_rt_username` FOREIGN KEY (`username`) REFERENCES `users`(`username`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- ----------------------------

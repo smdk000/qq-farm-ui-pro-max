@@ -127,6 +127,16 @@ async function initMysql() {
                 logger.info('✅ accounts.code 列添加完成');
             }
 
+            const [usedAtCols] = await pool.execute(
+                `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cards' AND COLUMN_NAME = 'used_at'`,
+                [DB_NAME]
+            );
+            if (usedAtCols.length === 0) {
+                logger.info('检测到 cards 表缺少 used_at 列，正在添加...');
+                await pool.query(`ALTER TABLE cards ADD COLUMN used_at DATETIME NULL AFTER used_by`);
+                logger.info('✅ cards.used_at 列添加完成');
+            }
+
             const [modeCols] = await pool.execute(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'account_configs' AND COLUMN_NAME = 'account_mode'`,
                 [DB_NAME]

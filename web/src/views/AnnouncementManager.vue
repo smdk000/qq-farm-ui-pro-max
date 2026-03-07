@@ -78,7 +78,8 @@ function handleModalCancel() {
 }
 
 async function loadAnnouncements() {
-  if (!isAdmin.value) return
+  if (!isAdmin.value)
+    return
   loading.value = true
   try {
     const res = await api.get('/api/announcement')
@@ -111,7 +112,8 @@ function cancelEdit() {
 }
 
 async function saveAnnouncement() {
-  if (!currentEdit.value) return
+  if (!currentEdit.value)
+    return
   loading.value = true
   try {
     const res = await api.put('/api/announcement', currentEdit.value)
@@ -186,7 +188,7 @@ onMounted(() => {
     <div class="mb-6 flex flex-col justify-between gap-4 border-b border-gray-100/50 pb-4 md:flex-row md:items-center dark:border-gray-700/50">
       <div>
         <h1 class="glass-text-main flex items-center gap-2 text-2xl font-bold">
-          <span class="text-blue-500 font-normal"><div class="i-carbon-notification" /></span> 
+          <span class="text-blue-500 font-normal"><div class="i-carbon-notification" /></span>
           系统公告管理
         </h1>
         <p class="glass-text-muted mt-1 text-sm">
@@ -232,7 +234,7 @@ onMounted(() => {
             placeholder="例如：农场机器人架构底座升级"
           />
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <BaseInput
               v-model="currentEdit.version"
               label="版本徽章标识（可选）"
@@ -249,25 +251,31 @@ onMounted(() => {
             <label class="glass-text-main mb-1.5 block text-sm font-medium">公告内容详情 <span class="glass-text-muted text-xs font-normal">（支持直接排版与换行）</span></label>
             <textarea
               v-model="currentEdit.content"
-              class="glass-input w-full rounded-md border border-gray-300/60 bg-white/80 px-4 py-3 text-sm focus:border-blue-500 dark:border-gray-600/60 dark:bg-gray-800/80 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              class="glass-input w-full border border-gray-300/60 rounded-md bg-white/80 px-4 py-3 text-sm dark:border-gray-600/60 focus:border-blue-500 dark:bg-gray-800/80 focus:outline-none focus:ring-1 focus:ring-blue-500"
               rows="8"
               placeholder="记录您为程序修复和带来的改进细节..."
             />
           </div>
 
           <!-- Preview Area -->
-          <div v-if="currentEdit.title || currentEdit.content" class="mt-4 rounded-xl border border-blue-200/50 bg-blue-50/30 p-5 shadow-sm dark:border-blue-900/30 dark:bg-blue-900/10">
+          <div v-if="currentEdit.title || currentEdit.content" class="mt-4 border border-blue-200/50 rounded-xl bg-blue-50/30 p-5 shadow-sm dark:border-blue-900/30 dark:bg-blue-900/10">
             <div class="mb-3 flex items-center gap-2">
               <div class="i-carbon-view text-blue-500" />
-              <p class="text-xs font-bold tracking-wider text-blue-600 uppercase dark:text-blue-400">前端视距回显</p>
+              <p class="text-xs text-blue-600 font-bold tracking-wider uppercase dark:text-blue-400">
+                前端视距回显
+              </p>
             </div>
-            <div class="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
-              <p class="text-center text-lg font-bold text-gray-800 dark:text-gray-100">{{ currentEdit.title || '（未输入主标题）' }}</p>
-              <div class="flex items-center justify-center mt-3 gap-2 text-xs">
-                <span v-if="currentEdit.version" class="bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">{{ currentEdit.version }}</span>
+            <div class="border border-gray-100 rounded-lg bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <p class="text-center text-lg text-gray-800 font-bold dark:text-gray-100">
+                {{ currentEdit.title || '（未输入主标题）' }}
+              </p>
+              <div class="mt-3 flex items-center justify-center gap-2 text-xs">
+                <span v-if="currentEdit.version" class="rounded-full bg-blue-50 px-2 py-0.5 text-blue-500">{{ currentEdit.version }}</span>
                 <span v-if="currentEdit.publish_date" class="text-gray-400">{{ currentEdit.publish_date }}</span>
               </div>
-              <div class="mt-4 text-sm text-gray-600 leading-relaxed whitespace-pre-wrap dark:text-gray-300">{{ currentEdit.content || '（暂无详情文本输入，仅骨架）' }}</div>
+              <div class="mt-4 whitespace-pre-wrap text-sm text-gray-600 leading-relaxed dark:text-gray-300">
+                {{ currentEdit.content || '（暂无详情文本输入，仅骨架）' }}
+              </div>
             </div>
           </div>
         </div>
@@ -276,16 +284,16 @@ onMounted(() => {
           <BaseButton
             variant="secondary"
             :loading="loading"
-            @click="cancelEdit"
             class="!px-6"
+            @click="cancelEdit"
           >
             取消修改返回
           </BaseButton>
           <BaseButton
             variant="primary"
             :loading="loading"
+            class="shadow-blue-500/20 shadow-md !px-8"
             @click="saveAnnouncement"
-            class="!px-8 shadow-md shadow-blue-500/20"
           >
             <div class="i-carbon-send-alt mr-1.5" /> 确认保存发布
           </BaseButton>
@@ -303,26 +311,30 @@ onMounted(() => {
         <p>目前没有已发布的记录或可查看的历史版本，试着从日志同步一下？</p>
       </div>
       <div v-else class="space-y-3">
-        <div 
-          v-for="item in announcements" 
-          :key="item.id" 
-          class="card glass-panel flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 transition-shadow hover:shadow-md"
+        <div
+          v-for="item in announcements"
+          :key="item.id"
+          class="card glass-panel flex flex-col justify-between gap-4 p-5 transition-shadow md:flex-row md:items-center hover:shadow-md"
           :class="item.enabled ? '' : 'opacity-60 grayscale-[30%]'"
         >
-          <div class="flex-1 flex flex-col items-start gap-1">
-             <div class="flex items-center gap-3">
-                <span class="font-bold text-gray-800 dark:text-gray-200 text-lg">{{ item.title || '（无题）' }}</span>
-                <span v-if="item.version" class="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{{ item.version }}</span>
-                <span v-if="!item.enabled" class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800">已禁用 / 草稿</span>
-             </div>
-             <p class="text-xs text-gray-400 font-mono tracking-wide mt-1">{{ item.publish_date || item.createdAt || '未知追踪时间' }}</p>
-             <p class="text-sm text-gray-500 mt-2 line-clamp-2 pr-4 break-words leading-relaxed">{{ item.content }}</p>
+          <div class="flex flex-1 flex-col items-start gap-1">
+            <div class="flex items-center gap-3">
+              <span class="text-lg text-gray-800 font-bold dark:text-gray-200">{{ item.title || '（无题）' }}</span>
+              <span v-if="item.version" class="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{{ item.version }}</span>
+              <span v-if="!item.enabled" class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800">已禁用 / 草稿</span>
+            </div>
+            <p class="mt-1 text-xs text-gray-400 tracking-wide font-mono">
+              {{ item.publish_date || item.createdAt || '未知追踪时间' }}
+            </p>
+            <p class="line-clamp-2 mt-2 break-words pr-4 text-sm text-gray-500 leading-relaxed">
+              {{ item.content }}
+            </p>
           </div>
           <div class="flex gap-2">
-            <BaseButton variant="outline" class="!px-3 !py-1 text-sm" @click="openEditForm(item)">
+            <BaseButton variant="outline" class="text-sm !px-3 !py-1" @click="openEditForm(item)">
               <div class="i-carbon-edit mr-1" /> 编辑
             </BaseButton>
-            <BaseButton variant="outline" class="!px-3 !py-1 text-sm text-red-500 border-red-200 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-900/20" @click="deleteAnnouncement(item.id!)">
+            <BaseButton variant="outline" class="border-red-200 text-sm text-red-500 dark:border-red-900/40 hover:bg-red-50 !px-3 !py-1 dark:hover:bg-red-900/20" @click="deleteAnnouncement(item.id!)">
               <div class="i-carbon-trash-can" />
             </BaseButton>
           </div>

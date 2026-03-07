@@ -175,7 +175,7 @@ function onDisclaimerAgree() {
   if (pendingAuthData.value) {
     const authData = pendingAuthData.value
     const user = authData.user
-    adminToken.value = user?.username || username.value
+    adminToken.value = user?.username || username.value.trim()
     saveCurrentUser(user)
     if (rememberUsername.value) {
       savedUsername.value = username.value
@@ -183,11 +183,12 @@ function onDisclaimerAgree() {
     else {
       savedUsername.value = ''
     }
+    pendingAuthData.value = null
     showDisclaimer.value = false
     if (authData.passwordWarning) {
       useToastStore().warning(authData.passwordWarning, 8000)
     }
-    router.push('/')
+    router.replace({ name: 'dashboard' })
   }
 }
 

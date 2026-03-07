@@ -196,8 +196,8 @@ export const useSettingStore = defineStore('setting', () => {
         settings.value.friendQuietHours = d.friendQuietHours || { enabled: false, start: '23:00', end: '07:00' }
         settings.value.automation = d.automation || {}
         settings.value.ui = d.ui || {}
-          // 蹲守配置挂到 settings 上层以便 StealSettings.vue 读取
-          ; (settings.value as any).stakeoutSteal = d.stakeoutSteal || { enabled: false, delaySec: 3 }
+        // 蹲守配置挂到 settings 上层以便 StealSettings.vue 读取
+        ; (settings.value as any).stakeoutSteal = d.stakeoutSteal || { enabled: false, delaySec: 3 }
         settings.value.workflowConfig = d.workflowConfig || { farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] }, friend: { enabled: false, minInterval: 60, maxInterval: 300, nodes: [] } }
         settings.value.offlineReminder = d.offlineReminder || {
           channel: 'webhook',

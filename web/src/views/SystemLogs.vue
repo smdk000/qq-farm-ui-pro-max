@@ -3,7 +3,6 @@ import { onMounted, reactive, ref } from 'vue'
 import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
-
 const loading = ref(false)
 const dataSource = ref<any[]>([])
 const total = ref(0)

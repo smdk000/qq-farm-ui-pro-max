@@ -323,7 +323,7 @@ async function saveAccountSettings() {
 
     <template v-else>
       <!-- 跳过白萝卜偷菜 -->
-      <div class="glass-panel mb-3 flex items-center justify-between gap-4 rounded-lg border border-white/20 p-3 dark:border-white/10">
+      <div class="glass-panel mb-3 flex items-center justify-between gap-4 border border-white/20 rounded-lg p-3 dark:border-white/10">
         <div class="flex items-center gap-2">
           <span class="glass-text-main text-sm font-medium">🥕 跳过白萝卜偷菜</span>
           <span class="glass-text-muted text-xs">开启后偷菜时自动跳过白萝卜，不偷取该作物</span>
@@ -349,266 +349,256 @@ async function saveAccountSettings() {
         </button>
       </div>
 
-      <!-- Compact Toolbar - Moved Up -->
-      <div class="glass-panel mb-3 flex shrink-0 flex-wrap items-center gap-2 border border-white/20 rounded-lg p-3 shadow-sm dark:border-white/10">
-        <!-- Search Box -->
-        <div class="relative max-w-md min-w-[200px] flex-1">
-          <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
-            <div class="i-carbon-search text-sm text-gray-400 dark:text-gray-300" />
-          </div>
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="activeTab === 'friends' ? '搜索好友昵称/备注...' : '搜索作物名称...'"
-            class="glass-text-main m-0 box-border block h-[36px] w-full border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-9 pr-3 text-sm font-medium leading-5 transition-colors dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:bg-black/40 placeholder-gray-500 dark:placeholder-gray-400"
-          >
-        </div>
-
-        <!-- Divider -->
-        <div class="mx-1 h-6 w-px bg-gray-200/50 dark:bg-gray-700/50" />
-
-        <!-- Master Switch -->
-        <div class="flex items-center gap-1.5">
-          <span class="glass-text-muted text-xs font-medium">总控:</span>
-          <BaseSwitch v-if="activeTab === 'friends'" v-model="localSettings.automation.stealFriendFilterEnabled" size="sm" />
-          <BaseSwitch v-else v-model="localSettings.automation.stealFilterEnabled" size="sm" />
-        </div>
-
-        <!-- Divider -->
-        <div class="mx-1 h-6 w-px bg-gray-200/50 dark:bg-gray-700/50" />
-
-        <!-- Mode Select -->
-        <div class="flex items-center gap-1.5">
-          <select
-            v-if="activeTab === 'friends'"
-            v-model="localSettings.automation.stealFriendFilterMode"
-            class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
-          >
-            <option value="blacklist" class="bg-white dark:bg-gray-900">
-              黑名单
-            </option>
-            <option value="whitelist" class="bg-white dark:bg-gray-900">
-              白名单
-            </option>
-          </select>
-          <select
-            v-else
-            v-model="localSettings.automation.stealFilterMode"
-            class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
-          >
-            <option value="blacklist" class="bg-white dark:bg-gray-900">
-              黑名单
-            </option>
-            <option value="whitelist" class="bg-white dark:bg-gray-900">
-              白名单
-            </option>
-          </select>
-        </div>
-
-        <!-- Divider -->
-        <div class="mx-1 hidden h-6 w-px bg-gray-200/50 sm:block dark:bg-gray-700/50" />
-
-        <!-- Action Buttons -->
-        <div class="ml-auto flex gap-2">
-          <BaseButton
-            v-if="activeTab === 'friends'"
-            size="sm"
-            class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
-            @click="selectAllFriends"
-          >
-            <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
-          </BaseButton>
-          <BaseButton
-            v-else
-            size="sm"
-            class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
-            @click="selectAllPlants"
-          >
-            <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
-          </BaseButton>
-
-          <BaseButton
-            v-if="activeTab === 'friends'"
-            size="sm"
-            class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
-            @click="invertAllFriends"
-          >
-            反选
-          </BaseButton>
-          <BaseButton
-            v-else
-            size="sm"
-            class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
-            @click="invertAllPlants"
-          >
-            反选
-          </BaseButton>
-
-          <BaseButton
-            v-if="activeTab === 'friends'"
-            size="sm"
-            class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
-            @click="clearAllFriends"
-          >
-            <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
-          </BaseButton>
-          <BaseButton
-            v-else
-            size="sm"
-            class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
-            @click="clearAllPlants"
-          >
-            <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
-          </BaseButton>
-        </div>
-
-        <!-- Main Visual Grid Area -->
-        <div class="flex-1 p-1">
-          <!-- Friends Grid -->
-          <div v-if="activeTab === 'friends'" class="grid grid-cols-1 gap-3 lg:grid-cols-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div v-if="friendsLoading" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
-              <div class="i-svg-spinners-ring-resize mb-3 text-4xl text-primary-500" />
-              <p>正在加载好友列表...</p>
+      <div class="glass-panel mb-3 border border-white/20 rounded-lg p-3 shadow-sm dark:border-white/10">
+        <div class="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div class="relative min-w-0 flex-1 xl:max-w-xl">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
+              <div class="i-carbon-search text-sm text-gray-400 dark:text-gray-300" />
             </div>
-            <div v-else-if="filteredFriends.length === 0" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
-              <div class="i-carbon-search mx-auto mb-3 text-5xl opacity-30" />
-              <p class="text-lg">
-                没有匹配的好友数据
-              </p>
-            </div>
-
-            <div
-              v-for="friend in filteredFriends"
-              :key="friend.gid || friend.id"
-              class="group flex cursor-pointer select-none items-center justify-between border rounded-lg p-3 transition-all"
-              :class="[
-                isFriendSelected(Number(friend.gid || friend.id))
-                  ? 'border-primary-500/50 bg-primary-50/50 dark:bg-primary-900/20 dark:border-primary-500/30 shadow-[0_0_0_1px_rgba(34,197,94,0.3)] backdrop-blur-sm'
-                  : 'border-white/20 glass-panel hover:border-white/30 dark:border-white/5 dark:hover:border-white/10',
-              ]"
-              @click="toggleFriend(Number(friend.gid || friend.id))"
+            <input
+              v-model="searchQuery"
+              type="text"
+              :placeholder="activeTab === 'friends' ? '搜索好友昵称/备注...' : '搜索作物名称...'"
+              class="glass-text-main m-0 box-border block h-[36px] w-full border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-9 pr-3 text-sm font-medium leading-5 transition-colors dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:bg-black/40 placeholder-gray-500 dark:placeholder-gray-400"
             >
-              <div class="flex items-center gap-3 overflow-hidden">
-                <div class="relative h-10 w-10 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-full bg-gray-100/50 shadow-sm">
-                  <img
-                    v-if="canShowFriendAvatar(friend)"
-                    :src="getFriendAvatar(friend)"
-                    class="z-10 h-full w-full object-cover"
-                    loading="lazy"
-                    @error="handleFriendAvatarError(friend)"
-                  >
-                  <div v-else class="i-carbon-user absolute inset-0 z-0 flex items-center justify-center text-xl text-gray-400" />
-                </div>
-                <div class="min-w-0 flex flex-col">
-                  <span class="glass-text-main w-full truncate text-sm font-bold" :title="friend.name || friend.nick || String(friend.id)">
-                    {{ friend.name || friend.nick || '- -' }}
-                  </span>
-                  <span class="glass-text-muted mt-0.5 text-xs font-mono" title="QQ/uId">
-                    {{ friend.id }}
-                  </span>
-                </div>
-              </div>
-              <div class="flex shrink-0 flex-col items-end pl-2">
-                <div
-                  class="h-[22px] w-[22px] flex items-center justify-center rounded-full transition-colors"
-                  :class="isFriendSelected(Number(friend.gid || friend.id)) ? 'bg-primary-500 text-white shadow-md' : 'border border-gray-300/50 bg-white/20 group-hover:border-primary-400/50 dark:border-white/10 dark:bg-black/20'"
-                >
-                  <div v-if="isFriendSelected(Number(friend.gid || friend.id))" class="i-carbon-checkmark text-sm" />
-                </div>
-              </div>
-            </div>
           </div>
 
-          <!-- Plants Grid (Rich View) -->
-          <div v-if="activeTab === 'plants'" class="grid grid-cols-1 gap-3 lg:grid-cols-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div v-if="!seeds || seeds.length === 0" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
-              <div class="i-carbon-search mx-auto mb-3 text-5xl opacity-30" />
-              <p class="text-lg">
-                没有加载到作物数据
-              </p>
-            </div>
-            <div v-else-if="filteredPlants.length === 0" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
-              <div class="i-carbon-search mx-auto mb-3 text-5xl opacity-30" />
-              <p class="text-lg">
-                未搜到匹配的作物
-              </p>
+          <div class="flex flex-wrap items-center gap-2 xl:justify-end">
+            <div class="flex items-center gap-2 border border-white/15 rounded-md bg-black/5 px-3 py-1.5 dark:border-white/10 dark:bg-white/5">
+              <span class="glass-text-muted text-xs font-medium">总控:</span>
+              <BaseSwitch v-if="activeTab === 'friends'" v-model="localSettings.automation.stealFriendFilterEnabled" size="sm" />
+              <BaseSwitch v-else v-model="localSettings.automation.stealFilterEnabled" size="sm" />
             </div>
 
-            <div
-              v-for="seed in filteredPlants"
-              :key="seed.seedId"
-              class="group flex cursor-pointer select-none items-start justify-between border rounded-xl p-3.5 transition-all"
-              :class="[
-                isPlantSelected(seed.seedId)
-                  ? 'border-indigo-500/50 bg-indigo-50/50 dark:bg-indigo-900/20 dark:border-indigo-500/30 shadow-[0_0_0_1px_rgba(99,102,241,0.3)] backdrop-blur-sm'
-                  : 'border-white/20 glass-panel hover:border-white/30 dark:border-white/5 dark:hover:border-white/10',
-              ]"
-              @click="togglePlant(seed.seedId)"
-            >
-              <div class="min-w-0 flex flex-1 items-start gap-3">
-                <div class="relative h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-lg bg-black/5 p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
-                  <img
-                    :src="cropAnalytics[seed.seedId]?.image || `https://qzonestyle.gtimg.cn/qzone/sngapp/app/appstore/app_100371286/crop/${seed.seedId}.png`"
-                    class="z-10 max-h-full max-w-full object-contain drop-shadow-sm"
-                    loading="lazy"
-                    @error="(e) => (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%25%22 height=%22100%25%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22transparent%22/%3E%3C/svg%3E'"
-                  >
-                  <div class="i-carbon-sprout absolute inset-0 z-0 flex items-center justify-center text-2xl text-gray-300" />
-                </div>
-                <div class="min-w-0 flex flex-1 flex-col">
-                  <div class="min-w-0 w-full flex items-center justify-between pr-1">
-                    <div class="min-w-0 flex items-center gap-1.5">
-                      <span class="glass-text-main truncate text-[15px] font-extrabold" :title="seed.name">
-                        {{ seed.name }}
-                      </span>
-                      <span class="glass-text-muted shrink-0 rounded bg-gray-100/50 px-1.5 py-0.5 text-xs font-bold dark:bg-gray-700/50 dark:text-gray-300">
-                        Lv {{ cropAnalytics[seed.seedId]?.level || seed.requiredLevel }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="mt-1.5 space-y-1.5">
-                    <div class="flex items-center gap-1.5 text-xs">
-                      <div class="whitespace-nowrap rounded-sm bg-purple-50 px-1.5 py-0.5 text-purple-600 font-medium dark:bg-purple-900/30 dark:text-purple-400">
-                        时经: <span class="font-bold">{{ cropAnalytics[seed.seedId]?.expPerHour ?? '-' }}</span>
-                      </div>
-                      <div class="whitespace-nowrap rounded-sm bg-amber-50 px-1.5 py-0.5 text-amber-500 font-medium dark:bg-amber-900/30 dark:text-amber-400">
-                        时润: <span class="font-bold">{{ cropAnalytics[seed.seedId]?.profitPerHour ?? '-' }}</span>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-1.5 text-[11px] opacity-70">
-                      <div class="text-blue-600 font-medium dark:text-blue-400">
-                        普时经: <span class="font-bold">{{ cropAnalytics[seed.seedId]?.normalFertilizerExpPerHour ?? '-' }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                class="ml-2 mt-1 h-[22px] w-[22px] flex shrink-0 items-center justify-center border rounded transition-colors"
-                :class="isPlantSelected(seed.seedId) ? 'bg-primary-500 border-primary-500 text-white' : 'border-gray-300 bg-black/5 group-hover:border-primary-400 dark:border-white/20 dark:bg-white/5'"
+            <div class="flex items-center gap-2 border border-white/15 rounded-md bg-black/5 px-2 py-1 dark:border-white/10 dark:bg-white/5">
+              <span class="glass-text-muted text-xs font-medium">模式:</span>
+              <select
+                v-if="activeTab === 'friends'"
+                v-model="localSettings.automation.stealFriendFilterMode"
+                class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
               >
-                <div v-if="isPlantSelected(seed.seedId)" class="i-carbon-checkmark text-sm" />
+                <option value="blacklist" class="bg-white dark:bg-gray-900">
+                  黑名单
+                </option>
+                <option value="whitelist" class="bg-white dark:bg-gray-900">
+                  白名单
+                </option>
+              </select>
+              <select
+                v-else
+                v-model="localSettings.automation.stealFilterMode"
+                class="glass-text-main border border-gray-300/50 rounded-md bg-black/5 py-1.5 pl-2 pr-6 text-xs font-medium shadow-sm dark:border-white/10 focus:border-primary-500 dark:bg-black/20 focus:bg-white/60 focus:ring-1 focus:ring-primary-500 dark:focus:bg-black/40"
+              >
+                <option value="blacklist" class="bg-white dark:bg-gray-900">
+                  黑名单
+                </option>
+                <option value="whitelist" class="bg-white dark:bg-gray-900">
+                  白名单
+                </option>
+              </select>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 xl:ml-2">
+              <BaseButton
+                v-if="activeTab === 'friends'"
+                size="sm"
+                class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
+                @click="selectAllFriends"
+              >
+                <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
+              </BaseButton>
+              <BaseButton
+                v-else
+                size="sm"
+                class="border-0 from-blue-500 to-blue-600 bg-gradient-to-r text-xs text-white font-bold shadow-blue-500/25 shadow-md transition-all hover:from-blue-600 hover:to-blue-700 !px-4 !py-1.5 dark:shadow-blue-500/40 hover:shadow-blue-500/40 hover:shadow-lg"
+                @click="selectAllPlants"
+              >
+                <div class="i-carbon-checkmark-outline mr-1.5 text-sm" /> 全选
+              </BaseButton>
+
+              <BaseButton
+                v-if="activeTab === 'friends'"
+                size="sm"
+                class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
+                @click="invertAllFriends"
+              >
+                反选
+              </BaseButton>
+              <BaseButton
+                v-else
+                size="sm"
+                class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
+                @click="invertAllPlants"
+              >
+                反选
+              </BaseButton>
+
+              <BaseButton
+                v-if="activeTab === 'friends'"
+                size="sm"
+                class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
+                @click="clearAllFriends"
+              >
+                <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
+              </BaseButton>
+              <BaseButton
+                v-else
+                size="sm"
+                class="border-0 from-red-500 to-red-600 bg-gradient-to-r text-xs text-white font-bold shadow-md shadow-red-500/25 transition-all hover:from-red-600 hover:to-red-700 !px-4 !py-1.5 dark:shadow-red-500/40 hover:shadow-lg hover:shadow-red-500/40"
+                @click="clearAllPlants"
+              >
+                <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
+              </BaseButton>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel min-h-[360px] border border-white/20 rounded-lg p-4 dark:border-white/10">
+        <!-- Friends Grid -->
+        <div v-if="activeTab === 'friends'" class="grid grid-cols-1 gap-3 lg:grid-cols-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div v-if="friendsLoading" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
+            <div class="i-svg-spinners-ring-resize mb-3 text-4xl text-primary-500" />
+            <p>正在加载好友列表...</p>
+          </div>
+          <div v-else-if="filteredFriends.length === 0" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
+            <div class="i-carbon-search mx-auto mb-3 text-5xl opacity-30" />
+            <p class="text-lg">
+              没有匹配的好友数据
+            </p>
+          </div>
+
+          <div
+            v-for="friend in filteredFriends"
+            :key="friend.gid || friend.id"
+            class="group flex cursor-pointer select-none items-center justify-between border rounded-lg p-3 transition-all"
+            :class="[
+              isFriendSelected(Number(friend.gid || friend.id))
+                ? 'border-primary-500/50 bg-primary-50/50 dark:bg-primary-900/20 dark:border-primary-500/30 shadow-[0_0_0_1px_rgba(34,197,94,0.3)] backdrop-blur-sm'
+                : 'border-white/20 glass-panel hover:border-white/30 dark:border-white/5 dark:hover:border-white/10',
+            ]"
+            @click="toggleFriend(Number(friend.gid || friend.id))"
+          >
+            <div class="flex items-center gap-3 overflow-hidden">
+              <div class="relative h-10 w-10 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-full bg-gray-100/50 shadow-sm">
+                <img
+                  v-if="canShowFriendAvatar(friend)"
+                  :src="getFriendAvatar(friend)"
+                  class="z-10 h-full w-full object-cover"
+                  loading="lazy"
+                  @error="handleFriendAvatarError(friend)"
+                >
+                <div v-else class="i-carbon-user absolute inset-0 z-0 flex items-center justify-center text-xl text-gray-400" />
+              </div>
+              <div class="min-w-0 flex flex-col">
+                <span class="glass-text-main w-full truncate text-sm font-bold" :title="friend.name || friend.nick || String(friend.id)">
+                  {{ friend.name || friend.nick || '- -' }}
+                </span>
+                <span class="glass-text-muted mt-0.5 text-xs font-mono" title="QQ/uId">
+                  {{ friend.id }}
+                </span>
+              </div>
+            </div>
+            <div class="flex shrink-0 flex-col items-end pl-2">
+              <div
+                class="h-[22px] w-[22px] flex items-center justify-center rounded-full transition-colors"
+                :class="isFriendSelected(Number(friend.gid || friend.id)) ? 'bg-primary-500 text-white shadow-md' : 'border border-gray-300/50 bg-white/20 group-hover:border-primary-400/50 dark:border-white/10 dark:bg-black/20'"
+              >
+                <div v-if="isFriendSelected(Number(friend.gid || friend.id))" class="i-carbon-checkmark text-sm" />
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Footer Action -->
-        <div class="glass-panel fixed bottom-0 left-0 right-0 z-40 flex items-center justify-end gap-4 border-t-0 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] lg:left-64" style="border-top: 1px solid var(--glass-border);">
-          <span class="glass-text-muted text-sm font-medium transition-opacity" :class="saving ? 'opacity-100' : 'opacity-0'">
-            正在上传修改到服务器...
-          </span>
-          <BaseButton
-            variant="primary"
-            class="relative shadow-lg shadow-primary-500/30 !px-8 !py-2.5 !font-bold"
-            :loading="saving"
-            @click="saveAccountSettings"
+        <!-- Plants Grid (Rich View) -->
+        <div v-if="activeTab === 'plants'" class="grid grid-cols-1 gap-3 lg:grid-cols-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div v-if="!seeds || seeds.length === 0" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
+            <div class="i-carbon-search mx-auto mb-3 text-5xl opacity-30" />
+            <p class="text-lg">
+              没有加载到作物数据
+            </p>
+          </div>
+          <div v-else-if="filteredPlants.length === 0" class="glass-text-muted col-span-full flex flex-col items-center justify-center py-20">
+            <div class="i-carbon-search mx-auto mb-3 text-5xl opacity-30" />
+            <p class="text-lg">
+              未搜到匹配的作物
+            </p>
+          </div>
+
+          <div
+            v-for="seed in filteredPlants"
+            :key="seed.seedId"
+            class="group flex cursor-pointer select-none items-start justify-between border rounded-xl p-3.5 transition-all"
+            :class="[
+              isPlantSelected(seed.seedId)
+                ? 'border-indigo-500/50 bg-indigo-50/50 dark:bg-indigo-900/20 dark:border-indigo-500/30 shadow-[0_0_0_1px_rgba(99,102,241,0.3)] backdrop-blur-sm'
+                : 'border-white/20 glass-panel hover:border-white/30 dark:border-white/5 dark:hover:border-white/10',
+            ]"
+            @click="togglePlant(seed.seedId)"
           >
-            <div class="i-carbon-save mr-2 text-lg" /> 保存过滤配置
-          </BaseButton>
+            <div class="min-w-0 flex flex-1 items-start gap-3">
+              <div class="relative h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-lg bg-black/5 p-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+                <img
+                  :src="cropAnalytics[seed.seedId]?.image || `https://qzonestyle.gtimg.cn/qzone/sngapp/app/appstore/app_100371286/crop/${seed.seedId}.png`"
+                  class="z-10 max-h-full max-w-full object-contain drop-shadow-sm"
+                  loading="lazy"
+                  @error="(e) => (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%25%22 height=%22100%25%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22transparent%22/%3E%3C/svg%3E'"
+                >
+                <div class="i-carbon-sprout absolute inset-0 z-0 flex items-center justify-center text-2xl text-gray-300" />
+              </div>
+              <div class="min-w-0 flex flex-1 flex-col">
+                <div class="min-w-0 w-full flex items-center justify-between pr-1">
+                  <div class="min-w-0 flex items-center gap-1.5">
+                    <span class="glass-text-main truncate text-[15px] font-extrabold" :title="seed.name">
+                      {{ seed.name }}
+                    </span>
+                    <span class="glass-text-muted shrink-0 rounded bg-gray-100/50 px-1.5 py-0.5 text-xs font-bold dark:bg-gray-700/50 dark:text-gray-300">
+                      Lv {{ cropAnalytics[seed.seedId]?.level || seed.requiredLevel }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="mt-1.5 space-y-1.5">
+                  <div class="flex items-center gap-1.5 text-xs">
+                    <div class="whitespace-nowrap rounded-sm bg-purple-50 px-1.5 py-0.5 text-purple-600 font-medium dark:bg-purple-900/30 dark:text-purple-400">
+                      时经: <span class="font-bold">{{ cropAnalytics[seed.seedId]?.expPerHour ?? '-' }}</span>
+                    </div>
+                    <div class="whitespace-nowrap rounded-sm bg-amber-50 px-1.5 py-0.5 text-amber-500 font-medium dark:bg-amber-900/30 dark:text-amber-400">
+                      时润: <span class="font-bold">{{ cropAnalytics[seed.seedId]?.profitPerHour ?? '-' }}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1.5 text-[11px] opacity-70">
+                    <div class="text-blue-600 font-medium dark:text-blue-400">
+                      普时经: <span class="font-bold">{{ cropAnalytics[seed.seedId]?.normalFertilizerExpPerHour ?? '-' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="ml-2 mt-1 h-[22px] w-[22px] flex shrink-0 items-center justify-center border rounded transition-colors"
+              :class="isPlantSelected(seed.seedId) ? 'bg-primary-500 border-primary-500 text-white' : 'border-gray-300 bg-black/5 group-hover:border-primary-400 dark:border-white/20 dark:bg-white/5'"
+            >
+              <div v-if="isPlantSelected(seed.seedId)" class="i-carbon-checkmark text-sm" />
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- Footer Action -->
+      <div class="glass-panel fixed bottom-0 left-0 right-0 z-40 flex items-center justify-end gap-4 border-t-0 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] lg:left-64" style="border-top: 1px solid var(--glass-border);">
+        <span class="glass-text-muted text-sm font-medium transition-opacity" :class="saving ? 'opacity-100' : 'opacity-0'">
+          正在上传修改到服务器...
+        </span>
+        <BaseButton
+          variant="primary"
+          class="relative shadow-lg shadow-primary-500/30 !px-8 !py-2.5 !font-bold"
+          :loading="saving"
+          @click="saveAccountSettings"
+        >
+          <div class="i-carbon-save mr-2 text-lg" /> 保存过滤配置
+        </BaseButton>
       </div>
     </template>
 
