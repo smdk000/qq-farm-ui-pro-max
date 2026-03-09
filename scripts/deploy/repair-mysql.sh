@@ -118,6 +118,14 @@ compose_has_service() {
     return 1
 }
 
+compose_service_has_container() {
+    local service_name="$1"
+    local container_id=""
+
+    container_id="$("${DOCKER[@]}" compose ps -q "${service_name}" 2>/dev/null || true)"
+    [ -n "${container_id}" ]
+}
+
 mysql_cli_exec() {
     local mode="$1"
     shift
@@ -131,7 +139,7 @@ mysql_cli_exec() {
 }
 
 detect_mysql_exec_mode() {
-    if compose_has_service "${MYSQL_SERVICE}"; then
+    if compose_has_service "${MYSQL_SERVICE}" && compose_service_has_container "${MYSQL_SERVICE}"; then
         echo "compose"
         return 0
     fi
