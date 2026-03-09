@@ -275,6 +275,7 @@ apply_schema_repairs() {
                 expires_at DATETIME NULL
             ) ENGINE=MEMORY;
 
+            INSERT INTO tmp_card_expire_fix (id, expires_at)
             WITH RECURSIVE ordered_cards AS (
                 SELECT
                     c.id,
@@ -326,7 +327,6 @@ apply_schema_repairs() {
                     ON cc.used_by = oc.used_by
                     AND oc.seq_no = cc.seq_no + 1
             )
-            INSERT INTO tmp_card_expire_fix (id, expires_at)
             SELECT id, expires_at FROM card_chain;
 
             UPDATE cards c
