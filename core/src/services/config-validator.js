@@ -412,6 +412,30 @@ const REPORT_CONFIG_SCHEMA = {
     retentionDays: { type: 'integer', min: 0, max: 365, default: 30, label: '汇报历史保留天数' },
 };
 
+const BUG_REPORT_CONFIG_SCHEMA = {
+    enabled: { type: 'boolean', default: true, label: '问题反馈开关' },
+    smtpHost: { type: 'string', max: 255, default: '', label: '问题反馈 SMTP 服务器' },
+    smtpPort: { type: 'integer', min: 1, max: 65535, default: 465, label: '问题反馈 SMTP 端口' },
+    smtpSecure: { type: 'boolean', default: true, label: '问题反馈 SMTP TLS' },
+    smtpUser: { type: 'string', max: 255, default: '', label: '问题反馈 SMTP 用户名' },
+    smtpPass: { type: 'string', max: 1000, default: '', label: '问题反馈 SMTP 密码' },
+    emailFrom: { type: 'string', max: 255, default: '', label: '问题反馈发件邮箱' },
+    emailTo: { type: 'string', max: 1000, default: '', label: '问题反馈收件邮箱' },
+    subjectPrefix: { type: 'string', max: 40, default: '[BUG反馈]', label: '问题反馈邮件前缀' },
+    includeFrontendErrors: { type: 'boolean', default: true, label: '附带前端错误' },
+    includeSystemLogs: { type: 'boolean', default: true, label: '附带系统日志' },
+    includeRuntimeLogs: { type: 'boolean', default: true, label: '附带运行日志' },
+    includeAccountLogs: { type: 'boolean', default: true, label: '附带账号日志' },
+    systemLogLimit: { type: 'integer', min: 1, max: 100, default: 50, label: '系统日志条数' },
+    runtimeLogLimit: { type: 'integer', min: 1, max: 100, default: 40, label: '运行日志条数' },
+    accountLogLimit: { type: 'integer', min: 1, max: 100, default: 20, label: '账号日志条数' },
+    frontendErrorLimit: { type: 'integer', min: 1, max: 50, default: 10, label: '前端错误条数' },
+    maxBodyLength: { type: 'integer', min: 5000, max: 100000, default: 50000, label: '邮件正文长度上限' },
+    cooldownSeconds: { type: 'integer', min: 10, max: 3600, default: 180, label: '提交冷却时间' },
+    saveToDatabase: { type: 'boolean', default: true, label: '入库留档' },
+    allowNonAdminSubmit: { type: 'boolean', default: true, label: '允许普通用户提交' },
+};
+
 const SETTINGS_SCHEMA = {
     accountMode: {
         type: 'string',
@@ -573,13 +597,33 @@ function validateSettings(settings) {
     return result;
 }
 
+function validateBugReportConfig(config) {
+    const validator = new ConfigValidator(BUG_REPORT_CONFIG_SCHEMA, { coerce: true });
+    const result = validator.validate(config && typeof config === 'object' ? config : {});
+
+    const next = result.coerced || {};
+    if (next.enabled) {
+        const hasMailer = String(next.smtpHost || '').trim()
+            && String(next.emailTo || '').trim()
+            && String(next.emailFrom || next.smtpUser || '').trim();
+        if (!hasMailer) {
+            result.valid = false;
+            result.errors.push('问题反馈配置: 开启后必须完整填写 SMTP 服务器、发件邮箱和收件邮箱');
+        }
+    }
+
+    return result;
+}
+
 module.exports = {
     ConfigValidator,
     validateSettings,
+    validateBugReportConfig,
     SETTINGS_SCHEMA,
     AUTOMATION_SCHEMA,
     INTERVALS_SCHEMA,
     TRADE_CONFIG_SCHEMA,
     STEAL_FRIEND_FILTER_SCHEMA,
     WORKFLOW_CONFIG_SCHEMA,
+    BUG_REPORT_CONFIG_SCHEMA,
 };

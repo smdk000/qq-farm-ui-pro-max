@@ -2,7 +2,7 @@
 
 <script setup lang="ts">
 import type { LoginBackgroundPreset } from '@/constants/ui-appearance'
-import type { ReportLogEntry, SystemUpdateBatchSummary, SystemUpdateClusterNode, SystemUpdateConfig, SystemUpdateDrainCutoverBlocker, SystemUpdateDrainCutoverReadiness, SystemUpdateJob, SystemUpdateOverview, SystemUpdateRuntimeAgent } from '@/stores/setting'
+import type { BugReportConfig, ReportLogEntry, SystemUpdateBatchSummary, SystemUpdateClusterNode, SystemUpdateConfig, SystemUpdateDrainCutoverBlocker, SystemUpdateDrainCutoverReadiness, SystemUpdateJob, SystemUpdateOverview, SystemUpdateRuntimeAgent } from '@/stores/setting'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import api from '@/api' // Apply config from server if possible
@@ -167,6 +167,8 @@ const { friends } = storeToRefs(friendStore)
 const saving = ref(false)
 const passwordSaving = ref(false)
 const offlineSaving = ref(false)
+const bugReportSaving = ref(false)
+const bugReportTesting = ref(false)
 const trialSaving = ref(false)
 const timingSaving = ref(false)
 const reportTesting = ref(false)
@@ -2041,6 +2043,31 @@ const defaultReportConfig = {
   retentionDays: 30,
 }
 
+const defaultBugReportConfig: BugReportConfig = {
+  enabled: true,
+  smtpHost: '',
+  smtpPort: 465,
+  smtpSecure: true,
+  smtpUser: '',
+  smtpPass: '',
+  smtpPassConfigured: false,
+  emailFrom: '',
+  emailTo: '',
+  subjectPrefix: '[BUG反馈]',
+  includeFrontendErrors: true,
+  includeSystemLogs: true,
+  includeRuntimeLogs: true,
+  includeAccountLogs: true,
+  systemLogLimit: 50,
+  runtimeLogLimit: 40,
+  accountLogLimit: 20,
+  frontendErrorLimit: 10,
+  maxBodyLength: 50000,
+  cooldownSeconds: 180,
+  saveToDatabase: true,
+  allowNonAdminSubmit: true,
+}
+
 const defaultIntervals = {
   farmMin: 30,
   farmMax: 200,
@@ -2341,6 +2368,7 @@ const localOffline = ref({
   webhookCustomJsonEnabled: false,
   webhookCustomJsonTemplate: '',
 })
+const localBugReport = ref<BugReportConfig>({ ...defaultBugReportConfig })
 
 const localTiming = ref({
   heartbeatIntervalMs: 25000,
@@ -2376,6 +2404,25 @@ function syncLocalSettings() {
       localOffline.value.webhookCustomJsonTemplate = String(localOffline.value.webhookCustomJsonTemplate || '')
     }
   }
+}
+
+async function loadBugReportConfig() {
+  if (!isAdmin.value) {
+    localBugReport.value = { ...defaultBugReportConfig }
+    return
+  }
+
+  const res = await settingStore.fetchBugReportConfig()
+  if (res.ok && res.data) {
+    localBugReport.value = {
+      ...defaultBugReportConfig,
+      ...res.data,
+    }
+    return
+  }
+
+  localBugReport.value = { ...defaultBugReportConfig }
+  showAlert(`问题反馈配置加载失败: ${res.error || '未知错误'}`, 'danger')
 }
 
 function buildSettingsPayload() {
@@ -2538,6 +2585,7 @@ async function loadData() {
   loadTrialConfig()
   loadThirdPartyApiConfig()
   if (isAdmin.value) {
+    await loadBugReportConfig()
     loadTimingConfig()
     loadClusterConfig()
     loadSystemUpdateData()
@@ -2545,6 +2593,7 @@ async function loadData() {
     loadQqFriendDiagnostics()
   }
   else {
+    localBugReport.value = { ...defaultBugReportConfig }
     systemUpdateOverview.value = null
     systemUpdateJobs.value = []
     systemHealthSnapshot.value = null
@@ -3629,6 +3678,59 @@ async function handleSaveOffline() {
   }
   finally {
     offlineSaving.value = false
+  }
+}
+
+async function handleSaveBugReport() {
+  bugReportSaving.value = true
+  try {
+    const res = await settingStore.saveBugReportConfig(localBugReport.value)
+
+    if (res.ok && res.data) {
+      localBugReport.value = {
+        ...defaultBugReportConfig,
+        ...res.data,
+      }
+      showAlert('问题反馈设置已保存')
+    }
+    else {
+      showAlert(`保存失败: ${res.error || '未知错误'}`, 'danger')
+    }
+  }
+  finally {
+    bugReportSaving.value = false
+  }
+}
+
+async function handleSendBugReportTest() {
+  bugReportTesting.value = true
+  try {
+    const saveRes = await settingStore.saveBugReportConfig({
+      ...localBugReport.value,
+      enabled: true,
+    })
+    if (!saveRes.ok || !saveRes.data) {
+      showAlert(`保存失败，未发送测试邮件: ${saveRes.error || '未知错误'}`, 'danger')
+      return
+    }
+
+    localBugReport.value = {
+      ...defaultBugReportConfig,
+      ...saveRes.data,
+    }
+
+    const testRes = await settingStore.sendBugReportTest()
+    if (testRes.ok) {
+      showAlert(testRes.data?.mailSent
+        ? '测试反馈邮件已发送，请检查目标邮箱'
+        : `测试反馈邮件发送失败: ${testRes.data?.mailMessage || '未知错误'}`, testRes.data?.mailSent ? 'primary' : 'danger')
+    }
+    else {
+      showAlert(`测试反馈邮件发送失败: ${testRes.error || '未知错误'}`, 'danger')
+    }
+  }
+  finally {
+    bugReportTesting.value = false
   }
 }
 
@@ -5647,6 +5749,227 @@ async function restoreTimingDefaults() {
                 @click="handleSaveOffline"
               >
                 只保存下线提醒（不保存账号设置）
+              </BaseButton>
+            </div>
+          </template>
+
+          <template v-if="isAdmin && showNoticeQuickPanel && noticeDetailExpanded">
+            <div class="settings-card-divider settings-card-divider-top px-4 py-3">
+              <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+                <span class="settings-bug-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" class="settings-bug-icon-svg">
+                    <circle cx="12" cy="7" r="2.1" fill="currentColor" />
+                    <ellipse cx="12" cy="13" rx="4.1" ry="5.1" fill="currentColor" opacity="0.92" />
+                    <path d="M7.1 10.1 4.9 8.4M6.1 13H3.7m2.4 3.1-2 1.6m11.7-7.6 2.2-1.7m-1.2 4.6h2.4m-3.4 3.1 2 1.6M9.4 7.6 7.8 5.7m6.8 1.9 1.6-1.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+                问题反馈
+                <span class="settings-mode-badge ui-meta-chip--info text-[11px]">
+                  全局 / 仅管理员
+                </span>
+              </h3>
+              <p class="settings-system-note mt-2 text-xs">
+                这里配置用户提交 BUG 时的固定收件邮箱、SMTP 通道和自动附带的日志范围。授权码会在后端加密保存，保存后不会再从设置页回显明文。
+              </p>
+            </div>
+
+            <div class="flex-1 p-4 space-y-3">
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseSwitch
+                  v-model="localBugReport.enabled"
+                  label="启用问题反馈"
+                  hint="关闭后前端入口仍可显示，但提交时会明确提示功能未开启。"
+                />
+                <BaseSwitch
+                  v-model="localBugReport.allowNonAdminSubmit"
+                  label="允许普通用户提交"
+                  hint="关闭后仅管理员可提交反馈，适合先内部试运行。"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseInput
+                  v-model="localBugReport.subjectPrefix"
+                  label="邮件标题前缀"
+                  type="text"
+                  placeholder="[BUG反馈]"
+                />
+                <BaseInput
+                  v-model.number="localBugReport.cooldownSeconds"
+                  label="提交冷却时间 (秒)"
+                  type="number"
+                  min="0"
+                  placeholder="180"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseInput
+                  v-model="localBugReport.smtpHost"
+                  label="SMTP 主机"
+                  type="text"
+                  placeholder="smtp.qq.com"
+                />
+                <BaseInput
+                  v-model.number="localBugReport.smtpPort"
+                  label="SMTP 端口"
+                  type="number"
+                  min="1"
+                  placeholder="465"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseInput
+                  v-model="localBugReport.smtpUser"
+                  label="SMTP 用户名"
+                  type="text"
+                  placeholder="bot@example.com"
+                />
+                <BaseInput
+                  v-model="localBugReport.smtpPass"
+                  label="SMTP 密码 / 授权码"
+                  type="password"
+                  :hint="localBugReport.smtpPassConfigured ? '已保存授权码。留空保存时会继续沿用后端已加密保存的旧值，不会在页面回显。' : '首次配置时请输入邮箱授权码；保存后不会再回显到页面。'"
+                  placeholder="留空表示保留当前已保存授权码"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseInput
+                  v-model="localBugReport.emailFrom"
+                  label="发件邮箱"
+                  type="text"
+                  placeholder="bot@example.com"
+                />
+                <BaseInput
+                  v-model="localBugReport.emailTo"
+                  label="固定收件邮箱"
+                  type="text"
+                  placeholder="ops@example.com, dev@example.com"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseSwitch
+                  v-model="localBugReport.smtpSecure"
+                  label="启用安全连接"
+                  hint="常见 465 端口为开启，587 端口通常关闭后走 STARTTLS。"
+                />
+                <BaseSwitch
+                  v-model="localBugReport.saveToDatabase"
+                  label="本地入库留档"
+                  hint="建议保持开启。即使发信失败，反馈记录也不会丢。"
+                />
+              </div>
+
+              <div class="settings-system-panel rounded-lg p-3 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <div class="glass-text-main text-sm font-semibold">
+                      自动附带信息
+                    </div>
+                    <p class="settings-system-note mt-1 text-xs">
+                      建议保留前端错误和系统日志，第一版就足够定位大多数线上问题。
+                    </p>
+                  </div>
+                  <BaseBadge tone="info">
+                    收件人固定
+                  </BaseBadge>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseSwitch
+                    v-model="localBugReport.includeFrontendErrors"
+                    label="附带前端错误"
+                    hint="发送最近浏览器错误摘要和未处理异常。"
+                  />
+                  <BaseInput
+                    v-model.number="localBugReport.frontendErrorLimit"
+                    label="前端错误条数"
+                    type="number"
+                    min="1"
+                    max="100"
+                  />
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseSwitch
+                    v-model="localBugReport.includeSystemLogs"
+                    label="附带系统日志"
+                    hint="从 system_logs 里摘取最近错误和警告。"
+                  />
+                  <BaseInput
+                    v-model.number="localBugReport.systemLogLimit"
+                    label="系统日志条数"
+                    type="number"
+                    min="1"
+                    max="100"
+                  />
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseSwitch
+                    v-model="localBugReport.includeRuntimeLogs"
+                    label="附带运行态日志"
+                    hint="读取当前内存中的运行态日志，便于看实时问题。"
+                  />
+                  <BaseInput
+                    v-model.number="localBugReport.runtimeLogLimit"
+                    label="运行态日志条数"
+                    type="number"
+                    min="1"
+                    max="100"
+                  />
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseSwitch
+                    v-model="localBugReport.includeAccountLogs"
+                    label="附带账号日志"
+                    hint="普通用户只会附带自己账号的最近日志，避免越权。"
+                  />
+                  <BaseInput
+                    v-model.number="localBugReport.accountLogLimit"
+                    label="账号日志条数"
+                    type="number"
+                    min="1"
+                    max="100"
+                  />
+                </div>
+
+                <BaseInput
+                  v-model.number="localBugReport.maxBodyLength"
+                  label="邮件正文最大长度"
+                  type="number"
+                  min="5000"
+                  max="100000"
+                  placeholder="50000"
+                />
+              </div>
+            </div>
+
+            <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel flex items-center justify-end gap-3 px-4 py-3">
+              <p class="settings-sticky-save-note hidden max-w-xs text-right md:block">
+                这里只保存系统级问题反馈能力，不会影响下方当前账号的经营汇报配置。
+              </p>
+              <BaseButton
+                variant="secondary"
+                size="sm"
+                :loading="bugReportTesting"
+                class="settings-footer-button"
+                @click="handleSendBugReportTest"
+              >
+                发送测试反馈邮件
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                :loading="bugReportSaving"
+                class="settings-footer-button"
+                @click="handleSaveBugReport"
+              >
+                保存问题反馈设置
               </BaseButton>
             </div>
           </template>
@@ -8914,6 +9237,18 @@ async function restoreTimingDefaults() {
 
 .settings-system-note {
   color: var(--ui-text-2);
+}
+
+.settings-bug-icon {
+  display: inline-flex;
+  height: 1.1rem;
+  width: 1.1rem;
+  color: var(--ui-status-danger);
+}
+
+.settings-bug-icon-svg {
+  height: 100%;
+  width: 100%;
 }
 
 .settings-system-doc-link {

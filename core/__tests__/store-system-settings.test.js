@@ -8,6 +8,7 @@ const storeModulePath = require.resolve('../src/models/store');
 const systemSettingsModulePath = require.resolve('../src/services/system-settings');
 const runtimePathsModulePath = require.resolve('../src/config/runtime-paths');
 const mysqlDbModulePath = require.resolve('../src/services/mysql-db');
+const secretCryptoModulePath = require.resolve('../src/services/secret-crypto');
 
 function mockModule(modulePath, exports) {
     const previous = require.cache[modulePath];
@@ -107,6 +108,7 @@ test('global settings persist to system_settings and reload from MySQL without s
     try {
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
 
         let store = require(storeModulePath);
 
@@ -146,6 +148,7 @@ test('global settings persist to system_settings and reload from MySQL without s
 
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
 
         store = require(storeModulePath);
         await store.initStoreRuntime();
@@ -162,6 +165,106 @@ test('global settings persist to system_settings and reload from MySQL without s
     } finally {
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
+        restoreRuntimePaths();
+        restoreMysql();
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+});
+
+test('bug report config persists to system_settings and reloads with normalization', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'store-bug-report-settings-'));
+    const restoreRuntimePaths = mockModule(runtimePathsModulePath, createRuntimePathsMock(tempRoot));
+    const mysqlMock = createMysqlMock();
+    const restoreMysql = mockModule(mysqlDbModulePath, mysqlMock);
+
+    try {
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
+
+        let store = require(storeModulePath);
+
+        store.setBugReportConfig({
+            enabled: true,
+            smtpHost: 'smtp.example.com',
+            smtpPort: 587,
+            smtpSecure: false,
+            smtpUser: 'bot@example.com',
+            smtpPass: 'secret',
+            emailFrom: 'bot@example.com',
+            emailTo: 'ops@example.com,dev@example.com',
+            subjectPrefix: '[BUG]',
+            includeFrontendErrors: true,
+            includeSystemLogs: true,
+            includeRuntimeLogs: false,
+            includeAccountLogs: true,
+            systemLogLimit: 66,
+            runtimeLogLimit: 12,
+            accountLogLimit: 8,
+            frontendErrorLimit: 6,
+            maxBodyLength: 32000,
+            cooldownSeconds: 240,
+            saveToDatabase: true,
+            allowNonAdminSubmit: false,
+        });
+
+        await store.flushGlobalConfigSave();
+
+        const persistedBugReportConfig = mysqlMock.__state.systemSettings.global_config.bugReportConfig;
+        assert.equal(persistedBugReportConfig.enabled, true);
+        assert.equal(persistedBugReportConfig.smtpHost, 'smtp.example.com');
+        assert.equal(persistedBugReportConfig.smtpPort, 587);
+        assert.equal(persistedBugReportConfig.smtpSecure, false);
+        assert.equal(persistedBugReportConfig.smtpUser, 'bot@example.com');
+        assert.equal(persistedBugReportConfig.emailFrom, 'bot@example.com');
+        assert.equal(persistedBugReportConfig.emailTo, 'ops@example.com,dev@example.com');
+        assert.equal(persistedBugReportConfig.subjectPrefix, '[BUG]');
+        assert.equal(persistedBugReportConfig.includeRuntimeLogs, false);
+        assert.equal(persistedBugReportConfig.cooldownSeconds, 240);
+        assert.equal(persistedBugReportConfig.allowNonAdminSubmit, false);
+        assert.notEqual(persistedBugReportConfig.smtpPass, 'secret');
+        assert.match(persistedBugReportConfig.smtpPass, /^enc:v1:/);
+
+        const storeFile = path.join(tempRoot, 'data', 'store.json');
+        const stored = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+        assert.match(stored.bugReportConfig.smtpPass, /^enc:v1:/);
+        assert.notEqual(stored.bugReportConfig.smtpPass, 'secret');
+
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
+
+        store = require(storeModulePath);
+        await store.initStoreRuntime();
+
+        assert.deepEqual(store.getBugReportConfig(), {
+            enabled: true,
+            smtpHost: 'smtp.example.com',
+            smtpPort: 587,
+            smtpSecure: false,
+            smtpUser: 'bot@example.com',
+            smtpPass: 'secret',
+            emailFrom: 'bot@example.com',
+            emailTo: 'ops@example.com,dev@example.com',
+            subjectPrefix: '[BUG]',
+            includeFrontendErrors: true,
+            includeSystemLogs: true,
+            includeRuntimeLogs: false,
+            includeAccountLogs: true,
+            systemLogLimit: 66,
+            runtimeLogLimit: 12,
+            accountLogLimit: 8,
+            frontendErrorLimit: 6,
+            maxBodyLength: 32000,
+            cooldownSeconds: 240,
+            saveToDatabase: true,
+            allowNonAdminSubmit: false,
+        });
+    } finally {
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
         restoreRuntimePaths();
         restoreMysql();
         fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -177,6 +280,7 @@ test('account settings are mirrored to store.json and can recover before db refr
     try {
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
 
         let store = require(storeModulePath);
 
@@ -219,6 +323,7 @@ test('account settings are mirrored to store.json and can recover before db refr
 
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
 
         store = require(storeModulePath);
 
@@ -231,6 +336,7 @@ test('account settings are mirrored to store.json and can recover before db refr
     } finally {
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
         restoreRuntimePaths();
         restoreMysql();
         fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -246,6 +352,7 @@ test('applyConfigSnapshot updates in-memory timing config for runtime sync witho
     try {
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
 
         const store = require(storeModulePath);
         await store.initStoreRuntime();
@@ -269,6 +376,7 @@ test('applyConfigSnapshot updates in-memory timing config for runtime sync witho
     } finally {
         delete require.cache[storeModulePath];
         delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
         restoreRuntimePaths();
         restoreMysql();
         fs.rmSync(tempRoot, { recursive: true, force: true });

@@ -89,6 +89,7 @@ function registerAdminFeatureRoutes({
     registerAccountControlRoutes,
     registerAccountSettingsRoutes,
     registerSettingsReportRoutes,
+    registerBugReportRoutes,
     registerAccountReadRoutes,
     registerAccountManagementRoutes,
     registerUserCardRoutes,
@@ -261,6 +262,17 @@ function registerAdminFeatureRoutes({
         crypto: cryptoRef,
         fs: fsRef,
         path: pathRef,
+    });
+
+    registerBugReportRoutes({
+        app,
+        authRequired,
+        store,
+        getPool,
+        getProvider,
+        getAccountsSnapshot,
+        getAccId: routeRuntime.getAccId,
+        adminLogger,
     });
 
     registerAccountReadRoutes({

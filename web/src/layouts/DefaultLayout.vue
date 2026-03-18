@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { computed, onErrorCaptured, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import BugReportModal from '@/components/BugReportModal.vue'
 import LeaderboardModal from '@/components/LeaderboardModal.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import Sidebar from '@/components/Sidebar.vue'
@@ -16,6 +17,7 @@ const { sidebarOpen } = storeToRefs(appStore)
 
 const showThemeDrawer = ref(false)
 const showLeaderboard = ref(false)
+const showBugReportModal = ref(false)
 const routeRenderError = ref<unknown | null>(null)
 const routeRecoveryBusy = ref(false)
 const workspaceShellClass = computed(() => `workspace-shell--${appStore.workspaceVisualPreset}`)
@@ -92,6 +94,20 @@ onErrorCaptured((error, _instance, info) => {
         <!-- 浮动操作区域 (配置与通知) -->
         <div class="workspace-floating-actions absolute z-40 flex items-center gap-3">
           <button
+            class="layout-bug-report-btn glass-panel h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:scale-110 focus:outline-none hover:-rotate-6"
+            title="问题反馈"
+            aria-label="问题反馈"
+            @click="showBugReportModal = true"
+          >
+            <span class="layout-bug-report-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="layout-bug-report-icon-svg">
+                <circle cx="12" cy="7" r="2.1" fill="currentColor" />
+                <ellipse cx="12" cy="13" rx="4.1" ry="5.1" fill="currentColor" opacity="0.92" />
+                <path d="M7.1 10.1 4.9 8.4M6.1 13H3.7m2.4 3.1-2 1.6m11.7-7.6 2.2-1.7m-1.2 4.6h2.4m-3.4 3.1 2 1.6M9.4 7.6 7.8 5.7m6.8 1.9 1.6-1.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+          </button>
+          <button
             class="layout-trophy-btn glass-panel h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:rotate-12 hover:scale-110 focus:outline-none"
             title="平台排行榜"
             @click="showLeaderboard = true"
@@ -164,6 +180,7 @@ onErrorCaptured((error, _instance, info) => {
 
     <!-- 全平台账号排行榜弹窗 -->
     <LeaderboardModal :show="showLeaderboard" @close="showLeaderboard = false" />
+    <BugReportModal :show="showBugReportModal" @close="showBugReportModal = false" />
   </div>
 </template>
 
@@ -437,12 +454,36 @@ onErrorCaptured((error, _instance, info) => {
   box-shadow: 0 10px 20px -10px color-mix(in srgb, var(--ui-status-warning) 45%, transparent);
 }
 
+.layout-bug-report-btn {
+  border-color: color-mix(in srgb, var(--ui-status-danger) 28%, var(--ui-border-subtle));
+  background:
+    radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--ui-text-on-brand) 28%, transparent), transparent 62%),
+    color-mix(in srgb, var(--ui-status-danger) 10%, var(--ui-bg-surface-raised) 90%);
+  box-shadow: 0 12px 24px -12px color-mix(in srgb, var(--ui-status-danger) 42%, transparent);
+}
+
 .layout-trophy-btn:focus-visible {
   box-shadow: 0 0 0 2px var(--ui-focus-ring);
 }
 
+.layout-bug-report-btn:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-status-danger) 18%, var(--ui-focus-ring) 82%);
+}
+
 .layout-trophy-icon {
   color: var(--ui-status-warning);
+}
+
+.layout-bug-report-icon {
+  display: inline-flex;
+  height: 1.2rem;
+  width: 1.2rem;
+  color: var(--ui-status-danger);
+}
+
+.layout-bug-report-icon-svg {
+  height: 100%;
+  width: 100%;
 }
 
 .workspace-floating-actions {

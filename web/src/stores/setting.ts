@@ -127,6 +127,31 @@ export interface OfflineConfig {
   webhookCustomJsonTemplate: string
 }
 
+export interface BugReportConfig {
+  enabled: boolean
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  smtpUser: string
+  smtpPass: string
+  smtpPassConfigured?: boolean
+  emailFrom: string
+  emailTo: string
+  subjectPrefix: string
+  includeFrontendErrors: boolean
+  includeSystemLogs: boolean
+  includeRuntimeLogs: boolean
+  includeAccountLogs: boolean
+  systemLogLimit: number
+  runtimeLogLimit: number
+  accountLogLimit: number
+  frontendErrorLimit: number
+  maxBodyLength: number
+  cooldownSeconds: number
+  saveToDatabase: boolean
+  allowNonAdminSubmit: boolean
+}
+
 export interface ReportConfig {
   enabled: boolean
   channel: string
@@ -739,6 +764,55 @@ export const useSettingStore = defineStore('setting', () => {
     }
   }
 
+  async function fetchBugReportConfig() {
+    try {
+      const user = JSON.parse(localStorage.getItem('current_user') || 'null')
+      if (user?.role !== 'admin')
+        return { ok: false, error: '仅管理员可查看问题反馈设置' }
+
+      const { data } = await api.get('/api/settings/bug-report')
+      if (data && data.ok)
+        return { ok: true, data: data.data as BugReportConfig }
+      return { ok: false, error: resolveLocalizedError(data?.error, '读取失败') }
+    }
+    catch (e: any) {
+      return { ok: false, error: resolveLocalizedError(e.response?.data?.error, e.message, '读取失败') }
+    }
+  }
+
+  async function saveBugReportConfig(config: BugReportConfig) {
+    try {
+      const user = JSON.parse(localStorage.getItem('current_user') || 'null')
+      if (user?.role !== 'admin')
+        return { ok: false, error: '仅管理员可修改问题反馈设置' }
+
+      const { data } = await api.post('/api/settings/bug-report', config)
+      if (data && data.ok)
+        return { ok: true, data: data.data as BugReportConfig }
+      return { ok: false, error: resolveLocalizedError(data?.error, data?.errors?.join?.('；'), '保存失败') }
+    }
+    catch (e: any) {
+      const validationErrors = Array.isArray(e.response?.data?.errors) ? e.response.data.errors.join('；') : ''
+      return { ok: false, error: resolveLocalizedError(e.response?.data?.error, validationErrors, e.message, '保存失败') }
+    }
+  }
+
+  async function sendBugReportTest() {
+    try {
+      const user = JSON.parse(localStorage.getItem('current_user') || 'null')
+      if (user?.role !== 'admin')
+        return { ok: false, error: '仅管理员可发送测试反馈邮件' }
+
+      const { data } = await api.post('/api/settings/bug-report/test')
+      if (data && data.ok)
+        return { ok: true, data: data.data }
+      return { ok: false, error: resolveLocalizedError(data?.error, '发送失败') }
+    }
+    catch (e: any) {
+      return { ok: false, error: resolveLocalizedError(e.response?.data?.error, e.message, '发送失败') }
+    }
+  }
+
   async function sendReportTest(accountId: string) {
     if (!accountId)
       return { ok: false, error: '未选择账号' }
@@ -1235,5 +1309,5 @@ export const useSettingStore = defineStore('setting', () => {
     }
   }
 
-  return { settings, loading, timingLoading, reportLogs, reportLogPagination, reportLogStats, systemUpdateOverview, systemUpdateJobs, fetchSettings, fetchReportLogs, fetchReportLogStats, clearReportLogs, deleteReportLogsByIds, exportReportLogs, saveSettings, saveOfflineConfig, sendReportTest, sendReport, changePassword, fetchTrialCardConfig, fetchThirdPartyApiConfig, saveThirdPartyApiConfig, fetchTimingConfig, saveTimingConfig, fetchClusterConfig, saveClusterConfig, fetchSystemUpdateOverview, checkSystemUpdate, saveSystemUpdateConfig, fetchSystemUpdateJobs, createSystemUpdateJob, retrySystemUpdateJob, retrySystemUpdateBatch, cancelSystemUpdateJob, cancelSystemUpdateBatch, setSystemUpdateNodeDrain }
+  return { settings, loading, timingLoading, reportLogs, reportLogPagination, reportLogStats, systemUpdateOverview, systemUpdateJobs, fetchSettings, fetchReportLogs, fetchReportLogStats, clearReportLogs, deleteReportLogsByIds, exportReportLogs, saveSettings, saveOfflineConfig, fetchBugReportConfig, saveBugReportConfig, sendBugReportTest, sendReportTest, sendReport, changePassword, fetchTrialCardConfig, fetchThirdPartyApiConfig, saveThirdPartyApiConfig, fetchTimingConfig, saveTimingConfig, fetchClusterConfig, saveClusterConfig, fetchSystemUpdateOverview, checkSystemUpdate, saveSystemUpdateConfig, fetchSystemUpdateJobs, createSystemUpdateJob, retrySystemUpdateJob, retrySystemUpdateBatch, cancelSystemUpdateJob, cancelSystemUpdateBatch, setSystemUpdateNodeDrain }
 })

@@ -44,6 +44,7 @@ const { createOfflineCommerceHelpers } = require('./admin/offline-commerce');
 const { buildReportHistoryCsv, compareLeaderboardAccounts, buildAdminListenError, toLeaderboardMetricNumber } = require('./admin/shared-utils');
 const { registerCommerceRoutes } = require('./admin/commerce-routes');
 const { registerSettingsReportRoutes } = require('./admin/settings-report-routes');
+const { registerBugReportRoutes } = require('./admin/bug-report-routes');
 const { registerAccountReadRoutes, registerLogReadRoutes } = require('./admin/account-read-routes');
 const { registerFriendBlacklistRoutes, registerAccountControlRoutes } = require('./admin/account-control-routes');
 const { registerAnnouncementAdminRoutes } = require('./admin/announcement-admin-routes');
@@ -340,6 +341,7 @@ function startAdminServer(dataProvider) {
             registerAccountControlRoutes,
             registerAccountSettingsRoutes,
             registerSettingsReportRoutes,
+            registerBugReportRoutes,
             registerAccountReadRoutes,
             registerAccountManagementRoutes,
             registerUserCardRoutes,

@@ -354,6 +354,14 @@ async function initMysql() {
                 );
             }
 
+            const [bugReportsTable] = await pool.execute(`SHOW TABLES LIKE 'bug_reports'`);
+            if (bugReportsTable.length === 0) {
+                await runMigrationFile(
+                    path.join(migrationsDir, '018-bug-reports.sql'),
+                    '检测到缺少 bug_reports 表，正在执行迁移 018-bug-reports.sql',
+                );
+            }
+
             const [systemSettingsTable] = await pool.execute(`SHOW TABLES LIKE 'system_settings'`);
             if (systemSettingsTable.length === 0) {
                 await runMigrationFile(

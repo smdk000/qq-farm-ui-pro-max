@@ -1,4 +1,5 @@
 const { readLatestQqFriendDiagnostics: readLatestQqFriendDiagnosticsDefault } = require('../../services/qq-friend-diagnostics');
+const { querySystemLogsForUser } = require('../../services/system-log-query');
 
 function registerSystemPublicRoutes({
     app,
@@ -146,61 +147,24 @@ function registerSystemPublicRoutes({
 
     app.get('/api/system-logs', async (req, res) => {
         try {
-            const pool = getPool();
-
-            const page = Math.max(1, Number.parseInt(req.query.page) || 1);
-            const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit) || 50));
-            const offset = (page - 1) * limit;
-
-            const { level, accountId, keyword } = req.query;
-
-            let querySql = "SELECT * FROM system_logs WHERE 1=1";
-            let countSql = "SELECT COUNT(*) as total FROM system_logs WHERE 1=1";
-            const params = [];
-
-            if (req.currentUser && req.currentUser.role !== 'admin') {
-                const allAccounts = await getAccountsSnapshot();
-                const userAccountIds = allAccounts.accounts
-                    .filter(a => a.username === req.currentUser.username)
-                    .map(a => String(a.id));
-                if (userAccountIds.length === 0) {
-                    return res.json({ ok: true, data: { total: 0, page, limit, items: [] } });
-                }
-                const placeholders = userAccountIds.map(() => '?').join(',');
-                querySql += ` AND account_id IN (${placeholders})`;
-                countSql += ` AND account_id IN (${placeholders})`;
-                params.push(...userAccountIds);
-            }
-
-            if (level) {
-                querySql += " AND level = ?";
-                countSql += " AND level = ?";
-                params.push(level);
-            }
-            if (accountId) {
-                querySql += " AND account_id = ?";
-                countSql += " AND account_id = ?";
-                params.push(accountId);
-            }
-            if (keyword) {
-                querySql += " AND text LIKE ?";
-                countSql += " AND text LIKE ?";
-                params.push(`%${keyword}%`);
-            }
-
-            querySql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
-            const queryParams = [...params, limit, offset];
-
-            const [countRows] = await pool.query(countSql, params);
-            const [rows] = await pool.query(querySql, queryParams);
+            const result = await querySystemLogsForUser({
+                getPool,
+                currentUser: req.currentUser,
+                getAccountsSnapshot,
+                page: req.query.page,
+                limit: req.query.limit,
+                level: req.query.level,
+                accountId: req.query.accountId,
+                keyword: req.query.keyword,
+            });
 
             res.json({
                 ok: true,
                 data: {
-                    total: countRows[0].total,
-                    page,
-                    limit,
-                    items: rows
+                    total: result.total,
+                    page: result.page,
+                    limit: result.limit,
+                    items: result.items,
                 }
             });
         } catch (err) {

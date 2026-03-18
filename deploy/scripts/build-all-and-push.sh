@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # 配置
-VERSION=${1:-"4.5.24"}
+VERSION=${1:-"4.5.25"}
 DOCKERHUB_USER="smdk000"
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 

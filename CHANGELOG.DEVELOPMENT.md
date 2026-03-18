@@ -8,6 +8,7 @@
 
 ### 快速索引（精简版）
 
+- `v4.5.25 (2026-03-18)` 问题反馈链路与系统设置安全持久化：用户可提交带上下文的问题反馈，SMTP 密钥加密落盘，系统日志查询与设置页分区同步收口。
 - `v4.5.24 (2026-03-18)` 农场工具资源库接入与移动端工作台整理：本地资源库清单化、静态图鉴纳管、移动端滚动与账号错误弹窗体验同步收口。
 - `v4.5.23 (2026-03-17)` 微信休息保护可视化与保守链路细化：连续失败阈值、农场休息、账号面板状态透出与补缓存链路稳健性同步收口。
 - `v4.5.22 (2026-03-17)` 微信好友保守链路与只读面板增强：手动刷新穿透、访客补缓存、只读好友页、日志摘要与快捷筛选同步落地。
@@ -23,6 +24,29 @@
 - `v4.5.6 (2026-03-08)` 用户状态与登录链路修复：`users.status` 语义拆分、QQ/微信登录续航增强、发布链路稳健性提升。
 
 > 说明：以上为“快速浏览摘要”；完整变更、验证命令与问题复盘请以下方详细记录为准。
+
+### 开发补记 - v4.5.25 问题反馈链路与系统设置安全持久化 (2026-03-18)
+
+#### ✅ 本轮发布收口
+- ✅ **版本口径已抬升到 `v4.5.25`**: `core/package.json`、`web/package.json`、部署模板、工作流默认值、离线包脚本与更新脚本中的默认镜像标签已经同步更新。
+- ✅ **问题反馈主链路已打通**: 新增 `bug-report-routes`、`bug-report-service`、`bug_reports` 表迁移、邮件模板与仓储服务，前端用户可以从设置页相关入口提交带页面、账号、前端错误和日志摘录的反馈。
+- ✅ **问题反馈 SMTP 配置改为安全持久化**: `secret-crypto.js` 会用本地密钥对 SMTP 密码做 AES-GCM 加密，管理员读取配置时只看到“已配置”状态，空密码保存不会覆盖既有密钥。
+- ✅ **系统日志权限过滤已抽成共享查询服务**: 公共日志接口和问题反馈日志摘录现在共用 `system-log-query.js`，普通用户可见账号范围只维护一套规则。
+- ✅ **设置页和前端上下文采集继续收口**: 新增 `BugReportModal.vue`、客户端错误缓冲和页面上下文采集工具，设置页补齐问题反馈配置区、测试发送和保存反馈。
+- ✅ **农场工具变异数据正式落盘**: `mutation_calc.json`、`mutation_formula.json` 已纳入本地资源库，`mutation.html` 跟随同步脚本更新到最新计算数据。
+
+#### 📌 本轮发布说明
+- 📌 **这轮核心是让“用户报问题”从口头描述变成可操作链路**: 管理员不再只靠截图和聊天记录排查，邮件里会直接带上当前页面、账号、前端异常和日志摘录。
+- 📌 **系统设置里首次引入本地密钥加密字段**: 这轮只先用于问题反馈 SMTP 密码，后续同类敏感配置可以沿用这套模式继续收口。
+
+#### 🧪 本轮验收
+- ✅ `node --test core/__tests__/admin-bug-report-routes.test.js core/__tests__/bug-report-service.test.js core/__tests__/store-system-settings.test.js core/__tests__/admin-feature-wiring.test.js`
+- ✅ `node --test web/__tests__/bug-report-context.test.mjs web/__tests__/bug-report-client-errors.test.mjs`
+- ✅ `pnpm lint:web`
+- ✅ `pnpm test:web:regression`
+- ✅ `pnpm -C web run farm-tools:sync`
+- ✅ `pnpm check:doc-links`
+- ⚠️ `pnpm check:announcements`：0 error(s), 1 warning(s)，`logs/development/Update.log` 仍有 1 条 bullet 超过 120 字符
 
 ### 开发补记 - v4.5.24 农场工具资源库接入与移动端工作台整理 (2026-03-18)
 

@@ -6,6 +6,7 @@ const process = require('node:process');
 const { getDataFile } = require('../config/runtime-paths');
 const { getPool, transaction, isMysqlInitialized } = require('../services/mysql-db');
 const { createModuleLogger } = require('../services/logger');
+const { decryptSecretValue, encryptSecretValue } = require('../services/secret-crypto');
 const { getSystemSettings, setSystemSettings, SYSTEM_SETTING_KEYS } = require('../services/system-settings');
 const { readJsonFile, writeJsonFileAtomic } = require('../services/json-db');
 const { DEFAULT_UI_CONFIG, normalizeUIConfig } = require('../utils/ui-config');
@@ -33,6 +34,29 @@ const DEFAULT_OFFLINE_REMINDER = {
     offlineDeleteSec: 1,
     webhookCustomJsonEnabled: false,
     webhookCustomJsonTemplate: '',
+};
+const DEFAULT_BUG_REPORT_CONFIG = {
+    enabled: true,
+    smtpHost: '',
+    smtpPort: 465,
+    smtpSecure: true,
+    smtpUser: '',
+    smtpPass: '',
+    emailFrom: '',
+    emailTo: '',
+    subjectPrefix: '[BUG反馈]',
+    includeFrontendErrors: true,
+    includeSystemLogs: true,
+    includeRuntimeLogs: true,
+    includeAccountLogs: true,
+    systemLogLimit: 50,
+    runtimeLogLimit: 40,
+    accountLogLimit: 20,
+    frontendErrorLimit: 10,
+    maxBodyLength: 50000,
+    cooldownSeconds: 180,
+    saveToDatabase: true,
+    allowNonAdminSubmit: true,
 };
 const DEFAULT_REPORT_CONFIG = {
     enabled: false,
@@ -231,6 +255,7 @@ const globalConfig = {
     defaultAccountConfig: cloneAccountConfig(DEFAULT_ACCOUNT_CONFIG),
     ui: { ...DEFAULT_UI_CONFIG },
     offlineReminder: { ...DEFAULT_OFFLINE_REMINDER },
+    bugReportConfig: { ...DEFAULT_BUG_REPORT_CONFIG },
     adminPasswordHash: '',
     thirdPartyApi: {},
     timingConfig: {},
@@ -299,6 +324,41 @@ function normalizeOfflineReminder(input) {
         offlineDeleteSec,
         webhookCustomJsonEnabled,
         webhookCustomJsonTemplate,
+    };
+}
+
+function normalizeBugReportConfig(input) {
+    const src = (input && typeof input === 'object') ? input : {};
+    return {
+        enabled: src.enabled !== undefined ? !!src.enabled : !!DEFAULT_BUG_REPORT_CONFIG.enabled,
+        smtpHost: String(src.smtpHost !== undefined ? src.smtpHost : DEFAULT_BUG_REPORT_CONFIG.smtpHost).trim(),
+        smtpPort: clampInteger(src.smtpPort, DEFAULT_BUG_REPORT_CONFIG.smtpPort, 1, 65535),
+        smtpSecure: src.smtpSecure !== undefined ? !!src.smtpSecure : !!DEFAULT_BUG_REPORT_CONFIG.smtpSecure,
+        smtpUser: String(src.smtpUser !== undefined ? src.smtpUser : DEFAULT_BUG_REPORT_CONFIG.smtpUser).trim(),
+        smtpPass: decryptSecretValue(src.smtpPass !== undefined ? src.smtpPass : DEFAULT_BUG_REPORT_CONFIG.smtpPass),
+        emailFrom: String(src.emailFrom !== undefined ? src.emailFrom : DEFAULT_BUG_REPORT_CONFIG.emailFrom).trim(),
+        emailTo: String(src.emailTo !== undefined ? src.emailTo : DEFAULT_BUG_REPORT_CONFIG.emailTo).trim(),
+        subjectPrefix: String(src.subjectPrefix !== undefined ? src.subjectPrefix : DEFAULT_BUG_REPORT_CONFIG.subjectPrefix).trim().slice(0, 40) || DEFAULT_BUG_REPORT_CONFIG.subjectPrefix,
+        includeFrontendErrors: src.includeFrontendErrors !== undefined ? !!src.includeFrontendErrors : !!DEFAULT_BUG_REPORT_CONFIG.includeFrontendErrors,
+        includeSystemLogs: src.includeSystemLogs !== undefined ? !!src.includeSystemLogs : !!DEFAULT_BUG_REPORT_CONFIG.includeSystemLogs,
+        includeRuntimeLogs: src.includeRuntimeLogs !== undefined ? !!src.includeRuntimeLogs : !!DEFAULT_BUG_REPORT_CONFIG.includeRuntimeLogs,
+        includeAccountLogs: src.includeAccountLogs !== undefined ? !!src.includeAccountLogs : !!DEFAULT_BUG_REPORT_CONFIG.includeAccountLogs,
+        systemLogLimit: clampInteger(src.systemLogLimit, DEFAULT_BUG_REPORT_CONFIG.systemLogLimit, 1, 100),
+        runtimeLogLimit: clampInteger(src.runtimeLogLimit, DEFAULT_BUG_REPORT_CONFIG.runtimeLogLimit, 1, 100),
+        accountLogLimit: clampInteger(src.accountLogLimit, DEFAULT_BUG_REPORT_CONFIG.accountLogLimit, 1, 100),
+        frontendErrorLimit: clampInteger(src.frontendErrorLimit, DEFAULT_BUG_REPORT_CONFIG.frontendErrorLimit, 1, 50),
+        maxBodyLength: clampInteger(src.maxBodyLength, DEFAULT_BUG_REPORT_CONFIG.maxBodyLength, 5000, 100000),
+        cooldownSeconds: clampInteger(src.cooldownSeconds, DEFAULT_BUG_REPORT_CONFIG.cooldownSeconds, 10, 3600),
+        saveToDatabase: src.saveToDatabase !== undefined ? !!src.saveToDatabase : !!DEFAULT_BUG_REPORT_CONFIG.saveToDatabase,
+        allowNonAdminSubmit: src.allowNonAdminSubmit !== undefined ? !!src.allowNonAdminSubmit : !!DEFAULT_BUG_REPORT_CONFIG.allowNonAdminSubmit,
+    };
+}
+
+function serializeBugReportConfigForPersistence(input) {
+    const normalized = normalizeBugReportConfig(input);
+    return {
+        ...normalized,
+        smtpPass: encryptSecretValue(normalized.smtpPass),
     };
 }
 
@@ -1039,6 +1099,7 @@ async function loadGlobalConfigFromDB() {
         );
         globalConfig.ui = normalizeUIConfig(globalConfig.ui, DEFAULT_UI_CONFIG);
         globalConfig.offlineReminder = normalizeOfflineReminder(globalConfig.offlineReminder);
+        globalConfig.bugReportConfig = normalizeBugReportConfig(globalConfig.bugReportConfig);
         globalConfig.timingConfig = normalizeTimingConfig(globalConfig.timingConfig, DEFAULT_TIMING_CONFIG);
         globalConfig.trialCardConfig = normalizeTrialCardConfig(globalConfig.trialCardConfig, DEFAULT_TRIAL_CARD_CONFIG);
         globalConfig.clusterConfig = normalizeClusterConfig(globalConfig.clusterConfig, DEFAULT_CLUSTER_CONFIG);
@@ -1102,6 +1163,9 @@ async function loadGlobalConfigFromDB() {
             // 兼容历史上写进 advanced_settings 的全局字段。
             if (!hasPersistedGlobalConfig && adv.offlineReminder) {
                 globalConfig.offlineReminder = normalizeOfflineReminder({ ...globalConfig.offlineReminder, ...adv.offlineReminder });
+            }
+            if (!hasPersistedGlobalConfig && adv.bugReportConfig) {
+                globalConfig.bugReportConfig = normalizeBugReportConfig({ ...globalConfig.bugReportConfig, ...adv.bugReportConfig });
             }
             if (!hasPersistedGlobalConfig && adv.timingConfig) {
                 globalConfig.timingConfig = normalizeTimingConfig(adv.timingConfig, getTimingConfig());
@@ -1179,6 +1243,7 @@ function applyLoadedGlobalConfig(stored = {}, options = {}) {
 
     globalConfig.ui = normalizeUIConfig(source.ui, globalConfig.ui || DEFAULT_UI_CONFIG);
     globalConfig.offlineReminder = normalizeOfflineReminder(source.offlineReminder !== undefined ? source.offlineReminder : globalConfig.offlineReminder);
+    globalConfig.bugReportConfig = normalizeBugReportConfig(source.bugReportConfig !== undefined ? source.bugReportConfig : globalConfig.bugReportConfig);
     globalConfig.adminPasswordHash = source.adminPasswordHash !== undefined
         ? String(source.adminPasswordHash || '')
         : String(globalConfig.adminPasswordHash || '');
@@ -1200,6 +1265,7 @@ function buildSystemGlobalConfigSnapshot() {
         accountConfigIdentityArchive: cloneAccountConfigIdentityArchive(),
         ui: getUI(),
         offlineReminder: getOfflineReminder(),
+        bugReportConfig: serializeBugReportConfigForPersistence(globalConfig.bugReportConfig),
         adminPasswordHash: String(globalConfig.adminPasswordHash || ''),
         thirdPartyApi: { ...(globalConfig.thirdPartyApi || {}) },
         timingConfig: getTimingConfig(),
@@ -1291,6 +1357,7 @@ function sanitizeGlobalConfigBeforeSave() {
     globalConfig.defaultAccountConfig = cloneAccountConfig(accountFallbackConfig);
     globalConfig.ui = normalizeUIConfig(globalConfig.ui, DEFAULT_UI_CONFIG);
     globalConfig.offlineReminder = normalizeOfflineReminder(globalConfig.offlineReminder);
+    globalConfig.bugReportConfig = normalizeBugReportConfig(globalConfig.bugReportConfig);
     globalConfig.adminPasswordHash = String(globalConfig.adminPasswordHash || '');
     globalConfig.timingConfig = normalizeTimingConfig(globalConfig.timingConfig, DEFAULT_TIMING_CONFIG);
     globalConfig.trialCardConfig = normalizeTrialCardConfig(globalConfig.trialCardConfig, DEFAULT_TRIAL_CARD_CONFIG);
@@ -1892,6 +1959,19 @@ function setOfflineReminder(cfg) {
     globalConfig.offlineReminder = normalizeOfflineReminder({ ...current, ...(cfg || {}) });
     saveGlobalConfig();
     return getOfflineReminder();
+}
+
+function getBugReportConfig() {
+    ensureStoreFallbackLoaded();
+    return normalizeBugReportConfig(globalConfig.bugReportConfig);
+}
+
+function setBugReportConfig(cfg) {
+    ensureStoreFallbackLoaded();
+    const current = normalizeBugReportConfig(globalConfig.bugReportConfig);
+    globalConfig.bugReportConfig = normalizeBugReportConfig({ ...current, ...(cfg || {}) });
+    saveGlobalConfig();
+    return getBugReportConfig();
 }
 
 function parseAccountAuthData(raw) {
@@ -2834,6 +2914,8 @@ module.exports = {
     setUITheme,
     getOfflineReminder,
     setOfflineReminder,
+    getBugReportConfig,
+    setBugReportConfig,
     getTimingConfig,
     setTimingConfig,
     getSuspendUntil,

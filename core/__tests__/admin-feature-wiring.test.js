@@ -178,6 +178,7 @@ function createFeatureDeps(overrides = {}) {
             registerAccountControlRoutes: makeRegistrar('registerAccountControlRoutes'),
             registerAccountSettingsRoutes: makeRegistrar('registerAccountSettingsRoutes'),
             registerSettingsReportRoutes: makeRegistrar('registerSettingsReportRoutes'),
+            registerBugReportRoutes: makeRegistrar('registerBugReportRoutes'),
             registerAccountReadRoutes: makeRegistrar('registerAccountReadRoutes'),
             registerAccountManagementRoutes: makeRegistrar('registerAccountManagementRoutes'),
             registerUserCardRoutes: makeRegistrar('registerUserCardRoutes'),
@@ -218,6 +219,7 @@ test('registerAdminFeatureRoutes keeps feature registration order and shared hel
         'registerAccountControlRoutes',
         'registerAccountSettingsRoutes',
         'registerSettingsReportRoutes',
+        'registerBugReportRoutes',
         'registerAccountReadRoutes',
         'registerAccountManagementRoutes',
         'registerUserCardRoutes',
@@ -233,6 +235,7 @@ test('registerAdminFeatureRoutes keeps feature registration order and shared hel
     ]);
     assert.equal(fixture.registerSystemPublicRoutesArgs.handleApiError, routeRuntime.handleApiError);
     assert.equal(fixture.registerSystemPublicRoutesArgs.getAccId, routeRuntime.getAccId);
+    assert.equal(fixture.registerBugReportRoutesArgs.getAccId, routeRuntime.getAccId);
     assert.equal(fixture.registerAnnouncementAdminRoutesArgs.parseUpdateLog, parseUpdateLogFn);
     assert.equal(fixture.registerNotificationsRouteArgs.parseUpdateLog, parseUpdateLogFn);
     assert.equal(fixture.registerTrialCardRoutesArgs.trialRateLimiter, trialRateLimiterFn);
