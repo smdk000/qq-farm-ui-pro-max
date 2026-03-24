@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.32',
+    date: '2026-03-25',
+    title: '帮助中心阅读进度与近期 Release 可见性补强',
+    summary: '新增阅读历史、分类完成度与已读标记，并复核最近几版 Release / 帮助中心 / 公告链路可用性。',
+  },
+  {
     version: 'v4.5.31',
     date: '2026-03-25',
     title: '近期优化汇总与更新公告链路补齐',

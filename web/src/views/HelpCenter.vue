@@ -35,6 +35,8 @@ const { copyText } = useCopyInteraction({
 const ARTICLE_QUERY_KEY = 'article'
 const AUDIENCE_QUERY_KEY = 'audience'
 const SECTION_QUERY_KEY = 'section'
+const HELP_VISITED_ARTICLES_STORAGE_KEY = 'help_center_visited_articles'
+const HELP_PINNED_ARTICLES_STORAGE_KEY = 'help_center_pinned_articles'
 const searchQuery = ref('')
 const selectedArticleId = ref(helpArticles[0]?.id || '')
 const expandedCategory = ref(helpCategories[0]?.name || '')
@@ -45,6 +47,8 @@ const currentArticleContent = ref<ResolvedHelpArticle | null>(null)
 const currentArticleLoading = ref(false)
 const searchIndexState = ref<'idle' | 'loading' | 'ready'>('idle')
 const searchIndexedArticles = ref<Record<string, ResolvedHelpArticle>>({})
+const visitedArticleIds = ref<string[]>([])
+const pinnedArticleIds = ref<string[]>([])
 const articleBodyReadyTick = ref(0)
 const isSidebarSummaryExpanded = ref(false)
 const isMiniMapExpanded = ref(false)
@@ -89,6 +93,76 @@ function normalizeAudienceQuery(value: unknown): HelpAudienceFilter {
 
 function normalizeSectionQuery(value: unknown) {
   return String(Array.isArray(value) ? value[0] : value || '').trim()
+}
+
+function normalizeVisitedArticleIds(value: unknown) {
+  if (!Array.isArray(value))
+    return []
+
+  const knownIds = new Set(helpArticles.map(article => article.id))
+  return [...new Set(
+    value
+      .map(item => String(item || '').trim())
+      .filter(id => id && knownIds.has(id)),
+  )]
+}
+
+function normalizePinnedArticleIds(value: unknown) {
+  if (!Array.isArray(value))
+    return []
+
+  const knownIds = new Set(helpArticles.map(article => article.id))
+  return [...new Set(
+    value
+      .map(item => String(item || '').trim())
+      .filter(id => id && knownIds.has(id)),
+  )]
+}
+
+function readVisitedArticleIds() {
+  if (typeof window === 'undefined')
+    return []
+
+  try {
+    return normalizeVisitedArticleIds(JSON.parse(window.localStorage.getItem(HELP_VISITED_ARTICLES_STORAGE_KEY) || '[]'))
+  }
+  catch {
+    return []
+  }
+}
+
+function writeVisitedArticleIds(articleIds: string[]) {
+  if (typeof window === 'undefined')
+    return
+
+  try {
+    window.localStorage.setItem(HELP_VISITED_ARTICLES_STORAGE_KEY, JSON.stringify(normalizeVisitedArticleIds(articleIds)))
+  }
+  catch {
+  }
+}
+
+function readPinnedArticleIds() {
+  if (typeof window === 'undefined')
+    return []
+
+  try {
+    return normalizePinnedArticleIds(JSON.parse(window.localStorage.getItem(HELP_PINNED_ARTICLES_STORAGE_KEY) || '[]'))
+  }
+  catch {
+    return []
+  }
+}
+
+function writePinnedArticleIds(articleIds: string[]) {
+  if (typeof window === 'undefined')
+    return
+
+  try {
+    window.localStorage.setItem(HELP_PINNED_ARTICLES_STORAGE_KEY, JSON.stringify(normalizePinnedArticleIds(articleIds)))
+  }
+  catch {
+  }
 }
 
 function syncSelectedArticle(articleId: string, options: { updateRoute?: boolean, clearSearch?: boolean, sectionId?: string } = {}) {
@@ -173,6 +247,47 @@ watch(() => route.query[SECTION_QUERY_KEY], (nextSection) => {
 const currentArticle = computed<HelpArticle | null>(() => {
   return findArticle(selectedArticleId.value)
 })
+
+const visitedArticleIdSet = computed(() => new Set(visitedArticleIds.value))
+const pinnedArticleIdSet = computed(() => new Set(pinnedArticleIds.value))
+
+function hasVisitedArticle(articleId: string) {
+  return visitedArticleIdSet.value.has(articleId)
+}
+
+function hasPinnedArticle(articleId: string) {
+  return pinnedArticleIdSet.value.has(articleId)
+}
+
+function markArticleVisited(articleId: string) {
+  const normalized = String(articleId || '').trim()
+  if (!normalized)
+    return
+
+  const nextIds = normalizeVisitedArticleIds([
+    ...visitedArticleIds.value.filter(id => id !== normalized),
+    normalized,
+  ])
+  visitedArticleIds.value = nextIds
+  writeVisitedArticleIds(nextIds)
+}
+
+function togglePinnedArticle(articleId: string = selectedArticleId.value) {
+  const normalized = String(articleId || '').trim()
+  if (!normalized)
+    return
+
+  if (pinnedArticleIdSet.value.has(normalized)) {
+    const nextIds = pinnedArticleIds.value.filter(id => id !== normalized)
+    pinnedArticleIds.value = nextIds
+    writePinnedArticleIds(nextIds)
+    return
+  }
+
+  const nextIds = normalizePinnedArticleIds([normalized, ...pinnedArticleIds.value])
+  pinnedArticleIds.value = nextIds
+  writePinnedArticleIds(nextIds)
+}
 
 function getIndexedArticle(article: HelpArticle | null) {
   if (!article)
@@ -292,13 +407,41 @@ const mustReadRecommendations = computed(() => {
 
 const featuredRecommendations = computed(() => mustReadRecommendations.value.slice(0, 3))
 
+const recentHistoryArticles = computed(() => {
+  const visibleArticleMap = new Map(filteredArticles.value.map(article => [article.id, article]))
+
+  return [...visitedArticleIds.value]
+    .reverse()
+    .map(articleId => visibleArticleMap.get(articleId))
+    .filter((article): article is HelpArticle => !!article)
+    .slice(0, 4)
+})
+
+const pinnedArticles = computed(() => {
+  const visibleArticleMap = new Map(filteredArticles.value.map(article => [article.id, article]))
+
+  return pinnedArticleIds.value
+    .map(articleId => visibleArticleMap.get(articleId))
+    .filter((article): article is HelpArticle => !!article)
+    .slice(0, 4)
+})
+
 const categoryCards = computed(() => {
   return helpCategories
-    .map(category => ({
-      ...category,
-      expanded: expandedCategory.value === category.name,
-      items: filteredArticles.value.filter(article => article.category === category.name),
-    }))
+    .map((category) => {
+      const items = filteredArticles.value.filter(article => article.category === category.name)
+      const visitedCount = items.filter(article => visitedArticleIdSet.value.has(article.id)).length
+      const completionPercent = items.length ? Math.round((visitedCount / items.length) * 100) : 0
+
+      return {
+        ...category,
+        expanded: expandedCategory.value === category.name,
+        items,
+        visitedCount,
+        completionPercent,
+        completed: items.length > 0 && visitedCount === items.length,
+      }
+    })
     .filter(category => category.items.length > 0)
 })
 
@@ -744,6 +887,10 @@ function copyCurrentArticleLink() {
 function handleStorageChange(event: StorageEvent) {
   if (event.key === 'current_user')
     currentUserRole.value = readCurrentUserRole()
+  if (event.key === HELP_VISITED_ARTICLES_STORAGE_KEY)
+    visitedArticleIds.value = readVisitedArticleIds()
+  if (event.key === HELP_PINNED_ARTICLES_STORAGE_KEY)
+    pinnedArticleIds.value = readPinnedArticleIds()
 }
 
 function handleArticleBodyReady(articleId: string) {
@@ -793,6 +940,7 @@ watch(() => currentArticle.value?.id, (articleId) => {
     return
   }
 
+  markArticleVisited(articleId)
   void ensureCurrentArticleLoaded(articleId)
 }, { immediate: true })
 
@@ -842,6 +990,12 @@ watch(
 onMounted(() => {
   appStore.fetchUIConfig()
   currentUserRole.value = readCurrentUserRole()
+  visitedArticleIds.value = normalizeVisitedArticleIds([
+    ...readVisitedArticleIds(),
+    selectedArticleId.value,
+  ])
+  pinnedArticleIds.value = readPinnedArticleIds()
+  writeVisitedArticleIds(visitedArticleIds.value)
   window.addEventListener('storage', handleStorageChange)
   window.addEventListener('resize', updateNavOverflow)
   const normalized = normalizeArticleQuery(route.query[ARTICLE_QUERY_KEY])
@@ -945,13 +1099,23 @@ onBeforeUnmount(() => {
             <div v-if="activeCategoryCard" class="help-nav-status">
               <div class="help-nav-status__meta">
                 <span class="help-nav-status__eyebrow">当前分类</span>
-                <button
-                  type="button"
-                  class="help-nav-status__action"
-                  @click="focusActiveCategory"
-                >
-                  定位当前
-                </button>
+                <div class="help-nav-status__actions">
+                  <button
+                    v-if="currentArticle"
+                    type="button"
+                    class="help-nav-status__action"
+                    @click="togglePinnedArticle(currentArticle.id)"
+                  >
+                    {{ hasPinnedArticle(currentArticle.id) ? '取消收藏' : '收藏当前' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="help-nav-status__action"
+                    @click="focusActiveCategory"
+                  >
+                    定位当前
+                  </button>
+                </div>
               </div>
 
               <div class="help-nav-status__row">
@@ -1033,6 +1197,52 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
+
+              <div v-if="currentArticle || pinnedArticles.length" class="help-nav-pins">
+                <div class="help-nav-pins__header">
+                  <span class="help-nav-pins__eyebrow">收藏置顶</span>
+                  <span class="help-nav-pins__count">{{ pinnedArticles.length }} 篇</span>
+                </div>
+
+                <p v-if="!pinnedArticles.length" class="help-nav-pins__empty">
+                  把常看的文档固定到这里，后面回看会更快。
+                </p>
+
+                <div v-else class="help-nav-pins__track">
+                  <button
+                    v-for="article in pinnedArticles"
+                    :key="`pin-${article.id}`"
+                    type="button"
+                    class="help-nav-pins__item"
+                    :class="{ 'help-nav-pins__item--active': selectedArticleId === article.id && !isSearching }"
+                    @click="syncSelectedArticle(article.id)"
+                  >
+                    <div class="i-carbon-star-filled help-nav-pins__icon" />
+                    <span class="help-nav-pins__title">{{ article.title }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="recentHistoryArticles.length > 1" class="help-nav-history">
+                <div class="help-nav-history__header">
+                  <span class="help-nav-history__eyebrow">最近阅读</span>
+                  <span class="help-nav-history__count">{{ recentHistoryArticles.length }} 篇</span>
+                </div>
+
+                <div class="help-nav-history__track">
+                  <button
+                    v-for="article in recentHistoryArticles"
+                    :key="`history-${article.id}`"
+                    type="button"
+                    class="help-nav-history__item"
+                    :class="{ 'help-nav-history__item--active': selectedArticleId === article.id && !isSearching }"
+                    @click="syncSelectedArticle(article.id)"
+                  >
+                    <div class="text-sm" :class="article.icon" />
+                    <span class="help-nav-history__title">{{ article.title }}</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="help-nav-viewport">
@@ -1047,7 +1257,10 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="help-nav-group__button"
-                    :class="{ 'help-nav-group__button--active': category.expanded }"
+                    :class="{
+                      'help-nav-group__button--active': category.expanded,
+                      'help-nav-group__button--completed': category.completed,
+                    }"
                     :data-help-category="category.name"
                     @click="toggleCategory(category.name)"
                   >
@@ -1063,12 +1276,17 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                     <div class="help-nav-group__trailing">
-                      <div class="help-nav-group__count">
-                        {{ category.items.length }}
+                      <div class="help-nav-group__count" :class="{ 'help-nav-group__count--progress': category.visitedCount > 0 }">
+                        {{ category.visitedCount ? `${category.visitedCount}/${category.items.length}` : category.items.length }}
                       </div>
+                      <div v-if="category.completed" class="i-carbon-checkmark-filled help-nav-group__done" />
                       <div class="i-carbon-chevron-down help-nav-group__chevron" :class="{ 'help-nav-group__chevron--active': category.expanded }" />
                     </div>
                   </button>
+
+                  <div v-if="category.visitedCount > 0" class="help-nav-group__progress">
+                    <div class="help-nav-group__progress-value" :style="{ width: `${category.completionPercent}%` }" />
+                  </div>
 
                   <transition
                     enter-active-class="transition-all duration-250 ease-out overflow-hidden"
@@ -1084,12 +1302,21 @@ onBeforeUnmount(() => {
                         :key="article.id"
                         type="button"
                         class="help-nav-item"
-                        :class="{ 'help-nav-item--active': selectedArticleId === article.id && !isSearching }"
+                        :class="{
+                          'help-nav-item--active': selectedArticleId === article.id && !isSearching,
+                          'help-nav-item--visited': hasVisitedArticle(article.id),
+                        }"
                         :data-help-article-id="article.id"
                         @click="syncSelectedArticle(article.id)"
                       >
-                        <div class="text-base" :class="article.icon" />
-                        <span class="help-nav-item__label">{{ article.title }}</span>
+                        <div class="help-nav-item__main">
+                          <div class="text-base" :class="article.icon" />
+                          <span class="help-nav-item__label">{{ article.title }}</span>
+                        </div>
+                        <div v-if="hasPinnedArticle(article.id) || hasVisitedArticle(article.id)" class="help-nav-item__indicators">
+                          <div v-if="hasPinnedArticle(article.id)" class="i-carbon-star-filled help-nav-item__indicator help-nav-item__indicator--pinned" />
+                          <div v-if="hasVisitedArticle(article.id)" class="i-carbon-checkmark help-nav-item__indicator help-nav-item__indicator--visited" />
+                        </div>
                       </button>
                     </div>
                   </transition>
@@ -2169,6 +2396,12 @@ onBeforeUnmount(() => {
   gap: 0.6rem;
 }
 
+.help-nav-status__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .help-nav-status__eyebrow {
   color: var(--ui-text-2);
   font-size: 0.65rem;
@@ -2503,6 +2736,182 @@ onBeforeUnmount(() => {
   font-weight: 800;
 }
 
+.help-nav-pins {
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+  margin-top: 0.08rem;
+  padding-top: 0.52rem;
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+}
+
+.help-nav-pins__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.help-nav-pins__eyebrow {
+  color: var(--ui-text-2);
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.help-nav-pins__count,
+.help-nav-pins__empty {
+  color: var(--ui-text-2);
+}
+
+.help-nav-pins__count {
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.help-nav-pins__empty {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.help-nav-pins__track {
+  display: flex;
+  gap: 0.42rem;
+  overflow-x: auto;
+  padding: 0.02rem 0.02rem 0.08rem;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.help-nav-pins__track::-webkit-scrollbar {
+  display: none;
+}
+
+.help-nav-pins__item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  max-width: 10.5rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 92%, transparent);
+  border-radius: 999px;
+  padding: 0.34rem 0.58rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 90%, transparent);
+  color: var(--ui-text-2);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition:
+    transform var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease;
+}
+
+.help-nav-pins__item:hover,
+.help-nav-pins__item--active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle) 72%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 72%, var(--ui-bg-surface) 28%);
+  color: var(--ui-text-1);
+}
+
+.help-nav-pins__icon {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--ui-status-warning) 72%, var(--ui-brand-700) 28%);
+  font-size: 0.8rem;
+}
+
+.help-nav-pins__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.help-nav-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+  margin-top: 0.08rem;
+  padding-top: 0.52rem;
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+}
+
+.help-nav-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.help-nav-history__eyebrow {
+  color: var(--ui-text-2);
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.help-nav-history__count {
+  color: var(--ui-text-2);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.help-nav-history__track {
+  display: flex;
+  gap: 0.42rem;
+  overflow-x: auto;
+  padding: 0.02rem 0.02rem 0.08rem;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.help-nav-history__track::-webkit-scrollbar {
+  display: none;
+}
+
+.help-nav-history__item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  max-width: 10.5rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 92%, transparent);
+  border-radius: 999px;
+  padding: 0.34rem 0.58rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 90%, transparent);
+  color: var(--ui-text-2);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition:
+    transform var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease;
+}
+
+.help-nav-history__item:hover,
+.help-nav-history__item--active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle) 72%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 72%, var(--ui-bg-surface) 28%);
+  color: var(--ui-text-1);
+}
+
+.help-nav-history__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .help-nav-viewport {
   position: relative;
   min-height: 0;
@@ -2667,6 +3076,10 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, var(--ui-brand-500), var(--ui-brand-700));
 }
 
+.help-nav-group__button--completed::before {
+  background: linear-gradient(180deg, var(--ui-status-success), var(--ui-brand-700));
+}
+
 .help-nav-group__title {
   font-size: 0.88rem;
   font-weight: 800;
@@ -2697,6 +3110,17 @@ onBeforeUnmount(() => {
   font-weight: 800;
 }
 
+.help-nav-group__count--progress {
+  min-width: 2.45rem;
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 82%, transparent);
+  color: color-mix(in srgb, var(--ui-brand-700) 72%, var(--ui-text-1) 28%);
+}
+
+.help-nav-group__done {
+  color: color-mix(in srgb, var(--ui-status-success) 72%, var(--ui-brand-700) 28%);
+  font-size: 0.92rem;
+}
+
 .help-nav-group__chevron {
   color: var(--ui-text-2);
   font-size: 0.95rem;
@@ -2708,6 +3132,20 @@ onBeforeUnmount(() => {
 .help-nav-group__chevron--active {
   transform: rotate(180deg);
   color: var(--ui-text-1);
+}
+
+.help-nav-group__progress {
+  height: 0.22rem;
+  margin: 0 0.55rem 0.08rem 0.74rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 90%, transparent);
+}
+
+.help-nav-group__progress-value {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ui-status-success), var(--ui-brand-700));
 }
 
 .help-nav-items {
@@ -2732,7 +3170,8 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 0.58rem;
+  justify-content: space-between;
+  gap: 0.68rem;
   width: 100%;
   border: 1px solid transparent;
   border-radius: 0.82rem;
@@ -2747,6 +3186,14 @@ onBeforeUnmount(() => {
     border-color var(--ui-motion-fast) ease,
     color var(--ui-motion-fast) ease,
     background-color var(--ui-motion-fast) ease;
+}
+
+.help-nav-item__main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.58rem;
+  flex: 1 1 auto;
 }
 
 .help-nav-item::before {
@@ -2767,6 +3214,10 @@ onBeforeUnmount(() => {
   color: var(--ui-text-1);
 }
 
+.help-nav-item--visited:not(.help-nav-item--active) {
+  color: var(--ui-text-1);
+}
+
 .help-nav-item--active {
   box-shadow:
     0 10px 24px color-mix(in srgb, var(--ui-brand-500) 10%, transparent),
@@ -2779,6 +3230,46 @@ onBeforeUnmount(() => {
   white-space: normal;
   word-break: break-word;
   line-height: 1.42;
+}
+
+.help-nav-item__visited-indicator {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 82%, transparent);
+  color: color-mix(in srgb, var(--ui-status-success) 72%, var(--ui-brand-700) 28%);
+  font-size: 0.7rem;
+}
+
+.help-nav-item__indicators {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.help-nav-item__indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+}
+
+.help-nav-item__indicator--visited {
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 82%, transparent);
+  color: color-mix(in srgb, var(--ui-status-success) 72%, var(--ui-brand-700) 28%);
+}
+
+.help-nav-item__indicator--pinned {
+  background: color-mix(in srgb, var(--ui-status-warning) 18%, var(--ui-bg-surface) 82%);
+  color: color-mix(in srgb, var(--ui-status-warning) 72%, var(--ui-brand-700) 28%);
 }
 
 .help-nav-item--active::before {
