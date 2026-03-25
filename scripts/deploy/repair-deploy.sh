@@ -107,6 +107,13 @@ copy_file_if_needed() {
     cp "${source_path}" "${target_path}"
 }
 
+canonicalize_dir() {
+    local dir="$1"
+    if [ -d "${dir}" ]; then
+        (cd "${dir}" && pwd -P)
+    fi
+}
+
 download_file() {
     local remote_path="$1"
     local target_path="$2"
@@ -115,19 +122,20 @@ download_file() {
 
 resolve_deploy_dir() {
     if [ -f "${DEPLOY_DIR}/docker-compose.yml" ] || [ -f "${DEPLOY_DIR}/.env" ]; then
+        DEPLOY_DIR="$(canonicalize_dir "${DEPLOY_DIR}")"
         return 0
     fi
 
     if [ -L "${CURRENT_LINK}" ] || [ -d "${CURRENT_LINK}" ]; then
         if [ -f "${CURRENT_LINK}/docker-compose.yml" ] || [ -f "${CURRENT_LINK}/.env" ]; then
-            DEPLOY_DIR="${CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${CURRENT_LINK}")"
             return 0
         fi
     fi
 
     if [ -n "${LEGACY_CURRENT_LINK}" ] && { [ -L "${LEGACY_CURRENT_LINK}" ] || [ -d "${LEGACY_CURRENT_LINK}" ]; }; then
         if [ -f "${LEGACY_CURRENT_LINK}/docker-compose.yml" ] || [ -f "${LEGACY_CURRENT_LINK}/.env" ]; then
-            DEPLOY_DIR="${LEGACY_CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${LEGACY_CURRENT_LINK}")"
             return 0
         fi
     fi
@@ -181,11 +189,13 @@ backup_bundle() {
 
 mark_current_release() {
     local current_parent
+    local target_dir
     current_parent="$(dirname "${CURRENT_LINK}")"
+    target_dir="$(canonicalize_dir "${DEPLOY_DIR}")"
     mkdir -p "${current_parent}"
-    ln -sfn "${DEPLOY_DIR}" "${CURRENT_LINK}"
+    ln -sfn "${target_dir}" "${CURRENT_LINK}"
     if [ -n "${LEGACY_CURRENT_LINK}" ] && [ "${LEGACY_CURRENT_LINK}" != "${CURRENT_LINK}" ]; then
-        ln -sfn "${DEPLOY_DIR}" "${LEGACY_CURRENT_LINK}"
+        ln -sfn "${target_dir}" "${LEGACY_CURRENT_LINK}"
     fi
 }
 

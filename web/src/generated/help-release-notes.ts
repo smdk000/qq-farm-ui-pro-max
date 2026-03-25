@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.36',
+    date: '2026-03-25',
+    title: '远程更新软链热修复与服务器安装兜底',
+    summary: '修复 `repair-deploy.sh / update-app.sh` 在 current 链接路径下可能写出自指软链的问题，并统一更新代理与修库脚本的真实目录解析。',
+  },
+  {
     version: 'v4.5.35',
     date: '2026-03-25',
     title: '系统更新中心远程更新闭环与 smoke 自检',

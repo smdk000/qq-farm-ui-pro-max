@@ -40,7 +40,7 @@ MYSQL_SERVICE_NAME="${MYSQL_SERVICE_NAME:-mysql}"
 MYSQL_USER="${MYSQL_USER:-qq_farm_user}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-qq007qq008}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-qq_farm}"
-APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.35}"
+APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.36}"
 UPDATE_DEFAULT_DRAIN_NODE_IDS="${UPDATE_DEFAULT_DRAIN_NODE_IDS:-}"
 DRAIN_WAIT_TIMEOUT="${DRAIN_WAIT_TIMEOUT:-300}"
 DRAIN_WAIT_INTERVAL="${DRAIN_WAIT_INTERVAL:-5}"
@@ -140,6 +140,13 @@ ensure_docker() {
     }
 }
 
+canonicalize_dir() {
+    local dir="$1"
+    if [ -d "${dir}" ]; then
+        (cd "${dir}" && pwd -P)
+    fi
+}
+
 load_deploy_env() {
     local file="$1"
     if [ -f "${file}" ]; then
@@ -154,13 +161,14 @@ load_deploy_env() {
 
 resolve_deploy_dir() {
     if [ -f "${DEPLOY_DIR}/docker-compose.yml" ]; then
+        DEPLOY_DIR="$(canonicalize_dir "${DEPLOY_DIR}")"
         load_deploy_env "${DEPLOY_DIR}/.env"
         return 0
     fi
 
     if [ -L "${CURRENT_LINK}" ] || [ -d "${CURRENT_LINK}" ]; then
         if [ -f "${CURRENT_LINK}/docker-compose.yml" ]; then
-            DEPLOY_DIR="${CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${CURRENT_LINK}")"
             load_deploy_env "${DEPLOY_DIR}/.env"
             return 0
         fi
@@ -743,7 +751,7 @@ main() {
     APP_SERVICE="${APP_SERVICE:-qq-farm-bot}"
     COMPOSE_APP_SERVICE="${COMPOSE_APP_SERVICE:-${APP_SERVICE}}"
     MYSQL_SERVICE_NAME="${MYSQL_SERVICE_NAME:-mysql}"
-    APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.35}"
+    APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.36}"
     refresh_managed_node_ids
     ensure_agent_log_dir
 

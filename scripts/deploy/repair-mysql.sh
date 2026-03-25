@@ -124,22 +124,30 @@ ensure_docker() {
     }
 }
 
+canonicalize_dir() {
+    local dir="$1"
+    if [ -d "${dir}" ]; then
+        (cd "${dir}" && pwd -P)
+    fi
+}
+
 resolve_deploy_dir() {
     if [ -f "${DEPLOY_DIR}/docker-compose.yml" ]; then
+        DEPLOY_DIR="$(canonicalize_dir "${DEPLOY_DIR}")"
         load_deploy_env "${DEPLOY_DIR}/.env"
         return 0
     fi
 
     if [ -L "${CURRENT_LINK}" ] || [ -d "${CURRENT_LINK}" ]; then
         if [ -f "${CURRENT_LINK}/docker-compose.yml" ]; then
-            DEPLOY_DIR="${CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${CURRENT_LINK}")"
             return 0
         fi
     fi
 
     if [ -n "${LEGACY_CURRENT_LINK}" ] && { [ -L "${LEGACY_CURRENT_LINK}" ] || [ -d "${LEGACY_CURRENT_LINK}" ]; }; then
         if [ -f "${LEGACY_CURRENT_LINK}/docker-compose.yml" ]; then
-            DEPLOY_DIR="${LEGACY_CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${LEGACY_CURRENT_LINK}")"
             load_deploy_env "${DEPLOY_DIR}/.env"
             return 0
         fi

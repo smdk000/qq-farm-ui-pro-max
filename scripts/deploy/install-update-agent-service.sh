@@ -108,8 +108,16 @@ run_root() {
     fi
 }
 
+canonicalize_dir() {
+    local dir="$1"
+    if [ -d "${dir}" ]; then
+        (cd "${dir}" && pwd -P)
+    fi
+}
+
 resolve_deploy_dir() {
     if [ -f "${DEPLOY_DIR}/update-agent.sh" ]; then
+        DEPLOY_DIR="$(canonicalize_dir "${DEPLOY_DIR}")"
         if [ -f "${DEPLOY_DIR}/.env" ]; then
             set -a
             # shellcheck disable=SC1090
@@ -122,7 +130,7 @@ resolve_deploy_dir() {
 
     if [ -L "${CURRENT_LINK}" ] || [ -d "${CURRENT_LINK}" ]; then
         if [ -f "${CURRENT_LINK}/update-agent.sh" ]; then
-            DEPLOY_DIR="${CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${CURRENT_LINK}")"
             return 0
         fi
     fi

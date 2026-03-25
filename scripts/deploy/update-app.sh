@@ -263,13 +263,22 @@ copy_file_if_needed() {
     cp "${source_path}" "${target_path}"
 }
 
+canonicalize_dir() {
+    local dir="$1"
+    if [ -d "${dir}" ]; then
+        (cd "${dir}" && pwd -P)
+    fi
+}
+
 mark_current_release() {
     local current_parent
+    local target_dir
     current_parent="$(dirname "${CURRENT_LINK}")"
+    target_dir="$(canonicalize_dir "${DEPLOY_DIR}")"
     mkdir -p "${current_parent}"
-    ln -sfn "${DEPLOY_DIR}" "${CURRENT_LINK}"
+    ln -sfn "${target_dir}" "${CURRENT_LINK}"
     if [ -n "${LEGACY_CURRENT_LINK}" ] && [ "${LEGACY_CURRENT_LINK}" != "${CURRENT_LINK}" ]; then
-        ln -sfn "${DEPLOY_DIR}" "${LEGACY_CURRENT_LINK}"
+        ln -sfn "${target_dir}" "${LEGACY_CURRENT_LINK}"
     fi
 }
 
@@ -801,20 +810,21 @@ run_announcement_check_if_available() {
 
 resolve_deploy_dir() {
     if [ -f "${DEPLOY_DIR}/docker-compose.yml" ]; then
+        DEPLOY_DIR="$(canonicalize_dir "${DEPLOY_DIR}")"
         load_deploy_env "${DEPLOY_DIR}/.env"
         return 0
     fi
 
     if [ -L "${CURRENT_LINK}" ] || [ -d "${CURRENT_LINK}" ]; then
         if [ -f "${CURRENT_LINK}/docker-compose.yml" ]; then
-            DEPLOY_DIR="${CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${CURRENT_LINK}")"
             return 0
         fi
     fi
 
     if [ -n "${LEGACY_CURRENT_LINK}" ] && { [ -L "${LEGACY_CURRENT_LINK}" ] || [ -d "${LEGACY_CURRENT_LINK}" ]; }; then
         if [ -f "${LEGACY_CURRENT_LINK}/docker-compose.yml" ]; then
-            DEPLOY_DIR="${LEGACY_CURRENT_LINK}"
+            DEPLOY_DIR="$(canonicalize_dir "${LEGACY_CURRENT_LINK}")"
             return 0
         fi
     fi
@@ -1173,7 +1183,7 @@ NODE
 }
 
 compose_pull_with_retry() {
-    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.35}"
+    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.36}"
 
     if is_truthy "${SKIP_DOCKER_PULL}"; then
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过主程序镜像拉取，直接使用本地镜像。"
