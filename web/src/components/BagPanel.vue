@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import type { BagPreferencesPayload } from '@/utils/bag-preference-sync'
 import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { BagPreferencesPayload } from '@/utils/bag-preference-sync'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseEmptyState from '@/components/ui/BaseEmptyState.vue'
 import BaseFilterChip from '@/components/ui/BaseFilterChip.vue'
@@ -15,7 +15,7 @@ import { useFarmStore } from '@/stores/farm'
 import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
 import { useToastStore } from '@/stores/toast'
-import { getBagPreferencesSyncState, hasBagPreferencesData, resolveBagPreferencesHydrationMode, setBagPreferencesSyncState } from '@/utils/bag-preference-sync'
+import { getBagPreferencesSyncState, resolveBagPreferencesHydrationMode, setBagPreferencesSyncState } from '@/utils/bag-preference-sync'
 import { buildTradeSellConfigFromDraft, buildTradeSellStrategyDraft, normalizeTradeKeepFruitIds } from '@/utils/trade-config'
 
 const router = useRouter()

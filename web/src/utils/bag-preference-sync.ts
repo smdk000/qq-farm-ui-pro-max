@@ -79,8 +79,8 @@ function writeBagPreferencesSyncStateMap(
 
 export function hasBagPreferencesData(payload: BagPreferencesPayload | null | undefined) {
   return !!payload && (
-    !!payload.purchaseMemory && Object.keys(payload.purchaseMemory).length > 0
-    || !!payload.activityHistory && Array.isArray(payload.activityHistory) && payload.activityHistory.length > 0
+    (!!payload.purchaseMemory && Object.keys(payload.purchaseMemory).length > 0)
+    || (!!payload.activityHistory && Array.isArray(payload.activityHistory) && payload.activityHistory.length > 0)
   )
 }
 
