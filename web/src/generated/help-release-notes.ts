@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.37',
+    date: '2026-03-25',
+    title: '更新入口容器直连热修复',
+    summary: '更新脚本、更新代理和核验脚本改为优先直连显式容器名执行 `node` 侧探针，修复 Compose project 名受目录/软链影响时误判服务未运行的问题。',
+  },
+  {
     version: 'v4.5.36',
     date: '2026-03-25',
     title: '远程更新软链热修复与服务器安装兜底',

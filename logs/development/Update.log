@@ -1,3 +1,9 @@
+2026-03-25 更新入口容器直连热修复 前端：v4.5.37 后端：v4.5.37
+  - 🩹 [更新] `update-app.sh` 改为优先通过显式容器名执行重登录风险检查、更新桥接和管理员密码同步，不再依赖 `docker compose exec` 的 project 名推断。
+  - 🔄 [代理] `update-agent.sh` 与 `verify-stack.sh` 也同步切到容器直连，旧服务器上的远程更新代理和核验链路更稳。
+  - 🚀 [首装] `fresh-install.sh` 的管理员密码同步执行口径与更新链路统一，首装/核验/更新不再因为目录不同而出现分叉。
+  - 🔖 [版本] `core / web` 包版本、README、部署模板和默认镜像标签已统一抬升到 `v4.5.37`。
+
 2026-03-25 远程更新软链热修复与服务器安装兜底 前端：v4.5.36 后端：v4.5.36
   - 🩹 [部署] 修复 `repair-deploy.sh`、`update-app.sh` 在 current 软链路径下可能回写出自指链接的问题，旧服务器修复/升级不再把 `/opt/qq-farm-current` 写坏。
   - 🔄 [运维] `update-agent.sh`、`install-update-agent-service.sh`、`repair-mysql.sh` 统一改为解析真实部署目录，代理安装、修库和更新链路对软链更稳。

@@ -111,12 +111,33 @@ should_report_update_phase() {
     [ "${UPDATE_ENABLE_PHASE_REPORTING:-0}" = "1" ] && [ -n "${UPDATE_AGENT_JOB_ID:-}" ]
 }
 
+app_container_exec() {
+    local env_args=()
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -e)
+                env_args+=(-e "${2:-}")
+                shift 2
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    "${DOCKER[@]}" exec -i "${env_args[@]}" "${APP_CONTAINER_NAME}" "$@"
+}
+
 run_update_bridge() {
-    "${DOCKER[@]}" compose exec -T \
+    app_container_exec \
         -e LOG_LEVEL=error \
         -e FARM_FALLBACK_CONSOLE_LEVEL=silent \
         -e UPDATE_AGENT_ID="${UPDATE_AGENT_ID:-}" \
-        "${COMPOSE_APP_SERVICE}" \
+        -- \
         node scripts/update-agent-bridge.js "$@"
 }
 
@@ -1061,7 +1082,7 @@ check_running_login_code_restart_risk() {
     fi
 
     print_info "检查运行中账号的重登录风险..."
-    if ! probe_output="$("${DOCKER[@]}" compose exec -T "${COMPOSE_APP_SERVICE}" node - <<'NODE'
+    if ! probe_output="$(app_container_exec -- node - <<'NODE'
 const { initMysql, getPool } = require('./src/services/mysql-db');
 
 (async () => {
@@ -1137,7 +1158,7 @@ apply_admin_password_override() {
     fi
 
     print_info "检测到显式 ADMIN_PASSWORD，正在同步 admin 账号密码..."
-    "${DOCKER[@]}" compose exec -T -e ADMIN_PASSWORD="${ADMIN_PASSWORD_OVERRIDE}" "${COMPOSE_APP_SERVICE}" node - <<'NODE'
+    app_container_exec -e ADMIN_PASSWORD="${ADMIN_PASSWORD_OVERRIDE}" -- node - <<'NODE'
 const password = String(process.env.ADMIN_PASSWORD || '');
 if (!password) {
     process.exit(0);
@@ -1183,7 +1204,7 @@ NODE
 }
 
 compose_pull_with_retry() {
-    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.36}"
+    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.37}"
 
     if is_truthy "${SKIP_DOCKER_PULL}"; then
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过主程序镜像拉取，直接使用本地镜像。"

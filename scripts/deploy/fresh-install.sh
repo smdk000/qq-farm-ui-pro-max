@@ -1005,7 +1005,7 @@ pull_required_images() {
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过镜像拉取，直接使用本地镜像。"
     fi
 
-    local requested_app_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.36}"
+    local requested_app_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.37}"
     local image=""
 
     resolve_app_image "${requested_app_image}" || return 1
@@ -1072,7 +1072,7 @@ apply_admin_password_override() {
     fi
 
     print_info "检测到显式 ADMIN_PASSWORD，正在同步 admin 账号密码..."
-    "${DOCKER[@]}" compose exec -T -e ADMIN_PASSWORD="${ADMIN_PASSWORD_OVERRIDE}" "${APP_SERVICE}" node - <<'NODE'
+    "${DOCKER[@]}" exec -i -e ADMIN_PASSWORD="${ADMIN_PASSWORD_OVERRIDE}" "${APP_CONTAINER_NAME}" node - <<'NODE'
 const password = String(process.env.ADMIN_PASSWORD || '');
 if (!password) {
     process.exit(0);

@@ -4,6 +4,8 @@ set -Eeuo pipefail
 
 APP_SERVICE="${APP_SERVICE:-qq-farm-bot}"
 COMPOSE_APP_SERVICE="${COMPOSE_APP_SERVICE:-${APP_SERVICE}}"
+APP_CONTAINER_NAME_INPUT="${APP_CONTAINER_NAME:-}"
+APP_CONTAINER_NAME="${APP_CONTAINER_NAME_INPUT:-${STACK_NAME}-bot}"
 DEPLOY_DIR="${DEPLOY_DIR:-$(pwd)}"
 DEPLOY_BASE_DIR="${DEPLOY_BASE_DIR:-/opt}"
 STACK_NAME="${STACK_NAME:-qq-farm}"
@@ -40,19 +42,23 @@ MYSQL_SERVICE_NAME="${MYSQL_SERVICE_NAME:-mysql}"
 MYSQL_USER="${MYSQL_USER:-qq_farm_user}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-qq007qq008}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-qq_farm}"
-APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.36}"
+APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.37}"
 UPDATE_DEFAULT_DRAIN_NODE_IDS="${UPDATE_DEFAULT_DRAIN_NODE_IDS:-}"
 DRAIN_WAIT_TIMEOUT="${DRAIN_WAIT_TIMEOUT:-300}"
 DRAIN_WAIT_INTERVAL="${DRAIN_WAIT_INTERVAL:-5}"
 UPDATE_AGENT_MANAGED_NODE_IDS="${UPDATE_AGENT_MANAGED_NODE_IDS:-${WORKER_NODE_ID:-}}"
 CURRENT_LINK_EXPLICIT=0
 AGENT_ID_EXPLICIT=0
+APP_CONTAINER_NAME_EXPLICIT=0
 
 if [ -n "${CURRENT_LINK_INPUT}" ]; then
     CURRENT_LINK_EXPLICIT=1
 fi
 if [ -n "${AGENT_ID_INPUT}" ]; then
     AGENT_ID_EXPLICIT=1
+fi
+if [ -n "${APP_CONTAINER_NAME_INPUT}" ]; then
+    APP_CONTAINER_NAME_EXPLICIT=1
 fi
 
 print_info() { echo "[INFO] $1"; }
@@ -71,6 +77,9 @@ refresh_stack_layout() {
     STACK_NAME="$(normalize_stack_name "${STACK_NAME:-qq-farm}")"
     if [ "${CURRENT_LINK_EXPLICIT}" != "1" ]; then
         CURRENT_LINK="$(stack_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
+    fi
+    if [ "${APP_CONTAINER_NAME_EXPLICIT}" != "1" ]; then
+        APP_CONTAINER_NAME="$(stack_container_name "${STACK_NAME}" "bot")"
     fi
     if [ "${AGENT_ID_EXPLICIT}" != "1" ]; then
         AGENT_ID="${STACK_NAME}-$(hostname 2>/dev/null || echo host)-update-agent"
@@ -183,12 +192,33 @@ ensure_agent_log_dir() {
     mkdir -p "${AGENT_LOG_DIR}"
 }
 
+app_container_exec() {
+    local env_args=()
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -e)
+                env_args+=(-e "${2:-}")
+                shift 2
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    "${DOCKER[@]}" exec -i "${env_args[@]}" "${APP_CONTAINER_NAME}" "$@"
+}
+
 run_bridge() {
-    "${DOCKER[@]}" compose exec -T \
+    app_container_exec \
         -e LOG_LEVEL=error \
         -e FARM_FALLBACK_CONSOLE_LEVEL=silent \
         -e UPDATE_AGENT_ID="${AGENT_ID}" \
-        "${COMPOSE_APP_SERVICE}" \
+        -- \
         node scripts/update-agent-bridge.js "$@"
 }
 
@@ -751,7 +781,7 @@ main() {
     APP_SERVICE="${APP_SERVICE:-qq-farm-bot}"
     COMPOSE_APP_SERVICE="${COMPOSE_APP_SERVICE:-${APP_SERVICE}}"
     MYSQL_SERVICE_NAME="${MYSQL_SERVICE_NAME:-mysql}"
-    APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.36}"
+    APP_IMAGE="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.37}"
     refresh_managed_node_ids
     ensure_agent_log_dir
 

@@ -328,7 +328,7 @@ app_exec_node() {
     for pair in "$@"; do
         env_args+=(-e "${pair}")
     done
-    "${DOCKER[@]}" compose exec -T "${env_args[@]}" "${COMPOSE_APP_SERVICE}" node -e "${script}"
+    "${DOCKER[@]}" exec -i "${env_args[@]}" "${APP_CONTAINER_NAME}" node -e "${script}"
 }
 
 check_app_service() {
@@ -512,7 +512,7 @@ main() {
     resolve_deploy_dir
     load_deploy_env "${DEPLOY_DIR}/.env"
     WEB_PORT="${WEB_PORT:-3080}"
-    APP_IMAGE="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.36}"
+    APP_IMAGE="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.37}"
     APP_ROLE="${APP_ROLE:-${ROLE:-standalone}}"
     MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-qq007qq008}"
     MYSQL_DATABASE="${MYSQL_DATABASE:-qq_farm}"

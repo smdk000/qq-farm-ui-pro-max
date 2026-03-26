@@ -2,7 +2,7 @@
 
 > 🔴 **醒目提醒：现在扫码登录失效，等其他大佬修复，本仓库暂停更新功能，仅修复bug了。**基于 Node.js 的 QQ 农场自动化工具，支持多账号管理、Web 控制面板、实时日志与数据分析。
 
-![版本](https://img.shields.io/badge/版本-v4.5.36-blue)
+![版本](https://img.shields.io/badge/版本-v4.5.37-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange)
 ![Redis](https://img.shields.io/badge/Redis-6.0-red)
@@ -309,7 +309,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/m
 如需固定镜像版本或覆盖仓库，可在 `.env` 中设置：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.36
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.37
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -364,7 +364,7 @@ bash install-or-update.sh --action update --preserve-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.36
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.37
 
 # 弱网 / 离线环境：先 docker load，再用离线镜像包更新
 bash update-app.sh --image-archive /root/qq-farm-bot-images-amd64.tar.gz
@@ -419,8 +419,8 @@ curl http://localhost:3080/api/ping
 
 - `qq-farm-bot-images-amd64.tar.gz`
 - `qq-farm-bot-images-arm64.tar.gz`
-- `qq-farm-bot-v4.5.36-offline-amd64.tar.gz`
-- `qq-farm-bot-v4.5.36-offline-arm64.tar.gz`
+- `qq-farm-bot-v4.5.37-offline-amd64.tar.gz`
+- `qq-farm-bot-v4.5.37-offline-arm64.tar.gz`
 
 其中 `arm64` 离线包里的 `ipad860` 仍是 `linux/amd64`，目标宿主机需支持 QEMU。
 
@@ -454,7 +454,7 @@ echo $GH_PAT | docker login ghcr.io -u smdk000 --password-stdin
 **使用脚本构建（推荐）**:
 ```bash
 chmod +x scripts/docker/docker-build-multiarch.sh
-./scripts/docker/docker-build-multiarch.sh --version 4.5.36
+./scripts/docker/docker-build-multiarch.sh --version 4.5.37
 ```
 
 **手动构建**:
@@ -462,7 +462,7 @@ chmod +x scripts/docker/docker-build-multiarch.sh
 # 构建并推送到 Docker Hub
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t smdk000/qq-farm-bot-ui:4.5.36 \
+  -t smdk000/qq-farm-bot-ui:4.5.37 \
   -t smdk000/qq-farm-bot-ui:latest \
   -f core/Dockerfile . \
   --push
@@ -470,7 +470,7 @@ docker buildx build \
 # 构建并推送到 GitHub Container Registry
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.36 \
+  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.37 \
   -t ghcr.io/smdk000/qq-farm-ui-pro-max:latest \
   -f core/Dockerfile . \
   --push
@@ -480,7 +480,7 @@ docker buildx build \
 
 ```bash
 chmod +x scripts/release/build-release-assets.sh
-./scripts/release/build-release-assets.sh --version v4.5.36
+./scripts/release/build-release-assets.sh --version v4.5.37
 
 # 产物默认输出到 ./release-assets
 ls release-assets
@@ -490,7 +490,7 @@ ls release-assets
 
 ```bash
 # 查看镜像信息
-docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.36
+docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.37
 
 # Docker Hub 查看
 # https://hub.docker.com/r/smdk000/qq-farm-bot-ui/tags
@@ -724,7 +724,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 
 **维护者**: smdk000
 **最后更新**: 2026-03-25
-**版本**: v4.5.36
+**版本**: v4.5.37
 
 ## 多用户模式
 
@@ -1097,6 +1097,11 @@ ISC License
 ---
 
 ## 🎉 最近更新
+
+### v4.5.37 - 更新入口容器直连热修复 (2026-03-25)
+- ✅ `update-app.sh`、`update-agent.sh`、`verify-stack.sh` 改为优先通过显式容器名执行容器内 Node 探针与桥接，不再依赖 `docker compose exec` 的 project 名推断。
+- ✅ `fresh-install.sh` 的管理员密码同步执行口径也已经统一，首装、核验和更新三条路径不会再因为目录或软链不同而分叉。
+- ✅ `core/package.json`、`web/package.json`、README、部署模板和默认镜像标签已统一抬升到 `v4.5.37`，并会继续同步到帮助中心 Release Notes 与运行态公告。
 
 ### v4.5.36 - 远程更新软链热修复与服务器安装兜底 (2026-03-25)
 - ✅ 修复 `repair-deploy.sh` 与 `update-app.sh` 在 current 软链路径下可能把 `/opt/qq-farm-current` 回写成自指死链的问题，旧服务器修复/升级更稳。
