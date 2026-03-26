@@ -1,3 +1,9 @@
+2026-03-26 无 rg 环境一键自测兼容与发版复核 前端：v4.5.40 后端：v4.5.40
+  - 🩹 [自测] `self-test-install.sh` 现在会在缺少 `rg` 时自动回退到 `grep -E`，精简服务器执行隔离自测时不再打印 `rg: 未找到命令`。
+  - ✅ [服务器] 已在 `aa.smdk000.com` 复跑安装 + 更新隔离自测，两段流程都通过，结束后没有残留 `qq-farm-smoketest-*` 容器和 `/tmp/qq-farm-selftest.*` 临时目录。
+  - 📦 [发布] `core / web` 包版本、README、部署模板、默认镜像标签和离线包示例已统一抬升到 `v4.5.40`。
+  - 🔄 [口径] `CHANGELOG.md`、帮助中心 Release Notes、运行态更新公告与 Docker / GitHub 发版链路会继续保持一致。
+
 2026-03-26 视图偏好脏状态同步与账号选择一致性修复 前端：v4.5.39 后端：v4.5.39
   - 🔐 [鉴权] `settings/theme`、`settings/ui-background/upload`、`settings/offline-reminder` 已统一挂上 `authRequired`，未登录与越权写设置请求会被明确拦截。
   - ♻️ [偏好] 图鉴页与仪表盘视图偏好改成“本地脏状态优先 + 失败后重试补写”，失败后不会再被旧远端快照覆盖，页面卸载时也会补发待提交更新。

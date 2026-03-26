@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.40',
+    date: '2026-03-26',
+    title: '无 rg 环境一键自测兼容与发版复核',
+    summary: '`self-test-install.sh` 在缺少 `rg` 的服务器上会自动回退到 `grep -E`，真实服务器隔离自测再次完整通过且清理干净。',
+  },
+  {
     version: 'v4.5.39',
     date: '2026-03-26',
     title: '视图偏好脏状态同步与账号选择一致性修复',

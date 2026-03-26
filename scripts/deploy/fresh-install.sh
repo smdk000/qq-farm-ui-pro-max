@@ -1007,7 +1007,7 @@ pull_required_images() {
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过镜像拉取，直接使用本地镜像。"
     fi
 
-    local requested_app_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.39}"
+    local requested_app_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.40}"
     local image=""
 
     resolve_app_image "${requested_app_image}" || return 1
