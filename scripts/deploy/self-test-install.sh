@@ -111,7 +111,13 @@ choose_web_port() {
 
 ensure_safe_environment() {
     local existing=""
-    existing="$(docker ps -a --format '{{.Names}}' | rg "^$(normalize_stack_name "${STACK_NAME}")-" || true)"
+    local stack_prefix=""
+    stack_prefix="$(normalize_stack_name "${STACK_NAME}")"
+    if command -v rg >/dev/null 2>&1; then
+        existing="$(docker ps -a --format '{{.Names}}' | rg "^${stack_prefix}-" || true)"
+    else
+        existing="$(docker ps -a --format '{{.Names}}' | grep -E "^${stack_prefix}-" || true)"
+    fi
     if [ -n "${existing}" ]; then
         print_error "检测到现有 qq-farm 容器，拒绝执行自测以避免冲突："
         printf '%s\n' "${existing}"
