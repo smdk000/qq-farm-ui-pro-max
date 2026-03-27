@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import api from '@/api'
 import { useStatusStore } from '@/stores/status'
 import { adminToken } from '@/utils/auth'
@@ -25,10 +25,33 @@ const statusStore = useStatusStore()
 const announcements = ref<Announcement[]>([])
 const show = ref(false)
 const loading = ref(false)
-const expandedIdx = ref<number>(0) // 默认展开第一项
+const expandedAnnouncementId = ref<number | null>(null)
+const hasInitializedExpandedAnnouncement = ref(false)
 const dismissedId = ref('')
+const listRef = ref<HTMLElement | null>(null)
 const ANNOUNCEMENT_DISMISSED_STORAGE_KEY = 'announcement_dismissed_id'
 const ANNOUNCEMENT_SYNC_NOTE = '公告关闭状态会跟随当前登录账号同步到服务器；离线时仍会先用本机缓存兜底。'
+
+function syncExpandedAnnouncement(list: Announcement[]) {
+  if (list.length === 0) {
+    expandedAnnouncementId.value = null
+    hasInitializedExpandedAnnouncement.value = false
+    return
+  }
+
+  if (!hasInitializedExpandedAnnouncement.value) {
+    expandedAnnouncementId.value = list[0]?.id ?? null
+    hasInitializedExpandedAnnouncement.value = true
+    return
+  }
+
+  if (
+    expandedAnnouncementId.value != null
+    && !list.some(entry => entry.id === expandedAnnouncementId.value)
+  ) {
+    expandedAnnouncementId.value = list[0]?.id ?? null
+  }
+}
 
 async function hydrateDismissedId() {
   dismissedId.value = await hydrateServerBackedStringPreference({
@@ -53,13 +76,16 @@ async function fetchAnnouncement() {
     const { data } = await api.get<{ ok: boolean, data: Announcement[] }>('/api/announcement')
     if (data?.ok && Array.isArray(data.data)) {
       announcements.value = data.data.filter(a => a.enabled && a.title?.trim())
+      syncExpandedAnnouncement(announcements.value)
     }
     else {
       announcements.value = []
+      syncExpandedAnnouncement([])
     }
   }
   catch {
     announcements.value = []
+    syncExpandedAnnouncement([])
   }
   finally {
     loading.value = false
@@ -89,12 +115,27 @@ async function onClose() {
   show.value = false
 }
 
-function toggle(idx: number) {
-  expandedIdx.value = expandedIdx.value === idx ? -1 : idx
+function isExpanded(entryId: number) {
+  return expandedAnnouncementId.value === entryId
 }
 
-function getAnnouncementCardClass(idx: number) {
-  return expandedIdx.value === idx
+async function toggle(entryId: number) {
+  const listEl = listRef.value
+  const triggerEl = listEl?.querySelector<HTMLElement>(`[data-announcement-trigger="${entryId}"]`) ?? null
+  const previousTop = triggerEl?.getBoundingClientRect().top ?? 0
+
+  expandedAnnouncementId.value = expandedAnnouncementId.value === entryId ? null : entryId
+  await nextTick()
+
+  if (listEl && triggerEl) {
+    const nextTop = triggerEl.getBoundingClientRect().top
+    listEl.scrollTop += nextTop - previousTop
+    listEl.scrollTop = Math.max(0, listEl.scrollTop)
+  }
+}
+
+function getAnnouncementCardClass(entryId: number) {
+  return isExpanded(entryId)
     ? 'announcement-dialog-card announcement-dialog-card--active'
     : 'announcement-dialog-card'
 }
@@ -168,23 +209,26 @@ watch(adminToken, async (token) => {
         </div>
         <div
           v-else
+          ref="listRef"
           class="announcement-dialog-list custom-scrollbar flex-1 overflow-y-auto p-4 space-y-2"
         >
           <div
             v-for="(entry, idx) in announcements"
             :key="entry.id"
             class="overflow-hidden rounded-lg transition-all"
-            :class="getAnnouncementCardClass(idx)"
+            :class="getAnnouncementCardClass(entry.id)"
           >
             <!-- 条目头部（可点击展开） -->
             <button
+              type="button"
+              :data-announcement-trigger="entry.id"
               class="announcement-dialog-toggle w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
-              @click="toggle(idx)"
+              @click="toggle(entry.id)"
             >
               <!-- 展开指示器 -->
               <div
                 class="i-carbon-chevron-right glass-text-muted text-sm transition-transform duration-200"
-                :class="expandedIdx === idx ? 'rotate-90' : ''"
+                :class="isExpanded(entry.id) ? 'rotate-90' : ''"
               />
               <div class="flex flex-1 flex-col overflow-hidden">
                 <div class="flex items-center gap-2">
@@ -215,7 +259,7 @@ watch(adminToken, async (token) => {
             </button>
 
             <!-- 展开内容 -->
-            <div v-show="expandedIdx === idx" class="announcement-dialog-content px-5 py-4">
+            <div v-show="isExpanded(entry.id)" class="announcement-dialog-content px-5 py-4">
               <pre class="glass-text-main whitespace-pre-wrap text-sm leading-relaxed font-sans" style="font-family: inherit;">{{ entry.content }}</pre>
             </div>
           </div>
@@ -299,6 +343,7 @@ watch(adminToken, async (token) => {
 
 .announcement-dialog-list {
   background: color-mix(in srgb, var(--ui-bg-surface-raised) 78%, transparent) !important;
+  overflow-anchor: none;
 }
 
 .announcement-dialog-card--active {
