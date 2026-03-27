@@ -165,6 +165,61 @@ test('qr check route rejects empty code before any upstream call', async () => {
     assert.deepEqual(res.body, { ok: false, error: 'Missing code' });
 });
 
+test('qr check route keeps original code for Ipad860 wait status', async () => {
+    const { app, routes } = createFakeApp();
+    const fetchCalls = [];
+    const deps = createDeps({
+        app,
+        fetchRef: createFetchQueue([
+            {
+                Code: 0,
+                Success: true,
+                Data: {
+                    status: 0,
+                    expiredTime: 238,
+                },
+            },
+        ], fetchCalls),
+    });
+
+    registerQrRoutes(deps);
+    const handler = getHandler(routes, '/api/qr/check');
+    const res = createResponse();
+    await handler({ body: { platform: 'wx_car', code: 'qr-wait-uuid' } }, res);
+
+    assert.equal(fetchCalls[0][0], 'http://ipad860.local/api/Login/LoginCheckQR?uuid=qr-wait-uuid');
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.status, 'Wait');
+    assert.equal(res.body.data.code, 'qr-wait-uuid');
+    assert.equal(typeof res.body.data.expiresAt, 'number');
+    assert.equal(res.body.data.retryable, true);
+});
+
+test('qr check route treats transient Ipad860 interaction-key miss as wait', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createDeps({
+        app,
+        fetchRef: createFetchQueue([
+            {
+                Code: -8,
+                Success: false,
+                Message: '异常：扫码状态返回的交互key不存在',
+                Data: null,
+            },
+        ], []),
+    });
+
+    registerQrRoutes(deps);
+    const handler = getHandler(routes, '/api/qr/check');
+    const res = createResponse();
+    await handler({ body: { platform: 'wx_ipad', code: 'qr-transient-uuid' } }, res);
+
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.status, 'Wait');
+    assert.equal(res.body.data.code, 'qr-transient-uuid');
+    assert.equal(res.body.data.message, '等待扫码');
+});
+
 test('qr check route returns OK for Ipad860 success path after JSLogin', async () => {
     const { app, routes } = createFakeApp();
     const fetchCalls = [];
@@ -316,4 +371,26 @@ test('qr check route falls back to openId avatar when qq uin is unavailable', as
     assert.equal(res.body.data.avatar, 'https://thirdqq.qlogo.cn/qqapp/1112386029/68AF60B1D1B712B9F41693B3FA378DE1/100');
     assert.equal(res.body.data.nickname, 'QQ开放平台昵称');
     assert.equal(res.body.data.retryable, false);
+});
+
+test('qr check route keeps original code for qq wait status', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createDeps({
+        app,
+        miniProgramLoginSession: {
+            requestLoginCode: async () => ({ code: 'qq-code' }),
+            queryStatus: async () => ({ status: 'Wait' }),
+            getAuthCode: async () => '',
+        },
+    });
+
+    registerQrRoutes(deps);
+    const handler = getHandler(routes, '/api/qr/check');
+    const res = createResponse();
+    await handler({ body: { platform: 'qq', code: 'qq-wait-uuid' } }, res);
+
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.status, 'Wait');
+    assert.equal(res.body.data.code, 'qq-wait-uuid');
+    assert.equal(res.body.data.retryable, true);
 });

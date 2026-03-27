@@ -113,6 +113,23 @@ function activateManualTab() {
     form.platform = 'qq'
 }
 
+function mergeQrData(current: typeof qrData.value, nextPayload: Record<string, any>) {
+  const next = nextPayload && typeof nextPayload === 'object' ? nextPayload : {}
+  if (!current)
+    return next as typeof qrData.value
+
+  const preservedCode = String(next.code || current.code || '').trim()
+  const nextExpiresAt = Number(next.expiresAt || 0)
+  const currentExpiresAt = Number(current.expiresAt || 0)
+
+  return {
+    ...current,
+    ...next,
+    code: preservedCode,
+    expiresAt: nextExpiresAt > 0 ? nextExpiresAt : currentExpiresAt,
+  }
+}
+
 async function doQRCheck() {
   // 如果已停止或没有数据，不发请求
   if (pollStopped || !props.show || activeTab.value !== 'qr' || !qrData.value)
@@ -127,7 +144,7 @@ async function doQRCheck() {
     if (res.data.ok) {
       qrCheckFailureCount.value = 0
       const qrPayload = res.data.data || {}
-      qrData.value = qrData.value ? { ...qrData.value, ...qrPayload } : qrPayload
+      qrData.value = mergeQrData(qrData.value, qrPayload)
       const status = qrPayload.status
       if (status === 'OK') {
         // 登录成功 —— 立即停止轮询，不再发任何请求

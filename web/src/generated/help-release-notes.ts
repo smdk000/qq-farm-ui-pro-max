@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.41',
+    date: '2026-03-27',
+    title: '二维码状态保活与设置快捷卡片布局优化',
+    summary: '二维码轮询会保留原始 `code` 与剩余有效期，并把 Ipad860 的临时交互 key 缺失视为等待扫码；设置页快捷设置改成响应式网格，小屏布局更稳。',
+  },
+  {
     version: 'v4.5.40',
     date: '2026-03-26',
     title: '无 rg 环境一键自测兼容与发版复核',

@@ -15,7 +15,7 @@ test('announcement runtime falls back to changelog quick index when update log i
                     '',
                     '## 快速索引（精简版）',
                     '',
-                    '- `v4.5.40 (2026-03-26)` 公告兜底上线：现在就算没有 Update.log 也能显示版本摘要。',
+                    '- `v4.5.41 (2026-03-27)` 二维码状态保活：二维码轮询现在会保留原始 code 与有效期。',
                     '- `v4.5.39 (2026-03-25)` 旧版本说明：补齐最近一轮功能摘要。',
                     '',
                     '> 说明：demo',
@@ -29,11 +29,11 @@ test('announcement runtime falls back to changelog quick index when update log i
 
     assert.deepEqual(entries, [
         {
-            title: '公告兜底上线',
-            version: 'v4.5.40',
-            publishDate: '2026-03-26',
-            content: '现在就算没有 Update.log 也能显示版本摘要。',
-            summary: '现在就算没有 Update.log 也能显示版本摘要。',
+            title: '二维码状态保活',
+            version: 'v4.5.41',
+            publishDate: '2026-03-27',
+            content: '二维码轮询现在会保留原始 code 与有效期。',
+            summary: '二维码轮询现在会保留原始 code 与有效期。',
             sourceType: 'embedded',
             sourceKey: entries[0].sourceKey,
             releaseUrl: '',
@@ -65,8 +65,8 @@ test('announcement materializer updates legacy announcement rows by version/date
         getAnnouncementsRef: async () => [{
             id: 7,
             title: '旧公告标题',
-            version: 'v4.5.40',
-            publish_date: '2026-03-26',
+            version: 'v4.5.41',
+            publish_date: '2026-03-27',
             content: 'old',
             summary: '',
             enabled: true,
@@ -81,11 +81,11 @@ test('announcement materializer updates legacy announcement rows by version/date
         },
         getSystemUpdateReleaseCacheRef: async () => ({
             releases: [{
-                versionTag: 'v4.5.40',
-                title: '公告兜底上线',
-                publishedAt: '2026-03-26T08:00:00.000Z',
+                versionTag: 'v4.5.41',
+                title: '二维码状态保活',
+                publishedAt: '2026-03-27T08:00:00.000Z',
                 notes: 'new notes',
-                url: 'https://example.com/releases/v4.5.40',
+                url: 'https://example.com/releases/v4.5.41',
                 assets: [{ name: 'bundle.tar.gz', url: 'https://example.com/bundle.tar.gz', size: 123 }],
             }],
         }),
@@ -101,12 +101,12 @@ test('announcement materializer updates legacy announcement rows by version/date
     assert.equal(result.skipped, 0);
     assert.equal(saveCalls.length, 1);
     assert.equal(saveCalls[0].id, 7);
-    assert.equal(saveCalls[0].title, '公告兜底上线');
-    assert.equal(saveCalls[0].version, 'v4.5.40');
-    assert.equal(saveCalls[0].publish_date, '2026-03-26');
+    assert.equal(saveCalls[0].title, '二维码状态保活');
+    assert.equal(saveCalls[0].version, 'v4.5.41');
+    assert.equal(saveCalls[0].publish_date, '2026-03-27');
     assert.equal(saveCalls[0].summary, 'new notes');
     assert.equal(saveCalls[0].sourceType, 'release_cache');
-    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.40');
+    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.41');
     assert.deepEqual(saveCalls[0].assets, [{
         name: 'bundle.tar.gz',
         url: 'https://example.com/bundle.tar.gz',

@@ -5906,7 +5906,7 @@ async function restoreTimingDefaults() {
               <p class="settings-common-quick-hint mt-1 text-xs leading-5">
                 仅保留高频项，改完即可直接保存。完整参数仍在“种植策略 / 自动任务 / 账号与安全”分类中。
               </p>
-              <div class="grid grid-cols-1 mt-3 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="settings-common-quick-grid">
                 <div class="settings-common-quick-card rounded-xl p-3">
                   <BaseSelect
                     v-model="localSettings.accountMode"
@@ -11703,6 +11703,19 @@ async function restoreTimingDefaults() {
 
 .settings-common-quick-hint {
   color: var(--ui-text-2);
+}
+
+.settings-common-quick-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .settings-common-quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .settings-common-quick-card {

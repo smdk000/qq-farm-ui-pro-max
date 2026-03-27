@@ -61,11 +61,15 @@ function getQrExpiresAt(platform = '', sourceData = null) {
     const data = (sourceData && typeof sourceData === 'object') ? sourceData : {};
     const explicitSeconds = Number(data.expire_seconds || data.expireSeconds || data.ttlSec || data.ttl_sec || 0);
     const explicitMs = Number(data.expire_ms || data.expireMs || data.ttlMs || data.ttl_ms || 0);
+    const remainingSeconds = Number(data.expiredTime || data.expired_time || data.leftSeconds || data.left_seconds || 0);
     if (Number.isFinite(explicitMs) && explicitMs > 0) {
         return Date.now() + explicitMs;
     }
     if (Number.isFinite(explicitSeconds) && explicitSeconds > 0) {
         return Date.now() + (explicitSeconds * 1000);
+    }
+    if (Number.isFinite(remainingSeconds) && remainingSeconds > 0 && remainingSeconds <= 86400) {
+        return Date.now() + (remainingSeconds * 1000);
     }
     if (normalizedPlatform === 'qq') {
         return Date.now() + (2 * 60 * 1000);
@@ -88,7 +92,7 @@ function buildQrStatusPayload(platform, status, payload = {}, options = {}) {
     };
     return {
         status,
-        code: String(safePayload.code || '').trim(),
+        code: String(safePayload.code || safeOptions.code || '').trim(),
         ticket: String(safePayload.ticket || '').trim(),
         uin: String(safePayload.uin || '').trim(),
         openId: String(safePayload.openId || '').trim(),
@@ -101,6 +105,11 @@ function buildQrStatusPayload(platform, status, payload = {}, options = {}) {
         message: String(safePayload.message || messageByStatus[status] || '').trim(),
         error: String(safePayload.error || '').trim(),
     };
+}
+
+function isWechatTransientQrState(checkRes) {
+    const message = String(checkRes?.Message || '').trim();
+    return message.includes('扫码状态返回的交互key不存在');
 }
 
 function registerQrRoutes({
@@ -236,16 +245,20 @@ function registerQrRoutes({
                 if (checkRes.Code === 0 && checkRes.Success) {
                     const data = checkRes.Data || {};
                     const status = data.status;
+                    const expiresAt = getQrExpiresAt(platform, data);
 
                     if (status === 0) {
-                        return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Wait') });
+                        return res.json({
+                            ok: true,
+                            data: buildQrStatusPayload(platform, 'Wait', {}, { code, expiresAt }),
+                        });
                     }
                     if (status === 1) {
                         const NickName = data.nickName || '';
                         const HeadImgUrl = data.headImgUrl || '';
                         return res.json({
                             ok: true,
-                            data: buildQrStatusPayload(platform, 'Check', { nickname: NickName, avatar: HeadImgUrl }),
+                            data: buildQrStatusPayload(platform, 'Check', { nickname: NickName, avatar: HeadImgUrl }, { code, expiresAt }),
                         });
                     }
 
@@ -255,7 +268,10 @@ function registerQrRoutes({
 
                     if (!wxid) {
                         consoleRef.error('[Ipad860] 登录成功但未能解析出 wxid:', JSON.stringify(data));
-                        return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Error', { error: '解析微信ID失败', retryable: true }) });
+                        return res.json({
+                            ok: true,
+                            data: buildQrStatusPayload(platform, 'Error', { error: '解析微信ID失败', retryable: true }, { code, expiresAt }),
+                        });
                     }
 
                     let jsRes = null;
@@ -298,19 +314,38 @@ function registerQrRoutes({
 
                     const errMsg = (jsRes && jsRes.Message) || (lastError ? lastError.message : 'JSLogin 失败');
                     consoleRef.error(`[Ipad860 JSLogin] 最终失败: ${errMsg}`);
-                    return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Error', { error: errMsg, retryable: true }) });
+                    return res.json({
+                        ok: true,
+                        data: buildQrStatusPayload(platform, 'Error', { error: errMsg, retryable: true }, { code, expiresAt }),
+                    });
                 }
 
                 if (checkRes.Code === -8) {
+                    const expiresAt = getQrExpiresAt(platform, checkRes.Data);
                     const errMsg = parseWechatServerError(checkRes);
                     if (errMsg) {
                         consoleRef.error(`[Ipad860] 微信服务器拦截: ${errMsg}`);
-                        return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Error', { error: `微信拦截: ${errMsg}`, retryable: true }) });
+                        return res.json({
+                            ok: true,
+                            data: buildQrStatusPayload(platform, 'Error', { error: `微信拦截: ${errMsg}`, retryable: true }, { code, expiresAt }),
+                        });
                     }
-                    return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Used', { retryable: true }) });
+                    if (isWechatTransientQrState(checkRes)) {
+                        return res.json({
+                            ok: true,
+                            data: buildQrStatusPayload(platform, 'Wait', { message: '等待扫码' }, { code, expiresAt }),
+                        });
+                    }
+                    return res.json({
+                        ok: true,
+                        data: buildQrStatusPayload(platform, 'Used', { retryable: true }, { code, expiresAt }),
+                    });
                 }
 
-                return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Wait') });
+                return res.json({
+                    ok: true,
+                    data: buildQrStatusPayload(platform, 'Wait', {}, { code, expiresAt: getQrExpiresAt(platform, checkRes.Data) }),
+                });
             }
 
             if (platform === 'wx') {
@@ -346,7 +381,7 @@ function registerQrRoutes({
 
                     if (!wxid) {
                         consoleRef.error('[WX checkqr] code=0 但 wxid 为空! 完整 data:', JSON.stringify(wxCheckRes.data), '完整 raw:', JSON.stringify(wxCheckRes.raw));
-                        return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Wait') });
+                        return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Wait', {}, { code }) });
                     }
 
                     let wxLoginRes = null;
@@ -395,16 +430,22 @@ function registerQrRoutes({
 
                     const errMsg = (wxLoginRes && wxLoginRes.msg) || (lastError ? lastError.message : '获取微信授权失败');
                     consoleRef.error(`[WX jslogin] 最终失败: ${errMsg}`);
-                    return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Error', { error: errMsg, retryable: true }) });
+                    return res.json({
+                        ok: true,
+                        data: buildQrStatusPayload(platform, 'Error', { error: errMsg, retryable: true }, { code }),
+                    });
                 }
 
                 if (wxCheckRes.code === 1 || wxCheckRes.code === -1) {
-                    return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Wait') });
+                    return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Wait', {}, { code }) });
                 }
                 if (wxCheckRes.code === 2) {
-                    return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Used', { retryable: true }) });
+                    return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Used', { retryable: true }, { code }) });
                 }
-                return res.json({ ok: true, data: buildQrStatusPayload(platform, 'Error', { error: wxCheckRes.msg || '异常状态', retryable: true }) });
+                return res.json({
+                    ok: true,
+                    data: buildQrStatusPayload(platform, 'Error', { error: wxCheckRes.msg || '异常状态', retryable: true }, { code }),
+                });
             }
 
             const result = await miniProgramLoginSession.queryStatus(code, trimmedUin);
@@ -418,7 +459,10 @@ function registerQrRoutes({
 
                 const authCode = result.authCode || await miniProgramLoginSession.getAuthCode(ticket, appid);
                 if (!authCode) {
-                    return res.json({ ok: true, data: buildQrStatusPayload('qq', 'Error', { error: '获取 QQ 授权码失败，请重新扫码', retryable: true }) });
+                    return res.json({
+                        ok: true,
+                        data: buildQrStatusPayload('qq', 'Error', { error: '获取 QQ 授权码失败，请重新扫码', retryable: true }, { code }),
+                    });
                 }
                 consoleRef.log(`[QR登录] 代理登录成功, authCode=${authCode ? `${authCode.substring(0, 20)}...` : '空'}`);
 
@@ -436,12 +480,15 @@ function registerQrRoutes({
                 });
             }
             if (result.status === 'Used') {
-                return res.json({ ok: true, data: buildQrStatusPayload('qq', 'Used', { retryable: true }) });
+                return res.json({ ok: true, data: buildQrStatusPayload('qq', 'Used', { retryable: true }, { code }) });
             }
             if (result.status === 'Wait') {
-                return res.json({ ok: true, data: buildQrStatusPayload('qq', 'Wait') });
+                return res.json({ ok: true, data: buildQrStatusPayload('qq', 'Wait', {}, { code }) });
             }
-            return res.json({ ok: true, data: buildQrStatusPayload('qq', 'Error', { error: result.msg, retryable: true }) });
+            return res.json({
+                ok: true,
+                data: buildQrStatusPayload('qq', 'Error', { error: result.msg, retryable: true }, { code }),
+            });
         } catch (e) {
             consoleRef.error('[API /api/qr/check] Error:', e.message);
             return res.status(500).json({ ok: false, error: e.message });
