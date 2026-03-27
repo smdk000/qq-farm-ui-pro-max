@@ -1,4 +1,4 @@
-export type FriendStatusTone = 'info' | 'warning' | 'danger' | 'success'
+export type FriendStatusTone = 'info' | 'warning' | 'danger' | 'success' | 'neutral'
 
 export interface FriendFetchMetaLike {
   source?: string
@@ -13,6 +13,12 @@ export interface FriendStatusCopy {
   title: string
   description: string
   badge?: string
+}
+
+export interface FriendFetchSourceCopy {
+  tone: FriendStatusTone
+  label: string
+  description: string
 }
 
 export interface FriendGuardCopyParams {
@@ -207,6 +213,76 @@ export function buildFriendFetchBannerCopy(meta: FriendFetchMetaLike | null | un
   }
 
   return null
+}
+
+export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | undefined): FriendFetchSourceCopy {
+  const source = normalizeText(meta?.source || 'live') || 'live'
+  const reason = normalizeText(meta?.reason)
+  const cacheSource = normalizeText(meta?.cacheSource)
+  const seededCount = Math.max(0, Number(meta?.seededCount || 0))
+
+  if (source === 'cache') {
+    if (cacheSource === 'interact_records') {
+      return {
+        tone: 'info',
+        label: '访客补缓存',
+        description: seededCount > 0
+          ? `当前显示的是最近访客/互动记录补建出来的临时好友列表，本次识别了 ${seededCount} 个访客种子。`
+          : '当前显示的是最近访客/互动记录补建出来的临时好友列表。',
+      }
+    }
+    return {
+      tone: 'warning',
+      label: '身份缓存',
+      description: '当前显示的是当前登录身份自己的好友缓存，不与其它账号共享。',
+    }
+  }
+
+  if (source === 'empty') {
+    if (reason === 'cache_cleared') {
+      return {
+        tone: 'neutral',
+        label: '缓存已清空',
+        description: '当前账号的好友缓存已经清理，重新连接后可手动刷新重建。',
+      }
+    }
+    if (reason === 'cache_rebuilt_empty') {
+      return {
+        tone: 'warning',
+        label: '重建后仍为空',
+        description: '缓存已经按当前账号清理并重建，但暂未拿到可用好友。',
+      }
+    }
+    if (cacheSource === 'interact_records') {
+      return {
+        tone: 'danger',
+        label: '访客缓存未就绪',
+        description: seededCount > 0
+          ? `最近访客/互动记录里已经识别出 ${seededCount} 个访客种子，但还没补成可用好友列表。`
+          : '最近访客/互动记录暂时也没补成可用好友列表。',
+      }
+    }
+    const reasonLabel = formatFriendFetchReasonLabel(reason)
+    return {
+      tone: 'danger',
+      label: '暂无可用好友',
+      description: reason ? `当前账号暂未拿到可用好友，原因：${reasonLabel}。` : '当前账号暂未拿到可用好友。',
+    }
+  }
+
+  if (source === 'live') {
+    return {
+      tone: 'success',
+      label: '实时好友',
+      description: '当前显示的是本次实时同步到的好友列表。',
+    }
+  }
+
+  return {
+    tone: 'info',
+    label: '好友状态',
+    description: '当前显示的是当前账号最近一次可用的好友结果。',
+  }
 }
 
 export function buildFriendGuardCopy(params: FriendGuardCopyParams): FriendStatusCopy | null {

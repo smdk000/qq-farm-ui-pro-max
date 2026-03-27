@@ -153,21 +153,19 @@ test('network notify passively seeds gids from lands, applications and friend ad
         network.__testHandleNotify({ body: Buffer.from('friends') });
 
         assert.equal(emitted.length, 1);
-        assert.deepEqual(cacheCalls, [
-            { friends: [{ gid: 3001 }, { gid: 3002 }], options: { delayMs: 250 } },
-            {
-                friends: [
-                    { gid: 4001, name: '申请甲', open_id: '4001', avatar_url: 'https://img/app.png' },
-                ],
-                options: { delayMs: 250 },
-            },
-            {
-                friends: [
-                    { gid: 5001, name: '新好友', avatar_url: 'https://img/friend.png' },
-                ],
-                options: { delayMs: 250 },
-            },
+        assert.equal(cacheCalls.length, 3);
+        assert.deepEqual(cacheCalls[0].friends, [{ gid: 3001 }, { gid: 3002 }]);
+        assert.deepEqual(cacheCalls[1].friends, [
+            { gid: 4001, name: '申请甲', open_id: '4001', avatar_url: 'https://img/app.png' },
         ]);
+        assert.deepEqual(cacheCalls[2].friends, [
+            { gid: 5001, name: '新好友', avatar_url: 'https://img/friend.png' },
+        ]);
+        cacheCalls.forEach(({ options }) => {
+            assert.equal(options.delayMs, 250);
+            assert.equal(options.userState.gid, 999);
+            assert.equal(options.userState.platform, 'qq');
+        });
     } finally {
         delete require.cache[networkModulePath];
         restoreFns.reverse().forEach(restore => restore());

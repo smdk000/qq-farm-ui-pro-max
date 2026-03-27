@@ -460,22 +460,17 @@ async function getFriendNameByGid(gid) {
     const numericGid = toNum(gid);
     if (!Number.isFinite(numericGid) || numericGid <= 0) return '';
     try {
-        const { getCachedFriends, findFriendInSharedCaches } = require('./database');
+        const { getCachedFriends } = require('./database');
         const accountId = resolveVisitorCacheAccountId();
         if (!getCachedFriends || !accountId) return `GID:${numericGid}`;
-        const friends = await getCachedFriends(accountId);
+        const userState = getUserState();
+        const friends = await getCachedFriends(accountId, {
+            platform: CONFIG.platform,
+            uin: String(CONFIG.uin || userState.uin || '').trim(),
+            openId: String(userState.openId || '').trim(),
+        });
         const friend = friends.find(f => toNum(f.gid) === numericGid);
         const directName = friend ? (friend.remark || friend.name || `GID:${numericGid}`) : '';
-        if (directName && directName !== `GID:${numericGid}`) {
-            return directName;
-        }
-        if (typeof findFriendInSharedCaches === 'function') {
-            const shared = await findFriendInSharedCaches(numericGid, { accountId });
-            const sharedName = String(shared && shared.friend && shared.friend.name || '').trim();
-            if (sharedName && sharedName !== `GID:${numericGid}`) {
-                return sharedName;
-            }
-        }
         return directName || `GID:${numericGid}`;
     } catch {
         return `GID:${numericGid}`;
@@ -497,7 +492,14 @@ async function cacheVisitorFriendSeeds(lands) {
     if (!accountId) return;
     const seeds = buildFriendSeedsFromLands(lands, toNum(getUserState().gid));
     if (seeds.length <= 0) return;
-    await cacheFriendSeeds(seeds, { accountId, immediate: true });
+    const userState = getUserState();
+    await cacheFriendSeeds(seeds, {
+        accountId,
+        platform: CONFIG.platform,
+        uin: String(CONFIG.uin || userState.uin || '').trim(),
+        openId: String(userState.openId || '').trim(),
+        immediate: true,
+    });
 }
 
 function buildVisitorLogMessage(kind, landId, actorName) {

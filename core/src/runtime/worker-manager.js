@@ -578,7 +578,13 @@ function createWorkerManager(options) {
                 ? mergeFriendsCache
                 : updateFriendsCache;
             if (typeof syncFriendsCache === 'function' && msg.data) {
-                syncFriendsCache(accountId, msg.data).catch(() => {});
+                syncFriendsCache(accountId, msg.data, {
+                    account: worker.account || null,
+                    platform: worker.account && worker.account.platform,
+                    uin: worker.account && worker.account.uin,
+                    qq: worker.account && worker.account.qq,
+                    openId: worker.account && worker.account.openId,
+                }).catch(() => {});
             }
         } else if (msg.type === 'error') {
             log('错误', `账号[${accountId}]进程报错: ${msg.error}`, { accountId: String(accountId), accountName: worker.name });

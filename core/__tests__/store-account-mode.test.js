@@ -25,6 +25,7 @@ function mockModule(modulePath, exports) {
 
 function createRuntimePathsMock(rootDir) {
     const dataDir = path.join(rootDir, 'data');
+    const logDir = path.join(rootDir, 'logs');
     return {
         getDataFile(filename) {
             return path.join(dataDir, filename);
@@ -32,6 +33,10 @@ function createRuntimePathsMock(rootDir) {
         ensureDataDir() {
             fs.mkdirSync(dataDir, { recursive: true });
             return dataDir;
+        },
+        ensureLogDir() {
+            fs.mkdirSync(logDir, { recursive: true });
+            return logDir;
         },
     };
 }

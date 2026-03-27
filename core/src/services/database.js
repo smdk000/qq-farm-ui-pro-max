@@ -7,9 +7,12 @@ const { parseJsonSafely } = require('./system-update-utils');
 
 const logger = createModuleLogger('database');
 const EMPTY_ACCOUNT_UIN_DB_PREFIX = '__ACCOUNT_ID__:';
+const FRIENDS_CACHE_SCOPE_MEMO_TTL_MS = 60 * 1000;
+const FRIENDS_CACHE_TTL_SEC = 86400 * 3;
 
 let initPromise = null;
 let logFlushHandle = null;
+const friendsCacheScopeMemo = new Map();
 
 function startLogFlushLoop() {
     if (logFlushHandle) {
@@ -232,6 +235,196 @@ function mergeFriendCacheEntries(currentList = [], incomingList = []) {
         .sort((a, b) => Number(a.gid || 0) - Number(b.gid || 0));
 }
 
+function normalizeFriendCachePlatform(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text) return '';
+    return text.startsWith('wx') ? 'wx' : 'qq';
+}
+
+function normalizeNumericIdentity(value) {
+    const text = String(value || '').trim();
+    return /^\d+$/.test(text) ? text : '';
+}
+
+function normalizeTextIdentity(value) {
+    return String(value || '').trim();
+}
+
+function buildFriendsCacheIdentity(source = {}) {
+    const normalizedSource = (source && typeof source === 'object') ? source : {};
+    const platform = normalizeFriendCachePlatform(normalizedSource.platform);
+    if (!platform) return null;
+
+    const rawUin = normalizeTextIdentity(normalizedSource.uin);
+    const rawQq = normalizeNumericIdentity(normalizedSource.qq || normalizedSource.selfQq);
+    const rawOpenId = normalizeTextIdentity(normalizedSource.openId || normalizedSource.open_id);
+
+    if (platform === 'qq') {
+        const qq = rawQq || normalizeNumericIdentity(rawUin);
+        const openId = rawOpenId || (!qq ? rawUin : '');
+        if (!qq && !openId) return null;
+        return {
+            platform,
+            uin: qq,
+            qq,
+            openId,
+            identityType: qq ? 'qq' : 'openid',
+            identityValue: qq || openId,
+        };
+    }
+
+    const uin = rawUin || rawOpenId;
+    const openId = rawOpenId;
+    if (!uin && !openId) return null;
+    return {
+        platform,
+        uin,
+        qq: '',
+        openId,
+        identityType: uin ? 'uin' : 'openid',
+        identityValue: uin || openId,
+    };
+}
+
+function buildFriendsCacheLegacyKey(accountId) {
+    const normalizedAccountId = String(accountId || '').trim();
+    return normalizedAccountId ? `account:${normalizedAccountId}:friends_cache` : '';
+}
+
+function buildFriendsCacheScopeKey(identity) {
+    const normalizedIdentity = buildFriendsCacheIdentity(identity);
+    if (!normalizedIdentity || !normalizedIdentity.identityValue) return '';
+    return `friends_scope:${normalizedIdentity.platform}:${normalizedIdentity.identityType}:${encodeURIComponent(normalizedIdentity.identityValue)}:friends_cache`;
+}
+
+function buildFriendsCacheMetaKey(key) {
+    const normalizedKey = String(key || '').trim();
+    return normalizedKey ? `${normalizedKey}:meta` : '';
+}
+
+function normalizeFriendsCacheScopeRecord(accountId, identity = null) {
+    const normalizedAccountId = String(accountId || '').trim();
+    const normalizedIdentity = buildFriendsCacheIdentity(identity);
+    const legacyKey = buildFriendsCacheLegacyKey(normalizedAccountId);
+    const scopeKey = buildFriendsCacheScopeKey(normalizedIdentity);
+    const readKeys = [];
+    if (scopeKey) readKeys.push(scopeKey);
+    if (legacyKey && legacyKey !== scopeKey) readKeys.push(legacyKey);
+    const writeKeys = [];
+    if (scopeKey) writeKeys.push(scopeKey);
+    if (legacyKey && legacyKey !== scopeKey) writeKeys.push(legacyKey);
+    return {
+        accountId: normalizedAccountId,
+        identity: normalizedIdentity,
+        legacyKey,
+        scopeKey,
+        readKeys,
+        writeKeys,
+    };
+}
+
+function detectFriendsCacheScopeFromKey(key, scope = null) {
+    const normalizedKey = String(key || '').trim();
+    const normalizedScope = (scope && typeof scope === 'object') ? scope : {};
+    if (!normalizedKey) return '';
+    if (normalizedScope.scopeKey && normalizedKey === String(normalizedScope.scopeKey || '').trim()) {
+        return 'identity';
+    }
+    if (normalizedScope.legacyKey && normalizedKey === String(normalizedScope.legacyKey || '').trim()) {
+        return 'legacy';
+    }
+    return '';
+}
+
+function normalizeFriendsCacheMetaRecord(record = {}, defaults = {}) {
+    const normalizedRecord = (record && typeof record === 'object') ? record : {};
+    const normalizedDefaults = (defaults && typeof defaults === 'object') ? defaults : {};
+    const updatedAtValue = Object.prototype.hasOwnProperty.call(normalizedRecord, 'updatedAt')
+        ? normalizedRecord.updatedAt
+        : (Object.prototype.hasOwnProperty.call(normalizedRecord, 'updated_at')
+            ? normalizedRecord.updated_at
+            : normalizedDefaults.updatedAt);
+    const entryCountValue = Object.prototype.hasOwnProperty.call(normalizedRecord, 'entryCount')
+        ? normalizedRecord.entryCount
+        : (Object.prototype.hasOwnProperty.call(normalizedRecord, 'entry_count')
+            ? normalizedRecord.entry_count
+            : normalizedDefaults.entryCount);
+    const seededCountValue = Object.prototype.hasOwnProperty.call(normalizedRecord, 'seededCount')
+        ? normalizedRecord.seededCount
+        : (Object.prototype.hasOwnProperty.call(normalizedRecord, 'seeded_count')
+            ? normalizedRecord.seeded_count
+            : normalizedDefaults.seededCount);
+
+    return {
+        updatedAt: Math.max(0, Number(updatedAtValue || 0)),
+        entryCount: Math.max(0, Number(entryCountValue || 0)),
+        seededCount: Math.max(0, Number(seededCountValue || 0)),
+        cacheScope: String(normalizedRecord.cacheScope || normalizedRecord.cache_scope || normalizedDefaults.cacheScope || '').trim(),
+        cacheSource: String(normalizedRecord.cacheSource || normalizedRecord.cache_source || normalizedDefaults.cacheSource || '').trim(),
+        identityType: String(normalizedRecord.identityType || normalizedRecord.identity_type || normalizedDefaults.identityType || '').trim(),
+        platform: normalizeFriendCachePlatform(normalizedRecord.platform || normalizedDefaults.platform || ''),
+    };
+}
+
+function buildFriendsCacheMetaPayload(key, scope = null, options = {}, entryCount = 0) {
+    const normalizedOptions = (options && typeof options === 'object') ? options : {};
+    const normalizedScope = (scope && typeof scope === 'object') ? scope : {};
+    const hasExplicitUpdatedAt = Object.prototype.hasOwnProperty.call(normalizedOptions, 'updatedAt');
+    const updatedAt = hasExplicitUpdatedAt
+        ? normalizedOptions.updatedAt
+        : Date.now();
+    return normalizeFriendsCacheMetaRecord({
+        updatedAt,
+        entryCount,
+        seededCount: normalizedOptions.seededCount,
+        cacheScope: detectFriendsCacheScopeFromKey(key, normalizedScope),
+        cacheSource: normalizedOptions.cacheSource,
+        identityType: normalizedScope.identity && normalizedScope.identity.identityType,
+        platform: (normalizedScope.identity && normalizedScope.identity.platform) || normalizedOptions.platform,
+    });
+}
+
+function buildEmptyFriendsCacheDetails(scope = null) {
+    const normalizedScope = (scope && typeof scope === 'object') ? scope : {};
+    return {
+        found: false,
+        key: '',
+        metaKey: '',
+        friends: [],
+        updatedAt: 0,
+        entryCount: 0,
+        seededCount: 0,
+        cacheScope: '',
+        cacheSource: '',
+        identityType: String(normalizedScope.identity && normalizedScope.identity.identityType || '').trim(),
+        platform: normalizeFriendCachePlatform(normalizedScope.identity && normalizedScope.identity.platform || ''),
+    };
+}
+
+function buildFriendsCacheDetails(key, friendsList, meta = {}, scope = null) {
+    const normalizedFriends = mergeFriendCacheEntries([], Array.isArray(friendsList) ? friendsList : []);
+    const normalizedScope = (scope && typeof scope === 'object') ? scope : {};
+    const normalizedMeta = normalizeFriendsCacheMetaRecord(meta, {
+        entryCount: normalizedFriends.length,
+        cacheScope: detectFriendsCacheScopeFromKey(key, normalizedScope),
+        identityType: normalizedScope.identity && normalizedScope.identity.identityType,
+        platform: normalizedScope.identity && normalizedScope.identity.platform,
+    });
+    return {
+        found: normalizedFriends.length > 0,
+        key: String(key || '').trim(),
+        metaKey: buildFriendsCacheMetaKey(key),
+        friends: normalizedFriends,
+        updatedAt: normalizedMeta.updatedAt,
+        entryCount: normalizedMeta.entryCount,
+        seededCount: normalizedMeta.seededCount,
+        cacheScope: normalizedMeta.cacheScope,
+        cacheSource: normalizedMeta.cacheSource,
+        identityType: normalizedMeta.identityType,
+        platform: normalizedMeta.platform,
+    };
+}
+
 function extractAccountIdFromFriendsCacheKey(key) {
     const match = String(key || '').match(/^account:(.+):friends_cache$/);
     return match ? String(match[1] || '').trim() : '';
@@ -253,6 +446,183 @@ function parseJsonObject(raw) {
     } catch {
         return {};
     }
+}
+
+function getFriendsCacheScopeMemo(accountId) {
+    const normalizedAccountId = String(accountId || '').trim();
+    if (!normalizedAccountId) return null;
+    const cached = friendsCacheScopeMemo.get(normalizedAccountId);
+    if (!cached) return null;
+    if (Date.now() - Number(cached.cachedAt || 0) > FRIENDS_CACHE_SCOPE_MEMO_TTL_MS) {
+        friendsCacheScopeMemo.delete(normalizedAccountId);
+        return null;
+    }
+    return cached;
+}
+
+function rememberFriendsCacheScope(accountId, identity = null) {
+    const normalizedAccountId = String(accountId || '').trim();
+    const normalizedIdentity = buildFriendsCacheIdentity(identity);
+    if (!normalizedAccountId || !normalizedIdentity) return null;
+    const scope = {
+        accountId: normalizedAccountId,
+        ...normalizedIdentity,
+        cachedAt: Date.now(),
+    };
+    friendsCacheScopeMemo.set(normalizedAccountId, scope);
+    return scope;
+}
+
+async function loadAccountIdentityForFriendsCache(accountId) {
+    const normalizedAccountId = String(accountId || '').trim();
+    if (!normalizedAccountId || !isMysqlInitialized()) {
+        return null;
+    }
+
+    try {
+        const pool = getPool();
+        if (!pool || typeof pool.query !== 'function') return null;
+        const [rows] = await pool.query(
+            'SELECT id, uin, open_id, platform, auth_data FROM accounts WHERE id = ? LIMIT 1',
+            [normalizedAccountId],
+        );
+        const row = Array.isArray(rows) ? rows[0] : null;
+        if (!row) return null;
+        const authData = parseJsonObject(row && row.auth_data);
+        return buildFriendsCacheIdentity({
+            platform: row && row.platform,
+            uin: decodePlaceholderAccountUin(row && row.uin) || authData.uin || '',
+            qq: authData.qq || '',
+            openId: (row && row.open_id) || authData.openId || '',
+        });
+    } catch (error) {
+        logger.error(`load account identity for friends cache failed: ${error.message}`);
+        return null;
+    }
+}
+
+async function resolveFriendsCacheScope(accountId, options = {}) {
+    const normalizedAccountId = String(accountId || '').trim();
+    if (!normalizedAccountId) {
+        return normalizeFriendsCacheScopeRecord('', null);
+    }
+
+    const source = (options && typeof options === 'object') ? options : {};
+    const explicitIdentity = buildFriendsCacheIdentity({
+        platform: source.platform || (source.account && source.account.platform) || (source.userState && source.userState.platform),
+        uin: source.uin || source.selfUin || (source.account && source.account.uin) || (source.userState && source.userState.uin),
+        qq: source.qq || source.selfQq || (source.account && source.account.qq),
+        openId: source.openId
+            || source.open_id
+            || (source.account && (source.account.openId || source.account.open_id))
+            || (source.userState && (source.userState.openId || source.userState.open_id)),
+    });
+    if (explicitIdentity) {
+        rememberFriendsCacheScope(normalizedAccountId, explicitIdentity);
+        return normalizeFriendsCacheScopeRecord(normalizedAccountId, explicitIdentity);
+    }
+
+    const memoized = getFriendsCacheScopeMemo(normalizedAccountId);
+    if (memoized) {
+        return normalizeFriendsCacheScopeRecord(normalizedAccountId, memoized);
+    }
+
+    const loadedIdentity = await loadAccountIdentityForFriendsCache(normalizedAccountId);
+    if (loadedIdentity) {
+        rememberFriendsCacheScope(normalizedAccountId, loadedIdentity);
+    }
+    return normalizeFriendsCacheScopeRecord(normalizedAccountId, loadedIdentity);
+}
+
+async function readFriendsCacheKey(redis, key) {
+    if (!redis || typeof redis.get !== 'function' || !key) {
+        return {
+            found: false,
+            raw: '',
+            normalized: [],
+        };
+    }
+
+    const raw = await redis.get(key);
+    if (!raw) {
+        return {
+            found: false,
+            raw: '',
+            normalized: [],
+        };
+    }
+
+    const parsed = parseJsonSafely(raw, []);
+    return {
+        found: true,
+        raw,
+        normalized: mergeFriendCacheEntries([], Array.isArray(parsed) ? parsed : []),
+    };
+}
+
+async function readFriendsCacheMetaKey(redis, key, defaults = {}) {
+    if (!redis || typeof redis.get !== 'function') {
+        return normalizeFriendsCacheMetaRecord({}, defaults);
+    }
+
+    const metaKey = buildFriendsCacheMetaKey(key);
+    if (!metaKey) {
+        return normalizeFriendsCacheMetaRecord({}, defaults);
+    }
+
+    const raw = await redis.get(metaKey);
+    if (!raw) {
+        return normalizeFriendsCacheMetaRecord({}, defaults);
+    }
+
+    return normalizeFriendsCacheMetaRecord(parseJsonSafely(raw, {}), defaults);
+}
+
+async function readFriendsCacheDetailsByKey(redis, key, scope = null) {
+    const cache = await readFriendsCacheKey(redis, key);
+    if (!cache.found) {
+        return {
+            found: false,
+            raw: '',
+            details: buildEmptyFriendsCacheDetails(scope),
+        };
+    }
+
+    const cacheMeta = await readFriendsCacheMetaKey(redis, key, {
+        entryCount: cache.normalized.length,
+        cacheScope: detectFriendsCacheScopeFromKey(key, scope),
+        identityType: scope && scope.identity && scope.identity.identityType,
+        platform: scope && scope.identity && scope.identity.platform,
+    });
+
+    return {
+        found: true,
+        raw: cache.raw,
+        details: buildFriendsCacheDetails(key, cache.normalized, cacheMeta, scope),
+    };
+}
+
+async function syncFriendsCacheKeys(redis, keys, friendsList, options = {}) {
+    if (!redis || typeof redis.set !== 'function') return;
+    const normalizedFriends = mergeFriendCacheEntries([], friendsList);
+    const payload = JSON.stringify(normalizedFriends);
+    const normalizedOptions = (options && typeof options === 'object') ? options : {};
+    const scope = normalizedOptions.scope && typeof normalizedOptions.scope === 'object'
+        ? normalizedOptions.scope
+        : null;
+    await Promise.all(
+        (Array.isArray(keys) ? keys : [])
+            .filter(Boolean)
+            .map(async (key) => {
+                const metaPayload = buildFriendsCacheMetaPayload(key, scope, normalizedOptions, normalizedFriends.length);
+                const metaKey = buildFriendsCacheMetaKey(key);
+                await redis.set(key, payload, 'EX', FRIENDS_CACHE_TTL_SEC);
+                if (metaKey) {
+                    await redis.set(metaKey, JSON.stringify(metaPayload), 'EX', FRIENDS_CACHE_TTL_SEC);
+                }
+            })
+    );
+    return normalizedFriends;
 }
 
 async function findRelatedAccountIdsForFriendsCache(accountId, options = {}) {
@@ -326,61 +696,104 @@ function scoreReusableFriendsCache(friendsList = [], options = {}) {
     return 0;
 }
 
-async function writeFriendsCache(accountId, friendsList) {
+async function writeFriendsCache(accountId, friendsList, options = {}) {
     const redis = getRedisClient();
-    if (!redis) return;
+    if (!redis) return null;
     const mapped = mergeFriendCacheEntries([], friendsList);
-    if (!mapped.length) return;
-    await redis.set(`account:${accountId}:friends_cache`, JSON.stringify(mapped), 'EX', 86400 * 3);
+    if (!mapped.length) return null;
+    const scope = await resolveFriendsCacheScope(accountId, options);
+    const writeKeys = Array.isArray(scope.writeKeys) && scope.writeKeys.length > 0
+        ? scope.writeKeys
+        : [buildFriendsCacheLegacyKey(accountId)];
+    await syncFriendsCacheKeys(redis, writeKeys, mapped, {
+        ...options,
+        scope,
+    });
+    const preferredKey = String(scope.scopeKey || writeKeys[0] || '').trim();
+    const preferredMeta = buildFriendsCacheMetaPayload(preferredKey, scope, options, mapped.length);
+    return buildFriendsCacheDetails(preferredKey, mapped, preferredMeta, scope);
 }
 
-async function updateFriendsCache(accountId, friendsList) {
+async function updateFriendsCache(accountId, friendsList, options = {}) {
     try {
-        await writeFriendsCache(accountId, friendsList); // 3 days Cache
+        return await writeFriendsCache(accountId, friendsList, options); // 3 days Cache
     } catch (e) {
         logger.error(`save friends cache failed: ${e.message}`);
+        return null;
     }
 }
 
-async function mergeFriendsCache(accountId, friendsList) {
+async function mergeFriendsCache(accountId, friendsList, options = {}) {
     try {
         const normalizedAccountId = String(accountId || '').trim();
         if (!normalizedAccountId) return;
         const incoming = mergeFriendCacheEntries([], friendsList);
         if (!incoming.length) return;
-        const current = await getCachedFriends(normalizedAccountId);
+        const current = await getCachedFriends(normalizedAccountId, options);
         const merged = mergeFriendCacheEntries(current, incoming);
-        await writeFriendsCache(normalizedAccountId, merged);
+        return await writeFriendsCache(normalizedAccountId, merged, options);
     } catch (e) {
         logger.error(`merge friends cache failed: ${e.message}`);
+        return null;
     }
 }
 
-async function getCachedFriends(accountId) {
+async function getCachedFriendsDetails(accountId, options = {}) {
     // 熔断器检查：Redis 不可用时直接返回空数组，防止回源 MySQL 造成雪崩
     if (!cacheCircuitBreaker.isAvailable()) {
         logger.warn(`Redis 熔断中，跳过好友缓存查询 (account: ${accountId})`);
-        return [];
+        return buildEmptyFriendsCacheDetails();
     }
     try {
         const redis = getRedisClient();
-        if (!redis) return [];
-        const str = await redis.get(`account:${accountId}:friends_cache`);
-        cacheCircuitBreaker.recordSuccess();
-        if (str) {
-            const parsed = JSON.parse(str);
-            const normalized = mergeFriendCacheEntries([], Array.isArray(parsed) ? parsed : []);
-            if (normalized.length > 0 && JSON.stringify(normalized) !== JSON.stringify(parsed)) {
-                writeFriendsCache(accountId, normalized).catch(() => { });
+        if (!redis) return buildEmptyFriendsCacheDetails();
+
+        const scope = await resolveFriendsCacheScope(accountId, options);
+        const readKeys = Array.isArray(scope.readKeys) && scope.readKeys.length > 0
+            ? scope.readKeys
+            : [buildFriendsCacheLegacyKey(accountId)];
+
+        for (const key of readKeys) {
+            const { found, raw, details } = await readFriendsCacheDetailsByKey(redis, key, scope);
+            if (!found) continue;
+            cacheCircuitBreaker.recordSuccess();
+            if (details.friends.length > 0) {
+                const normalizedText = JSON.stringify(details.friends);
+                const hitScopedKey = !!(scope.scopeKey && key === scope.scopeKey);
+                const hasAliasKeys = readKeys.some(candidate => candidate && candidate !== key);
+                if (normalizedText !== raw) {
+                    const normalizeKeys = hitScopedKey
+                        ? scope.writeKeys
+                        : [key];
+                    syncFriendsCacheKeys(redis, normalizeKeys, details.friends, {
+                        scope,
+                        updatedAt: details.updatedAt,
+                        cacheSource: details.cacheSource,
+                        seededCount: details.seededCount,
+                    }).catch(() => { });
+                } else if (hitScopedKey && hasAliasKeys) {
+                    syncFriendsCacheKeys(redis, scope.writeKeys, details.friends, {
+                        scope,
+                        updatedAt: details.updatedAt,
+                        cacheSource: details.cacheSource,
+                        seededCount: details.seededCount,
+                    }).catch(() => { });
+                }
             }
-            return normalized;
+            return details;
         }
-        return [];
+        cacheCircuitBreaker.recordSuccess();
+        return buildEmptyFriendsCacheDetails(scope);
     } catch (e) {
         cacheCircuitBreaker.recordFailure();
         logger.error(`get friends cache failed: ${e.message}`);
-        return [];
+        return buildEmptyFriendsCacheDetails();
     }
+}
+
+async function getCachedFriends(accountId, options = {}) {
+    const details = await getCachedFriendsDetails(accountId, options);
+    return Array.isArray(details && details.friends) ? details.friends : [];
 }
 
 async function findReusableFriendsCache(accountId, options = {}) {
@@ -390,69 +803,23 @@ async function findReusableFriendsCache(accountId, options = {}) {
     }
 
     const normalizedAccountId = String(accountId || '').trim();
-    const selfGid = Number(options.selfGid) || 0;
-    const selfName = String(options.selfName || '').trim();
-    const relatedAccountIds = await findRelatedAccountIdsForFriendsCache(normalizedAccountId, {
-        platform: options.platform,
-        selfName,
-        selfUin: options.selfUin,
-        selfQq: options.selfQq,
-    });
-    const relatedAccountIdSet = new Set(relatedAccountIds);
-    const relatedAccountScore = new Map(relatedAccountIds.map((id, index) => [id, Math.max(40, 80 - index)]));
-    if (!normalizedAccountId || (selfGid <= 0 && !selfName && relatedAccountIdSet.size === 0)) {
+    if (!normalizedAccountId) {
         return null;
     }
 
     try {
+        const scope = await resolveFriendsCacheScope(normalizedAccountId, options);
+        if (!scope.scopeKey) return null;
         const redis = getRedisClient();
-        if (!redis || typeof redis.keys !== 'function') return null;
-
-        const keys = await redis.keys('account:*:friends_cache');
-        let bestMatch = null;
-
-        for (const key of (Array.isArray(keys) ? keys : [])) {
-            const sourceAccountId = extractAccountIdFromFriendsCacheKey(key);
-            if (!sourceAccountId || sourceAccountId === normalizedAccountId) {
-                continue;
-            }
-
-            let parsed = [];
-            try {
-                parsed = JSON.parse((await redis.get(key)) || '[]');
-            } catch {
-                parsed = [];
-            }
-
-            const friends = mergeFriendCacheEntries([], parsed);
-            if (friends.length <= 1) continue;
-
-            const score = Math.max(
-                scoreReusableFriendsCache(friends, { selfGid, selfName }),
-                relatedAccountScore.get(sourceAccountId) || 0
-            );
-            if (score <= 0) continue;
-
-            const hasUsableOthers = friends.some(item => {
-                const gid = Number(item && item.gid) || 0;
-                return gid > 0 && gid !== selfGid;
-            });
-            if (!hasUsableOthers) continue;
-
-            if (!bestMatch || score > bestMatch.score || (score === bestMatch.score && friends.length > bestMatch.friends.length)) {
-                bestMatch = {
-                    score,
-                    sourceAccountId,
-                    friends,
-                };
-            }
-        }
-
+        if (!redis) return null;
+        const { normalized } = await readFriendsCacheKey(redis, scope.scopeKey);
         cacheCircuitBreaker.recordSuccess();
-        if (!bestMatch) return null;
+        if (!Array.isArray(normalized) || normalized.length === 0) {
+            return null;
+        }
         return {
-            sourceAccountId: bestMatch.sourceAccountId,
-            friends: bestMatch.friends,
+            sourceAccountId: '',
+            friends: normalized,
         };
     } catch (e) {
         cacheCircuitBreaker.recordFailure();
@@ -473,54 +840,104 @@ async function findFriendInSharedCaches(friendGid, options = {}) {
     }
 
     try {
-        const redis = getRedisClient();
-        if (!redis || typeof redis.keys !== 'function') return null;
-
         const preferredAccountId = String(options.accountId || '').trim();
-        const keys = await redis.keys('account:*:friends_cache');
-        const orderedKeys = (Array.isArray(keys) ? keys : []).sort((a, b) => {
-            const aId = extractAccountIdFromFriendsCacheKey(a);
-            const bId = extractAccountIdFromFriendsCacheKey(b);
-            if (preferredAccountId) {
-                if (aId === preferredAccountId && bId !== preferredAccountId) return -1;
-                if (bId === preferredAccountId && aId !== preferredAccountId) return 1;
-            }
-            return a.localeCompare(b);
-        });
-
-        let genericMatch = null;
-        for (const key of orderedKeys) {
-            const sourceAccountId = extractAccountIdFromFriendsCacheKey(key);
-            let parsed = [];
-            try {
-                parsed = JSON.parse((await redis.get(key)) || '[]');
-            } catch {
-                parsed = [];
-            }
-
-            const friends = mergeFriendCacheEntries([], parsed);
-            const matched = friends.find(item => Number(item && item.gid) === numericGid);
-            if (!matched) continue;
-
-            const candidate = {
-                sourceAccountId,
-                friend: matched,
-            };
-            if (!isGenericFriendName(matched.name, numericGid)) {
-                cacheCircuitBreaker.recordSuccess();
-                return candidate;
-            }
-            if (!genericMatch) {
-                genericMatch = candidate;
-            }
-        }
-
+        if (!preferredAccountId) return null;
+        const friends = await getCachedFriends(preferredAccountId, options);
         cacheCircuitBreaker.recordSuccess();
-        return genericMatch;
+        const matched = (Array.isArray(friends) ? friends : [])
+            .find(item => Number(item && item.gid) === numericGid) || null;
+        if (!matched || isGenericFriendName(matched.name, numericGid)) {
+            return null;
+        }
+        return {
+            sourceAccountId: '',
+            friend: matched,
+        };
     } catch (e) {
         cacheCircuitBreaker.recordFailure();
         logger.error(`find friend in shared caches failed: ${e.message}`);
         return null;
+    }
+}
+
+async function clearFriendsCache(accountId, options = {}) {
+    const normalizedAccountId = String(accountId || '').trim();
+    if (!normalizedAccountId) {
+        return {
+            ok: false,
+            deletedCount: 0,
+            keys: [],
+            metaKeys: [],
+            scopeKey: '',
+            legacyKey: '',
+            reason: 'missing_account_id',
+        };
+    }
+
+    if (!cacheCircuitBreaker.isAvailable()) {
+        logger.warn(`Redis 熔断中，跳过好友缓存清理 (account: ${accountId})`);
+        return {
+            ok: false,
+            deletedCount: 0,
+            keys: [],
+            metaKeys: [],
+            scopeKey: '',
+            legacyKey: buildFriendsCacheLegacyKey(normalizedAccountId),
+            reason: 'circuit_open',
+        };
+    }
+
+    try {
+        const redis = getRedisClient();
+        if (!redis || typeof redis.del !== 'function') {
+            return {
+                ok: false,
+                deletedCount: 0,
+                keys: [],
+                metaKeys: [],
+                scopeKey: '',
+                legacyKey: buildFriendsCacheLegacyKey(normalizedAccountId),
+                reason: 'redis_unavailable',
+            };
+        }
+
+        const scope = await resolveFriendsCacheScope(normalizedAccountId, options);
+        const keys = Array.from(new Set(
+            []
+                .concat(Array.isArray(scope.writeKeys) ? scope.writeKeys : [])
+                .concat(buildFriendsCacheLegacyKey(normalizedAccountId))
+                .filter(Boolean)
+        ));
+        const metaKeys = Array.from(new Set(keys.map(buildFriendsCacheMetaKey).filter(Boolean)));
+        const deleteKeys = Array.from(new Set([].concat(keys).concat(metaKeys)));
+
+        let deletedCount = 0;
+        if (deleteKeys.length > 0) {
+            deletedCount = Number(await redis.del(...deleteKeys)) || 0;
+        }
+        friendsCacheScopeMemo.delete(normalizedAccountId);
+        cacheCircuitBreaker.recordSuccess();
+        return {
+            ok: true,
+            deletedCount,
+            keys,
+            metaKeys,
+            scopeKey: String(scope.scopeKey || ''),
+            legacyKey: String(scope.legacyKey || ''),
+        };
+    } catch (e) {
+        cacheCircuitBreaker.recordFailure();
+        logger.error(`clear friends cache failed: ${e.message}`);
+        return {
+            ok: false,
+            deletedCount: 0,
+            keys: [],
+            metaKeys: [],
+            scopeKey: '',
+            legacyKey: buildFriendsCacheLegacyKey(normalizedAccountId),
+            reason: 'error',
+            error: e.message,
+        };
     }
 }
 
@@ -967,7 +1384,9 @@ module.exports = {
     bufferedInsertLog,
     updateFriendsCache,
     mergeFriendsCache,
+    getCachedFriendsDetails,
     getCachedFriends,
+    clearFriendsCache,
     findReusableFriendsCache,
     findFriendInSharedCaches,
     isRedisCacheAvailable,

@@ -124,6 +124,8 @@ function loadScannerWithQuietHours(overrides = {}) {
     ];
 
     delete require.cache[scannerModulePath];
+    const previousHighRiskEnv = process.env.FARM_ALLOW_HIGH_RISK_QQ_AUTOMATION;
+    process.env.FARM_ALLOW_HIGH_RISK_QQ_AUTOMATION = '1';
     const scanner = require(scannerModulePath);
 
     return {
@@ -134,6 +136,11 @@ function loadScannerWithQuietHours(overrides = {}) {
         enterFriendFarmCalls,
         restore() {
             delete require.cache[scannerModulePath];
+            if (previousHighRiskEnv === undefined) {
+                delete process.env.FARM_ALLOW_HIGH_RISK_QQ_AUTOMATION;
+            } else {
+                process.env.FARM_ALLOW_HIGH_RISK_QQ_AUTOMATION = previousHighRiskEnv;
+            }
             restoreFns.reverse().forEach((fn) => fn());
         },
     };

@@ -225,6 +225,7 @@ function registerAdminFeatureRoutes({
         app,
         accountOwnershipRequired,
         getAccId: routeRuntime.getAccId,
+        getAccountSnapshotById: routeRuntime.getAccountSnapshotById,
         getProvider,
         handleApiError: routeRuntime.handleApiError,
         getLevelExpProgress,

@@ -296,6 +296,7 @@ test('QQ getAllFriends seeds gids from recent visitors when local cache is empty
                 ]
                 : []),
             findReusableFriendsCache: async () => null,
+            mergeFriendsCache: async () => {},
         }),
         mockModule(interactModulePath, {
             getInteractRecords: async () => {
@@ -332,12 +333,10 @@ test('QQ getAllFriends seeds gids from recent visitors when local cache is empty
     }
 });
 
-test('QQ getAllFriends reuses shared cache gids when local cache is empty', async () => {
+test('QQ getAllFriends does not reuse cross-account shared cache when local cache is empty', async () => {
     let syncAllCalls = 0;
     let getGameFriendsCalls = 0;
-    let findReusableCalls = 0;
-    let mergeCalls = 0;
-    let sharedSeeded = false;
+    let getAllCalls = 0;
     let interactCalls = 0;
     const previousAccountId = process.env.FARM_ACCOUNT_ID;
     process.env.FARM_ACCOUNT_ID = '3004';
@@ -375,6 +374,10 @@ test('QQ getAllFriends reuses shared cache gids when local cache is empty', asyn
                         return { body: Buffer.from('game-friends-direct') };
                     }
                     return { body: Buffer.from('game-friends-batch') };
+                }
+                if (methodName === 'GetAll') {
+                    getAllCalls += 1;
+                    return { body: Buffer.from('get-all-empty') };
                 }
                 throw new Error(`unexpected method: ${methodName}`);
             },
@@ -425,6 +428,13 @@ test('QQ getAllFriends reuses shared cache gids when local cache is empty', asyn
                                 application_count: 0,
                             };
                         }
+                        if (key === 'get-all-empty') {
+                            return {
+                                game_friends: [],
+                                invitations: [],
+                                application_count: 0,
+                            };
+                        }
                         return { game_friends: [], invitations: [], application_count: 0 };
                     },
                 },
@@ -447,26 +457,8 @@ test('QQ getAllFriends reuses shared cache gids when local cache is empty', asyn
         mockModule(warehouseModulePath, { sellAllFruits: async () => {} }),
         mockModule(mysqlDbModulePath, { getPool: () => ({}) }),
         mockModule(databaseModulePath, {
-            getCachedFriends: async () => (sharedSeeded
-                ? [
-                    { gid: 401, uin: '', name: '共享甲', avatarUrl: '' },
-                    { gid: 402, uin: '', name: '共享乙', avatarUrl: '' },
-                ]
-                : []),
-            findReusableFriendsCache: async () => {
-                findReusableCalls += 1;
-                return {
-                    sourceAccountId: 'peer-1',
-                    friends: [
-                        { gid: 401, uin: '', name: '共享甲', avatarUrl: '' },
-                        { gid: 402, uin: '', name: '共享乙', avatarUrl: '' },
-                    ],
-                };
-            },
-            mergeFriendsCache: async () => {
-                mergeCalls += 1;
-                sharedSeeded = true;
-            },
+            getCachedFriends: async () => [],
+            mergeFriendsCache: async () => {},
         }),
         mockModule(interactModulePath, {
             getInteractRecords: async () => {
@@ -487,12 +479,11 @@ test('QQ getAllFriends reuses shared cache gids when local cache is empty', asyn
         const { getAllFriends } = require(friendActionsModulePath);
 
         const reply = await getAllFriends();
-        assert.deepEqual(reply.game_friends.map(friend => Number(friend.gid)), [401, 402]);
+        assert.deepEqual(reply.game_friends.map(friend => Number(friend.gid)), []);
         assert.equal(syncAllCalls, 1);
-        assert.equal(getGameFriendsCalls, 2);
-        assert.equal(findReusableCalls, 1);
-        assert.equal(mergeCalls, 1);
-        assert.equal(interactCalls, 0);
+        assert.equal(getGameFriendsCalls, 1);
+        assert.equal(getAllCalls, 3);
+        assert.equal(interactCalls, 1);
     } finally {
         if (previousAccountId === undefined) delete process.env.FARM_ACCOUNT_ID;
         else process.env.FARM_ACCOUNT_ID = previousAccountId;

@@ -164,6 +164,8 @@ async function getInteractRecords(limit = 50) {
     if (accountId) {
         await cacheFriendSeeds(buildFriendSeedsFromInteractRecords(normalized), {
             accountId,
+            platform: CONFIG.platform,
+            uin: String(CONFIG.uin || '').trim(),
             immediate: true,
         });
     }

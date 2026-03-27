@@ -6,7 +6,7 @@ const { types } = require('../../utils/proto');
 const { toLong, toNum, log, logWarn, sleep } = require('../../utils/utils');
 const { recordOperation } = require('../stats');
 const { sellAllFruits } = require('../warehouse');
-const { getCachedFriends, findReusableFriendsCache, mergeFriendsCache } = require('../database');
+const { getCachedFriends } = require('../database');
 const friendStealStatsService = require('../friend-steal-stats-service');
 const { isParamError } = require('../common');
 const { cacheFriendSeeds } = require('../friend-cache-seeds');
@@ -25,7 +25,6 @@ const FRIEND_FETCH_MODE = {
 const FRIEND_FETCH_RESULT_LOG_TTL_MS = 5 * 60 * 1000;
 const GET_ALL_PARAM_ERROR_COOLDOWN_MS = 30 * 60 * 1000;
 const GET_GAME_FRIENDS_BATCH_SIZE = 35;
-const SHARED_FRIEND_CACHE_REUSE_COOLDOWN_MS = 60 * 1000;
 const VISITOR_FRIEND_SEED_COOLDOWN_MS = 60 * 1000;
 const QQ_CONSERVATIVE_FETCH_LOG_TTL_MS = 5 * 60 * 1000;
 const WECHAT_SYNC_ALL_UNSUPPORTED_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -47,6 +46,17 @@ function _resolveRuntimeAccountId(userState = null) {
         || '',
     ).trim();
     return resolved || null;
+}
+
+function _buildFriendCacheScopeOptions(userState = null, accountId = null) {
+    const normalizedUserState = userState && typeof userState === 'object' ? userState : null;
+    return {
+        accountId: accountId || _resolveRuntimeAccountId(normalizedUserState),
+        platform: CONFIG.platform,
+        uin: String(CONFIG.uin || normalizedUserState?.uin || '').trim(),
+        openId: String(normalizedUserState?.openId || normalizedUserState?.open_id || '').trim(),
+        userState: normalizedUserState,
+    };
 }
 
 function _isQQPlatform() {
@@ -701,67 +711,6 @@ function _buildFriendSeedsFromInteractRecords(records = [], options = {}) {
     return Array.from(deduped.values());
 }
 
-async function _tryReuseSharedFriendsCache(accountId, options = {}) {
-    if (!accountId || typeof findReusableFriendsCache !== 'function') {
-        return [];
-    }
-
-    const fetchState = options.fetchState || null;
-    if (_isFetchProbeCooling(fetchState, 'sharedCacheReuseAt', SHARED_FRIEND_CACHE_REUSE_COOLDOWN_MS)) {
-        return [];
-    }
-    _markFetchProbe(fetchState, 'sharedCacheReuseAt');
-
-    try {
-        const userState = options.userState || null;
-        const selfName = String(
-            (userState && (userState.name || userState.nick || userState.username)) || ''
-        ).trim();
-        const reusableCache = await findReusableFriendsCache(accountId, {
-            selfGid: toNum(userState && userState.gid),
-            selfName,
-            selfUin: String(CONFIG.uin || '').trim(),
-            selfQq: String(CONFIG.uin || '').trim(),
-            platform: CONFIG.platform,
-        });
-        const friends = Array.isArray(reusableCache && reusableCache.friends)
-            ? reusableCache.friends
-            : [];
-        if (friends.length <= 0) {
-            return [];
-        }
-
-        if (typeof mergeFriendsCache === 'function') {
-            await mergeFriendsCache(accountId, friends);
-        }
-
-        const sourceAccountId = String(reusableCache && reusableCache.sourceAccountId || '').trim();
-        log('好友', sourceAccountId
-            ? `当前账号无好友缓存，已复用账号 ${sourceAccountId} 的好友快照 ${friends.length} 人`
-            : `当前账号无好友缓存，已复用共享好友快照 ${friends.length} 人`, {
-            module: 'friend',
-            event: 'friend_cache_reuse',
-            result: 'ok',
-            count: friends.length,
-            sourceAccountId: sourceAccountId || undefined,
-        });
-
-        const cached = await getCachedFriends(accountId);
-        return _attachCacheSeedMeta(
-            Array.isArray(cached) && cached.length > 0 ? cached : friends,
-            'shared_cache',
-            Array.isArray(friends) ? friends.length : 0,
-        );
-    } catch (error) {
-        logWarn('好友', `复用共享好友缓存失败: ${error.message}`, {
-            module: 'friend',
-            event: 'friend_cache_reuse',
-            result: 'error',
-        });
-        return [];
-    }
-}
-
 async function _trySeedFriendsCacheFromVisitors(accountId, options = {}) {
     if (!accountId || typeof getInteractRecords !== 'function') {
         return [];
@@ -783,11 +732,11 @@ async function _trySeedFriendsCacheFromVisitors(accountId, options = {}) {
         }
 
         await cacheFriendSeeds(visitorSeeds, {
-            accountId,
+            ..._buildFriendCacheScopeOptions(options.userState || null, accountId),
             immediate: true,
         });
 
-        const cached = await getCachedFriends(accountId);
+        const cached = await getCachedFriends(accountId, _buildFriendCacheScopeOptions(options.userState || null, accountId));
         if (Array.isArray(cached) && cached.length > 0) {
             log('好友', `当前账号无好友缓存，已从最近访客补建 ${cached.length} 个临时好友缓存`, {
                 module: 'friend',
@@ -813,14 +762,9 @@ async function _trySeedFriendsCacheFromVisitors(accountId, options = {}) {
 async function _getCachedFriendsWithBootstrap(accountId, options = {}) {
     if (!accountId) return [];
 
-    const cached = await getCachedFriends(accountId);
+    const cached = await getCachedFriends(accountId, _buildFriendCacheScopeOptions(options.userState || null, accountId));
     if (Array.isArray(cached) && cached.length > 0) {
         return cached;
-    }
-
-    const sharedFriends = await _tryReuseSharedFriendsCache(accountId, options);
-    if (sharedFriends.length > 0) {
-        return sharedFriends;
     }
 
     if (options.allowVisitorSeed) {
@@ -1169,7 +1113,7 @@ async function getApplications() {
     }
     if (appCount > 0) {
         await cacheFriendSeeds(reply.applications || [], {
-            accountId: _resolveRuntimeAccountId(getUserState()),
+            ..._buildFriendCacheScopeOptions(getUserState()),
         });
     }
     return reply;
@@ -1187,7 +1131,7 @@ async function acceptFriends(gids) {
         .concat((Array.isArray(gids) ? gids : []).map(gid => ({ gid })));
     if (acceptedSeeds.length > 0) {
         await cacheFriendSeeds(acceptedSeeds, {
-            accountId: _resolveRuntimeAccountId(getUserState()),
+            ..._buildFriendCacheScopeOptions(getUserState()),
         });
     }
     return reply;
@@ -1210,7 +1154,7 @@ async function enterFriendFarm(friendGid, isUrgent = false) {
         });
     }
     await cacheFriendSeeds(seeds, {
-        accountId: _resolveRuntimeAccountId(getUserState()),
+        ..._buildFriendCacheScopeOptions(getUserState()),
     });
     return reply;
 }

@@ -36,13 +36,19 @@ test('initMasterRuntimeDispatcher initializes dispatcher immediately after admin
     assert.deepEqual(loggerCalls, [['master dispatcher initialized']]);
 });
 
-test('initMasterRuntimeDispatcher throws when admin socket is not ready', () => {
-    assert.throws(() => initMasterRuntimeDispatcher({
+test('initMasterRuntimeDispatcher logs warning and returns null when admin socket is not ready', () => {
+    const loggerCalls = [];
+    const result = initMasterRuntimeDispatcher({
         currentRole: 'master',
         getIO: () => null,
         initDispatcher: () => ({}),
-        logger: {},
-    }), /Admin Socket\.IO 未就绪/);
+        logger: {
+            warn: (...args) => loggerCalls.push(args),
+        },
+    });
+
+    assert.equal(result, null);
+    assert.deepEqual(loggerCalls, [['master dispatcher skipped: Admin Socket.IO 未就绪']]);
 });
 
 test('disposeMasterRuntimeDispatcher skips non-master roles', () => {

@@ -21,6 +21,7 @@ export const useFriendStore = defineStore('friend', () => {
   const friendFetchMeta = ref(defaultFriendFetchMeta())
   const loading = ref(false)
   const seedCacheLoading = ref(false)
+  const clearCacheLoading = ref(false)
   const friendLands = ref<Record<string, any[]>>({})
   const friendLandsLoading = ref<Record<string, boolean>>({})
   const blacklist = ref<number[]>([])
@@ -352,6 +353,82 @@ export const useFriendStore = defineStore('friend', () => {
     }
   }
 
+  async function clearFriendsCache(accountId: string, options: { refresh?: boolean } = {}): Promise<{
+    ok: boolean
+    cleared?: any
+    refreshed?: any
+    data?: any[]
+    meta?: any
+    friendCount?: number
+    error?: string
+  }> {
+    const normalizedAccountId = String(accountId || '').trim()
+    if (!normalizedAccountId)
+      return { ok: false, error: '缺少账号标识' }
+
+    const shouldRefresh = !!options.refresh
+    clearCacheLoading.value = true
+
+    try {
+      const res = await api.post('/api/friends/cache/clear', {
+        refresh: shouldRefresh ? 1 : 0,
+      }, {
+        headers: { 'x-account-id': normalizedAccountId },
+      })
+
+      if (!res.data?.ok) {
+        return {
+          ok: false,
+          error: String(res.data?.error || '清理好友缓存失败'),
+        }
+      }
+
+      friends.value = []
+      cachedFriends.value = []
+      friendLands.value = {}
+      friendLandsLoading.value = {}
+
+      if (shouldRefresh) {
+        const refreshedData = Array.isArray(res.data?.refreshed?.data) ? res.data.refreshed.data : []
+        friends.value = [...refreshedData]
+        cachedFriends.value = [...refreshedData]
+        setFriendFetchMeta(res.data?.refreshed?.meta || (refreshedData.length > 0
+          ? {
+              source: 'cache',
+              reason: 'cache_rebuilt',
+            }
+          : {
+              source: 'empty',
+              reason: 'cache_rebuilt_empty',
+            }))
+      }
+      else {
+        setFriendFetchMeta({
+          source: 'empty',
+          reason: 'cache_cleared',
+        })
+      }
+
+      return {
+        ok: true,
+        cleared: res.data?.cleared || null,
+        refreshed: res.data?.refreshed || null,
+        data: Array.isArray(res.data?.refreshed?.data) ? res.data.refreshed.data : [],
+        meta: res.data?.refreshed?.meta || null,
+        friendCount: friends.value.length,
+      }
+    }
+    catch (error: any) {
+      return {
+        ok: false,
+        error: String(error?.response?.data?.error || error?.message || '清理好友缓存失败'),
+      }
+    }
+    finally {
+      clearCacheLoading.value = false
+    }
+  }
+
   async function fetchInteractRecords(accountId: string, limit = 50): Promise<boolean> {
     const normalizedAccountId = String(accountId || '').trim()
     if (!normalizedAccountId) {
@@ -410,6 +487,7 @@ export const useFriendStore = defineStore('friend', () => {
     friendFetchMeta,
     loading,
     seedCacheLoading,
+    clearCacheLoading,
     friendLands,
     friendLandsLoading,
     blacklist,
@@ -420,6 +498,7 @@ export const useFriendStore = defineStore('friend', () => {
     fetchFriends,
     fetchCachedFriends,
     seedFriendsCache,
+    clearFriendsCache,
     fetchBlacklist,
     toggleBlacklist,
     fetchFriendLands,

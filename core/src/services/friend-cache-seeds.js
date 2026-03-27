@@ -15,12 +15,12 @@ function getMergeFriendsCache() {
         : null;
 }
 
-async function persistFriendSeeds(accountId, friends) {
+async function persistFriendSeeds(accountId, friends, options = {}) {
     const mergeFriendsCache = getMergeFriendsCache();
     if (typeof mergeFriendsCache !== 'function') {
         throw new TypeError('mergeFriendsCache is not a function');
     }
-    await mergeFriendsCache(accountId, friends);
+    await mergeFriendsCache(accountId, friends, options);
 }
 
 function resolveFriendSeedAccountId(accountId = '', userState = null) {
@@ -143,7 +143,7 @@ async function flushQueuedFriendSeeds(accountId = '') {
     clearBucketTimer(bucket);
 
     try {
-        await persistFriendSeeds(resolvedAccountId, bucket.seeds);
+        await persistFriendSeeds(resolvedAccountId, bucket.seeds, bucket.options || {});
         return true;
     } catch (error) {
         logger.warn(`flush queued friend seeds failed(account=${resolvedAccountId}): ${error.message}`);
@@ -159,6 +159,7 @@ function ensurePendingBucket(accountId) {
         pendingSeedBuckets.set(resolvedAccountId, {
             seeds: [],
             timer: null,
+            options: {},
         });
     }
     return pendingSeedBuckets.get(resolvedAccountId);
@@ -174,7 +175,7 @@ async function cacheFriendSeeds(seeds = [], options = {}) {
     const delayMs = Math.max(0, Number(options.delayMs ?? DEFAULT_FLUSH_DELAY_MS));
     if (options.immediate || delayMs === 0) {
         try {
-            await persistFriendSeeds(resolvedAccountId, normalizedSeeds);
+            await persistFriendSeeds(resolvedAccountId, normalizedSeeds, options);
             return true;
         } catch (error) {
             logger.warn(`merge friend seeds failed(account=${resolvedAccountId}): ${error.message}`);
@@ -186,6 +187,15 @@ async function cacheFriendSeeds(seeds = [], options = {}) {
     if (!bucket) return false;
 
     bucket.seeds = mergeFriendSeeds(bucket.seeds, normalizedSeeds);
+    bucket.options = {
+        ...(bucket.options || {}),
+        platform: options.platform ?? (bucket.options && bucket.options.platform),
+        uin: options.uin ?? (bucket.options && bucket.options.uin),
+        qq: options.qq ?? (bucket.options && bucket.options.qq),
+        openId: options.openId ?? options.open_id ?? (bucket.options && bucket.options.openId),
+        userState: options.userState ?? (bucket.options && bucket.options.userState),
+        account: options.account ?? (bucket.options && bucket.options.account),
+    };
     clearBucketTimer(bucket);
     bucket.timer = setTimeout(() => {
         void flushQueuedFriendSeeds(resolvedAccountId);

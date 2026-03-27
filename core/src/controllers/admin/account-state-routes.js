@@ -2,23 +2,51 @@ function registerAccountStateRoutes({
     app,
     accountOwnershipRequired,
     getAccId,
+    getAccountSnapshotById,
     getProvider,
     handleApiError,
     getLevelExpProgress,
     loadFriendsCacheApi,
 }) {
-    async function getCachedFriendsData(id) {
+    async function getAccountCacheOptions(id) {
+        if (typeof getAccountSnapshotById !== 'function') {
+            return {};
+        }
+        try {
+            const account = await getAccountSnapshotById(id);
+            if (!account || typeof account !== 'object') {
+                return {};
+            }
+            return {
+                account,
+                platform: String(account.platform || '').trim(),
+                uin: String(account.uin || '').trim(),
+                qq: String(account.qq || '').trim(),
+                openId: String(account.openId || account.open_id || '').trim(),
+            };
+        } catch {
+            return {};
+        }
+    }
+
+    async function getCachedFriendsData(id, cacheOptions = null) {
         const { getCachedFriends } = loadFriendsCacheApi();
         if (!getCachedFriends) return [];
-        const data = await getCachedFriends(id);
+        const options = cacheOptions && typeof cacheOptions === 'object'
+            ? cacheOptions
+            : await getAccountCacheOptions(id);
+        const data = await getCachedFriends(id, options);
         return Array.isArray(data) ? data : [];
     }
 
-    function syncFriendsCache(id, data) {
+    async function syncFriendsCache(id, data, cacheOptions = null) {
         const { updateFriendsCache, mergeFriendsCache } = loadFriendsCacheApi();
         const syncFn = mergeFriendsCache || updateFriendsCache;
         if (!syncFn || !Array.isArray(data) || data.length === 0) return;
-        syncFn(id, data).catch(() => { });
+        const options = cacheOptions && typeof cacheOptions === 'object'
+            ? cacheOptions
+            : await getAccountCacheOptions(id);
+        syncFn(id, data, options).catch(() => { });
     }
 
     function normalizeFriendsMeta(meta) {
@@ -102,14 +130,17 @@ function registerAccountStateRoutes({
     }
 
     async function getFriendsWithFallback(id, options = {}) {
+        const cacheOptions = options.cacheOptions && typeof options.cacheOptions === 'object'
+            ? options.cacheOptions
+            : await getAccountCacheOptions(id);
         try {
             const payload = await getProvider().getFriends(id, options);
             const { data, meta } = extractFriendsDataAndMeta(payload);
             if (Array.isArray(data) && data.length > 0) {
-                syncFriendsCache(id, data);
+                void syncFriendsCache(id, data, cacheOptions);
                 return { data, meta };
             }
-            const cached = await getCachedFriendsData(id);
+            const cached = await getCachedFriendsData(id, cacheOptions);
             if (cached.length > 0) {
                 return {
                     data: cached,
@@ -121,7 +152,7 @@ function registerAccountStateRoutes({
                 meta,
             };
         } catch (err) {
-            const cached = await getCachedFriendsData(id);
+            const cached = await getCachedFriendsData(id, cacheOptions);
             if (cached.length > 0) {
                 return {
                     data: cached,
@@ -183,12 +214,60 @@ function registerAccountStateRoutes({
         const id = await getAccId(req);
         if (!id) return res.status(400).json({ ok: false });
         try {
-            let data = await getCachedFriendsData(id);
+            const cacheOptions = await getAccountCacheOptions(id);
+            let data = await getCachedFriendsData(id, cacheOptions);
             if (data.length === 0) {
-                const result = await getFriendsWithFallback(id);
+                const result = await getFriendsWithFallback(id, { cacheOptions });
                 data = Array.isArray(result && result.data) ? result.data : [];
             }
             res.json({ ok: true, data });
+        } catch (e) {
+            handleApiError(res, e);
+        }
+    });
+
+    app.post('/api/friends/cache/clear', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
+        if (!id) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+        try {
+            const { clearFriendsCache } = loadFriendsCacheApi();
+            if (typeof clearFriendsCache !== 'function') {
+                return res.status(501).json({ ok: false, error: '当前运行环境不支持清理好友缓存' });
+            }
+
+            const cacheOptions = await getAccountCacheOptions(id);
+            const cleared = await clearFriendsCache(id, cacheOptions);
+            if (!cleared || cleared.ok !== true) {
+                return res.status(503).json({
+                    ok: false,
+                    error: String((cleared && (cleared.error || cleared.reason)) || '清理好友缓存失败'),
+                    cleared: cleared || null,
+                });
+            }
+            const refreshRequested = isTruthyQueryFlag(
+                (req.body && req.body.refresh) !== undefined
+                    ? req.body.refresh
+                    : (req.query && req.query.refresh)
+            );
+
+            let refreshed = null;
+            if (refreshRequested) {
+                const result = await getFriendsWithFallback(id, {
+                    manualRefresh: true,
+                    cacheOptions,
+                });
+                refreshed = {
+                    data: Array.isArray(result && result.data) ? [...result.data] : [],
+                    count: Array.isArray(result && result.data) ? result.data.length : 0,
+                    meta: result && result.meta ? result.meta : null,
+                };
+            }
+
+            res.json({
+                ok: true,
+                cleared,
+                ...(refreshed ? { refreshed } : {}),
+            });
         } catch (e) {
             handleApiError(res, e);
         }
@@ -211,7 +290,8 @@ function registerAccountStateRoutes({
             interactErrorCode = String((e && e.code) || '').trim();
         }
 
-        const cached = await getCachedFriendsData(id);
+        const cacheOptions = await getAccountCacheOptions(id);
+        const cached = await getCachedFriendsData(id, cacheOptions);
         const seededCount = countInteractSeedCandidates(records);
         const baseMeta = normalizeFriendsMeta({
             source: cached.length > 0 ? 'cache' : 'empty',

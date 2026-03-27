@@ -72,11 +72,8 @@ function markCurrentAccountSelectionSynced(storage: StorageLike | null | undefin
 }
 
 async function defaultSaveSelection(accountId: string) {
-  const { default: api } = await import('../api/index.ts')
-  const res = await api.post('/api/account-selection', {
-    currentAccountId: accountId,
-  })
-  return res.data?.ok ? (res.data.data || null) as AccountSelectionPayload | null : null
+  const { saveCurrentAccountSelection } = await import('./current-account-selection-api.ts')
+  return await saveCurrentAccountSelection(accountId)
 }
 
 export function normalizeCurrentAccountSelectionId(value: unknown) {

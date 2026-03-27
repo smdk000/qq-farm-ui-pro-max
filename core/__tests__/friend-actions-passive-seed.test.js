@@ -154,29 +154,28 @@ test('friend actions cache gids from applications, accepts and friend farm basic
         await acceptFriends([2001, 2002]);
         await enterFriendFarm(3001);
 
-        assert.deepEqual(cacheCalls, [
-            {
-                friends: [
-                    { gid: 2001, name: '申请甲', open_id: '2001', avatar_url: 'https://img/app.png', level: 12 },
-                ],
-                options: { accountId: 'acc-8' },
-            },
-            {
-                friends: [
-                    { gid: 2001, name: '申请甲', avatar_url: 'https://img/friend.png' },
-                    { gid: 2001 },
-                    { gid: 2002 },
-                ],
-                options: { accountId: 'acc-8' },
-            },
-            {
-                friends: [
-                    { gid: 3001, name: '好友甲', open_id: '', avatar_url: 'https://img/basic.png' },
-                    { gid: 3001 },
-                ],
-                options: { accountId: 'acc-8' },
-            },
+        assert.equal(cacheCalls.length, 3);
+        assert.deepEqual(cacheCalls[0].friends, [
+            { gid: 2001, name: '申请甲', open_id: '2001', avatar_url: 'https://img/app.png', level: 12 },
         ]);
+        assert.deepEqual(cacheCalls[1].friends, [
+            { gid: 2001, name: '申请甲', avatar_url: 'https://img/friend.png' },
+            { gid: 2001 },
+            { gid: 2002 },
+        ]);
+        assert.deepEqual(cacheCalls[2].friends, [
+            { gid: 3001, name: '好友甲', open_id: '', avatar_url: 'https://img/basic.png' },
+            { gid: 3001 },
+        ]);
+        cacheCalls.forEach(({ options }) => {
+            assert.deepEqual(options, {
+                accountId: 'acc-8',
+                platform: 'qq',
+                uin: '',
+                openId: '',
+                userState: { gid: 999, accountId: 'acc-8' },
+            });
+        });
     } finally {
         delete require.cache[friendActionsModulePath];
         restoreFns.reverse().forEach(restore => restore());

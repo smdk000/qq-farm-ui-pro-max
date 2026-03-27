@@ -24,7 +24,7 @@ const { networkCircuitBreaker } = require('../services/circuit-breaker');
 const { connect, cleanup, getWs, getUserState, networkEvents } = require('../utils/network');
 const { loadProto } = require('../utils/proto');
 const { setLogHook, log, toNum } = require('../utils/utils');
-const { getCachedFriends, mergeFriendsCache, findReusableFriendsCache, closeDatabase } = require('../services/database');
+const { getCachedFriends, closeDatabase } = require('../services/database');
 const { createRuntimeEventBus } = require('../runtime/runtime-event-bus');
 const {
     createRuntimeModuleDefinitions,
@@ -689,34 +689,18 @@ async function startBot(config) {
         // 冷启动预热：优先使用最近一次缓存的好友快照，缩短 requiresGameFriend 的未知窗口
         try {
             if (CONFIG.accountId && !accountModePolicyService.getRuntimeFriendsSnapshot(CONFIG.accountId)) {
-                let cachedFriends = await getCachedFriends(CONFIG.accountId);
-                let reusedSourceAccountId = '';
-                if ((!Array.isArray(cachedFriends) || cachedFriends.length === 0) && latest.gid > 0) {
-                    const reusableCache = await findReusableFriendsCache(CONFIG.accountId, {
-                        selfGid: latest.gid,
-                        selfName: latest.name,
-                        selfUin: CONFIG.uin,
-                        selfQq: CONFIG.uin,
-                        platform: CONFIG.platform,
-                    });
-                    if (reusableCache && Array.isArray(reusableCache.friends) && reusableCache.friends.length > 0) {
-                        cachedFriends = reusableCache.friends;
-                        reusedSourceAccountId = String(reusableCache.sourceAccountId || '').trim();
-                        await mergeFriendsCache(CONFIG.accountId, cachedFriends);
-                    }
-                }
+                const cachedFriends = await getCachedFriends(CONFIG.accountId, {
+                    platform: CONFIG.platform,
+                    uin: String(CONFIG.uin || '').trim(),
+                    openId: String(latest.openId || '').trim(),
+                });
                 if (Array.isArray(cachedFriends) && cachedFriends.length > 0) {
                     accountModePolicyService.updateRuntimeFriendsSnapshot(cachedFriends, CONFIG.accountId);
-                    const reused = !!reusedSourceAccountId;
-                    log('好友', reused
-                        ? `已复用历史好友缓存快照 ${cachedFriends.length} 人 (来源账号 ${reusedSourceAccountId})`
-                        : `已预热好友缓存快照 ${cachedFriends.length} 人`, {
+                    log('好友', `已预热好友缓存快照 ${cachedFriends.length} 人`, {
                         module: 'friend',
                         event: 'friend_cache_preheat',
                         result: 'ok',
                         count: cachedFriends.length,
-                        reused,
-                        sourceAccountId: reusedSourceAccountId || undefined,
                     });
                 }
             }

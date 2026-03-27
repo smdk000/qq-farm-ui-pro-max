@@ -75,6 +75,11 @@ test('mergeFriendsCache preserves meaningful fields while adding visitor seeds',
             recordSuccess() {},
             recordFailure() {},
         },
+        cacheCircuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
     });
     const restoreJwtService = mockModule(jwtServiceModulePath, {
         async initJwtSecretPersistence() {},
@@ -147,6 +152,11 @@ test('mergeFriendsCache drops fallback uin values that are actually gid echoes',
             recordSuccess() {},
             recordFailure() {},
         },
+        cacheCircuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
     });
     const restoreJwtService = mockModule(jwtServiceModulePath, {
         async initJwtSecretPersistence() {},
@@ -213,6 +223,11 @@ test('getCachedFriends normalizes legacy openId tokens that were historically st
     });
     const restoreCircuitBreaker = mockModule(circuitBreakerModulePath, {
         circuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
+        cacheCircuitBreaker: {
             isAvailable() { return true; },
             recordSuccess() {},
             recordFailure() {},
@@ -299,6 +314,11 @@ test('mergeFriendsCache preserves openId separately from QQ uin', async () => {
             recordSuccess() {},
             recordFailure() {},
         },
+        cacheCircuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
     });
     const restoreJwtService = mockModule(jwtServiceModulePath, {
         async initJwtSecretPersistence() {},
@@ -327,86 +347,7 @@ test('mergeFriendsCache preserves openId separately from QQ uin', async () => {
     }
 });
 
-test('findReusableFriendsCache can reuse historical cache for the same QQ self gid', async () => {
-    const kv = new Map();
-    const redis = {
-        async set(key, value) {
-            kv.set(String(key), String(value));
-        },
-        async get(key) {
-            return kv.get(String(key)) || null;
-        },
-        async keys(pattern) {
-            if (pattern !== 'account:*:friends_cache') return [];
-            return Array.from(kv.keys()).filter(key => /^account:.+:friends_cache$/.test(key)).sort();
-        },
-    };
-
-    const restoreMysqlDb = mockModule(mysqlDbModulePath, {
-        async initMysql() {},
-        async closeMysql() {},
-        getPool() {
-            return {
-                query: async () => [[]],
-                execute: async () => [[]],
-            };
-        },
-        isMysqlInitialized() {
-            return true;
-        },
-    });
-    const restoreRedisCache = mockModule(redisCacheModulePath, {
-        async initRedis() { return true; },
-        async closeRedis() {},
-        getRedisClient() { return redis; },
-    });
-    const restoreCircuitBreaker = mockModule(circuitBreakerModulePath, {
-        circuitBreaker: {
-            isAvailable() { return true; },
-            recordSuccess() {},
-            recordFailure() {},
-        },
-    });
-    const restoreJwtService = mockModule(jwtServiceModulePath, {
-        async initJwtSecretPersistence() {},
-    });
-    const restoreLogger = mockModule(loggerModulePath, createLoggerMock());
-
-    try {
-        delete require.cache[databaseModulePath];
-        const { updateFriendsCache, findReusableFriendsCache } = require(databaseModulePath);
-
-        await updateFriendsCache('1008', [
-            { gid: 1087791399, name: '悠然恍若隔世梦', avatarUrl: 'https://img/self.png' },
-            { gid: 1098611337, name: '未来可期', avatarUrl: 'https://img/friend.png' },
-        ]);
-        await updateFriendsCache('1009', [
-            { gid: 2000000001, name: '其他账号', avatarUrl: 'https://img/other.png' },
-        ]);
-
-        const reusable = await findReusableFriendsCache('1016', {
-            selfGid: 1087791399,
-            selfName: '悠然恍若隔世梦',
-        });
-
-        assert.deepEqual(reusable, {
-            sourceAccountId: '1008',
-            friends: [
-                { gid: 1087791399, uin: '', openId: '', name: '悠然恍若隔世梦', avatarUrl: 'https://img/self.png' },
-                { gid: 1098611337, uin: '', openId: '', name: '未来可期', avatarUrl: 'https://img/friend.png' },
-            ],
-        });
-    } finally {
-        delete require.cache[databaseModulePath];
-        restoreLogger();
-        restoreJwtService();
-        restoreCircuitBreaker();
-        restoreRedisCache();
-        restoreMysqlDb();
-    }
-});
-
-test('findReusableFriendsCache can reuse related account cache by same QQ nickname when self gid is not cached', async () => {
+test('getCachedFriends reuses the same QQ identity scope across account ids', async () => {
     const kv = new Map();
     const redis = {
         async set(key, value) {
@@ -427,20 +368,17 @@ test('findReusableFriendsCache can reuse related account cache by same QQ nickna
         getPool() {
             return {
                 query: async (sql, params) => {
-                    if (String(sql).includes('FROM accounts WHERE id <> ? AND platform = ?')) {
-                        assert.deepEqual(params, ['1002', 'qq']);
-                        return [[
-                            {
-                                id: '1001',
-                                uin: '__ACCOUNT_ID__:1001',
-                                nick: '',
-                                name: '悠然恍若隔世梦',
+                    if (String(sql).includes('FROM accounts WHERE id = ? LIMIT 1')) {
+                        const id = String(params && params[0] || '');
+                        if (id === '1016') {
+                            return [[{
+                                id,
+                                uin: '__ACCOUNT_ID__:1016',
+                                open_id: '',
                                 platform: 'qq',
                                 auth_data: JSON.stringify({ qq: '416409364', uin: '416409364' }),
-                                last_login_at: new Date('2026-03-11T00:23:28.000Z'),
-                                updated_at: new Date('2026-03-11T00:23:28.000Z'),
-                            },
-                        ]];
+                            }]];
+                        }
                     }
                     return [[]];
                 },
@@ -462,6 +400,11 @@ test('findReusableFriendsCache can reuse related account cache by same QQ nickna
             recordSuccess() {},
             recordFailure() {},
         },
+        cacheCircuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
     });
     const restoreJwtService = mockModule(jwtServiceModulePath, {
         async initJwtSecretPersistence() {},
@@ -470,26 +413,32 @@ test('findReusableFriendsCache can reuse related account cache by same QQ nickna
 
     try {
         delete require.cache[databaseModulePath];
-        const { updateFriendsCache, findReusableFriendsCache } = require(databaseModulePath);
+        const { updateFriendsCache, getCachedFriends, findReusableFriendsCache } = require(databaseModulePath);
 
-        await updateFriendsCache('1001', [
-            { gid: 1093441253, name: '♡', avatarUrl: 'https://img/a.png' },
-            { gid: 1172159984, name: '我是大飞哥', avatarUrl: 'https://img/b.png' },
-            { gid: 1182182338, name: '桀殇→辉', avatarUrl: 'https://img/c.png' },
+        await updateFriendsCache('1008', [
+            { gid: 1087791399, name: '悠然恍若隔世梦', avatarUrl: 'https://img/self.png' },
+            { gid: 1098611337, name: '未来可期', avatarUrl: 'https://img/friend.png' },
+        ], {
+            platform: 'qq',
+            uin: '416409364',
+        });
+
+        const reused = await getCachedFriends('1016');
+        assert.deepEqual(reused, [
+            { gid: 1087791399, uin: '', openId: '', name: '悠然恍若隔世梦', avatarUrl: 'https://img/self.png' },
+            { gid: 1098611337, uin: '', openId: '', name: '未来可期', avatarUrl: 'https://img/friend.png' },
         ]);
 
-        const reusable = await findReusableFriendsCache('1002', {
-            selfGid: 1087791399,
-            selfName: '悠然恍若隔世梦',
+        const reusable = await findReusableFriendsCache('1016', {
             platform: 'qq',
+            uin: '416409364',
         });
 
         assert.deepEqual(reusable, {
-            sourceAccountId: '1001',
+            sourceAccountId: '',
             friends: [
-                { gid: 1093441253, uin: '', openId: '', name: '♡', avatarUrl: 'https://img/a.png' },
-                { gid: 1172159984, uin: '', openId: '', name: '我是大飞哥', avatarUrl: 'https://img/b.png' },
-                { gid: 1182182338, uin: '', openId: '', name: '桀殇→辉', avatarUrl: 'https://img/c.png' },
+                { gid: 1087791399, uin: '', openId: '', name: '悠然恍若隔世梦', avatarUrl: 'https://img/self.png' },
+                { gid: 1098611337, uin: '', openId: '', name: '未来可期', avatarUrl: 'https://img/friend.png' },
             ],
         });
     } finally {
@@ -502,7 +451,7 @@ test('findReusableFriendsCache can reuse related account cache by same QQ nickna
     }
 });
 
-test('findFriendInSharedCaches can resolve nickname from another account cache by gid', async () => {
+test('getCachedFriends does not reuse unrelated account cache scopes', async () => {
     const kv = new Map();
     const redis = {
         async set(key, value) {
@@ -510,6 +459,109 @@ test('findFriendInSharedCaches can resolve nickname from another account cache b
         },
         async get(key) {
             return kv.get(String(key)) || null;
+        },
+        async keys(pattern) {
+            if (pattern !== 'account:*:friends_cache') return [];
+            return Array.from(kv.keys()).filter(key => /^account:.+:friends_cache$/.test(key)).sort();
+        },
+    };
+
+    const restoreMysqlDb = mockModule(mysqlDbModulePath, {
+        async initMysql() {},
+        async closeMysql() {},
+        getPool() {
+            return {
+                query: async (sql, params) => {
+                    if (String(sql).includes('FROM accounts WHERE id = ? LIMIT 1')) {
+                        const id = String(params && params[0] || '');
+                        if (id === '1002') {
+                            return [[{
+                                id,
+                                uin: '__ACCOUNT_ID__:1002',
+                                open_id: '',
+                                platform: 'qq',
+                                auth_data: JSON.stringify({ qq: '777000999', uin: '777000999' }),
+                            }]];
+                        }
+                    }
+                    return [[]];
+                },
+                execute: async () => [[]],
+            };
+        },
+        isMysqlInitialized() {
+            return true;
+        },
+    });
+    const restoreRedisCache = mockModule(redisCacheModulePath, {
+        async initRedis() { return true; },
+        async closeRedis() {},
+        getRedisClient() { return redis; },
+    });
+    const restoreCircuitBreaker = mockModule(circuitBreakerModulePath, {
+        circuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
+        cacheCircuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
+    });
+    const restoreJwtService = mockModule(jwtServiceModulePath, {
+        async initJwtSecretPersistence() {},
+    });
+    const restoreLogger = mockModule(loggerModulePath, createLoggerMock());
+
+    try {
+        delete require.cache[databaseModulePath];
+        const { updateFriendsCache, getCachedFriends, findReusableFriendsCache } = require(databaseModulePath);
+
+        await updateFriendsCache('1001', [
+            { gid: 1093441253, name: '♡', avatarUrl: 'https://img/a.png' },
+            { gid: 1172159984, name: '我是大飞哥', avatarUrl: 'https://img/b.png' },
+            { gid: 1182182338, name: '桀殇→辉', avatarUrl: 'https://img/c.png' },
+        ], {
+            platform: 'qq',
+            uin: '416409364',
+        });
+
+        const reused = await getCachedFriends('1002');
+        assert.deepEqual(reused, []);
+
+        const reusable = await findReusableFriendsCache('1002', {
+            platform: 'qq',
+            uin: '777000999',
+        });
+
+        assert.equal(reusable, null);
+    } finally {
+        delete require.cache[databaseModulePath];
+        restoreLogger();
+        restoreJwtService();
+        restoreCircuitBreaker();
+        restoreRedisCache();
+        restoreMysqlDb();
+    }
+});
+
+test('clearFriendsCache removes both scoped and legacy keys for the target account', async () => {
+    const kv = new Map();
+    const redis = {
+        async set(key, value) {
+            kv.set(String(key), String(value));
+        },
+        async get(key) {
+            return kv.get(String(key)) || null;
+        },
+        async del(...keys) {
+            let deleted = 0;
+            for (const key of keys.flat()) {
+                if (kv.delete(String(key))) deleted += 1;
+            }
+            return deleted;
         },
         async keys(pattern) {
             if (pattern !== 'account:*:friends_cache') return [];
@@ -541,6 +593,131 @@ test('findFriendInSharedCaches can resolve nickname from another account cache b
             recordSuccess() {},
             recordFailure() {},
         },
+        cacheCircuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
+    });
+    const restoreJwtService = mockModule(jwtServiceModulePath, {
+        async initJwtSecretPersistence() {},
+    });
+    const restoreLogger = mockModule(loggerModulePath, createLoggerMock());
+
+    try {
+        delete require.cache[databaseModulePath];
+        const { updateFriendsCache, clearFriendsCache, getCachedFriends } = require(databaseModulePath);
+
+        await updateFriendsCache('acc-9', [
+            { gid: 9001, name: '目标好友', avatarUrl: 'https://img/target.png' },
+        ], {
+            platform: 'qq',
+            uin: '90009',
+        });
+        await updateFriendsCache('acc-other', [
+            { gid: 9002, name: '其他好友', avatarUrl: 'https://img/other.png' },
+        ], {
+            platform: 'qq',
+            uin: '90010',
+        });
+
+        const cleared = await clearFriendsCache('acc-9', {
+            platform: 'qq',
+            uin: '90009',
+        });
+
+        assert.deepEqual(cleared, {
+            ok: true,
+            deletedCount: 4,
+            keys: [
+                'friends_scope:qq:qq:90009:friends_cache',
+                'account:acc-9:friends_cache',
+            ],
+            metaKeys: [
+                'friends_scope:qq:qq:90009:friends_cache:meta',
+                'account:acc-9:friends_cache:meta',
+            ],
+            scopeKey: 'friends_scope:qq:qq:90009:friends_cache',
+            legacyKey: 'account:acc-9:friends_cache',
+        });
+        assert.deepEqual(await getCachedFriends('acc-9', {
+            platform: 'qq',
+            uin: '90009',
+        }), []);
+        assert.deepEqual(await getCachedFriends('acc-other', {
+            platform: 'qq',
+            uin: '90010',
+        }), [
+            { gid: 9002, uin: '', openId: '', name: '其他好友', avatarUrl: 'https://img/other.png' },
+        ]);
+    } finally {
+        delete require.cache[databaseModulePath];
+        restoreLogger();
+        restoreJwtService();
+        restoreCircuitBreaker();
+        restoreRedisCache();
+        restoreMysqlDb();
+    }
+});
+
+test('findFriendInSharedCaches does not cross unrelated account scopes', async () => {
+    const kv = new Map();
+    const redis = {
+        async set(key, value) {
+            kv.set(String(key), String(value));
+        },
+        async get(key) {
+            return kv.get(String(key)) || null;
+        },
+        async keys(pattern) {
+            if (pattern !== 'account:*:friends_cache') return [];
+            return Array.from(kv.keys()).filter(key => /^account:.+:friends_cache$/.test(key)).sort();
+        },
+    };
+
+    const restoreMysqlDb = mockModule(mysqlDbModulePath, {
+        async initMysql() {},
+        async closeMysql() {},
+        getPool() {
+            return {
+                query: async (sql, params) => {
+                    if (String(sql).includes('FROM accounts WHERE id = ? LIMIT 1')) {
+                        const id = String(params && params[0] || '');
+                        if (id === '1003') {
+                            return [[{
+                                id,
+                                uin: '__ACCOUNT_ID__:1003',
+                                open_id: '',
+                                platform: 'qq',
+                                auth_data: JSON.stringify({ qq: '10003', uin: '10003' }),
+                            }]];
+                        }
+                    }
+                    return [[]];
+                },
+                execute: async () => [[]],
+            };
+        },
+        isMysqlInitialized() {
+            return true;
+        },
+    });
+    const restoreRedisCache = mockModule(redisCacheModulePath, {
+        async initRedis() { return true; },
+        async closeRedis() {},
+        getRedisClient() { return redis; },
+    });
+    const restoreCircuitBreaker = mockModule(circuitBreakerModulePath, {
+        circuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
+        cacheCircuitBreaker: {
+            isAvailable() { return true; },
+            recordSuccess() {},
+            recordFailure() {},
+        },
     });
     const restoreJwtService = mockModule(jwtServiceModulePath, {
         async initJwtSecretPersistence() {},
@@ -553,23 +730,24 @@ test('findFriendInSharedCaches can resolve nickname from another account cache b
 
         await updateFriendsCache('1001', [
             { gid: 1172159984, name: '我是大飞哥', avatarUrl: 'https://img/friend.png' },
-        ]);
+        ], {
+            platform: 'qq',
+            uin: '10001',
+        });
         await updateFriendsCache('1003', [
             { gid: 1172159984, name: 'GID:1172159984', avatarUrl: '' },
-        ]);
-
-        const reusable = await findFriendInSharedCaches(1172159984, { accountId: '1003' });
-
-        assert.deepEqual(reusable, {
-            sourceAccountId: '1001',
-            friend: {
-                gid: 1172159984,
-                uin: '',
-                openId: '',
-                name: '我是大飞哥',
-                avatarUrl: 'https://img/friend.png',
-            },
+        ], {
+            platform: 'qq',
+            uin: '10003',
         });
+
+        const reusable = await findFriendInSharedCaches(1172159984, {
+            accountId: '1003',
+            platform: 'qq',
+            uin: '10003',
+        });
+
+        assert.equal(reusable, null);
     } finally {
         delete require.cache[databaseModulePath];
         restoreLogger();

@@ -26,10 +26,15 @@ function mockModule(modulePath, exports) {
 
 function createRuntimePathsMock(rootDir) {
     const dataDir = path.join(rootDir, 'data');
+    const logDir = path.join(rootDir, 'logs');
     return {
         getDataFile(filename) {
             fs.mkdirSync(dataDir, { recursive: true });
             return path.join(dataDir, filename);
+        },
+        ensureLogDir() {
+            fs.mkdirSync(logDir, { recursive: true });
+            return logDir;
         },
     };
 }
@@ -138,7 +143,7 @@ test('store persists and reloads wsError account state via auth_data', async () 
 
         const upsertEntry = recordedQueries.find(([sql]) => sql.includes('INSERT INTO accounts'));
         assert.ok(upsertEntry, 'expected INSERT INTO accounts upsert query');
-        const authData = JSON.parse(upsertEntry[1][10]);
+        const authData = JSON.parse(upsertEntry[1][15]);
         assert.deepEqual(authData.wsError, {
             code: 400,
             message: 'Code expired',

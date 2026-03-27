@@ -4,10 +4,13 @@ const assert = require('node:assert/strict');
 const { registerAuthRoutes, registerLegacyLogoutRoute } = require('../src/controllers/admin/auth-routes');
 
 function createFakeApp() {
-    const routes = { post: new Map() };
+    const routes = { get: new Map(), post: new Map() };
     return {
         routes,
         app: {
+            get(path, ...handlers) {
+                routes.get.set(path, handlers);
+            },
             post(path, ...handlers) {
                 routes.post.set(path, handlers);
             },
@@ -58,6 +61,7 @@ function createAuthDeps(overrides = {}) {
             generateRefreshToken: () => 'refresh-token',
             storeRefreshToken: async () => {},
             setTokenCookies: () => {},
+            buildSessionStatus: async ({ user }) => ({ username: user.username, role: user.role }),
             atomicConsumeRefreshToken: async () => ({ username: 'admin' }),
             revokeRefreshToken: async () => {},
             clearTokenCookies: () => {},
@@ -102,6 +106,10 @@ test('login route records success, sets cookies and returns default password war
             },
             storeRefreshToken: async (...args) => calls.push(['storeRefreshToken', ...args]),
             setTokenCookies: (...args) => calls.push(['setTokenCookies', args[2], args[3], args[4]]),
+            buildSessionStatus: async ({ user }) => {
+                calls.push(['buildSessionStatus', user.username, user.role]);
+                return { username: user.username, role: user.role };
+            },
             atomicConsumeRefreshToken: async () => ({ username: 'admin' }),
             revokeRefreshToken: async () => {},
             clearTokenCookies: () => {},
@@ -123,11 +131,13 @@ test('login route records success, sets cookies and returns default password war
         ['generateRefreshToken'],
         ['storeRefreshToken', 'admin', 'refresh-token', 'admin', req],
         ['setTokenCookies', 'access-token', 'refresh-token', 'admin'],
+        ['buildSessionStatus', 'admin', 'admin'],
     ]);
     assert.deepEqual(res.body, {
         ok: true,
         data: {
             user: { username: 'admin', role: 'admin', card: { type: '永久' } },
+            session: { username: 'admin', role: 'admin' },
             passwordWarning: '您正在使用默认密码，建议尽快修改以保障账户安全',
         },
     });
@@ -187,6 +197,10 @@ test('auth refresh route rotates tokens and rejects missing refresh cookie', asy
             },
             storeRefreshToken: async (...args) => calls.push(['storeRefreshToken', ...args]),
             setTokenCookies: (...args) => calls.push(['setTokenCookies', args[2], args[3], args[4]]),
+            buildSessionStatus: async ({ user }) => {
+                calls.push(['buildSessionStatus', user.username, user.role]);
+                return { username: user.username, role: user.role };
+            },
             atomicConsumeRefreshToken: async (...args) => {
                 calls.push(['atomicConsumeRefreshToken', ...args]);
                 return { username: 'alice' };
@@ -216,8 +230,9 @@ test('auth refresh route rotates tokens and rejects missing refresh cookie', asy
         ['generateRefreshToken'],
         ['storeRefreshToken', 'alice', 'new-refresh', 'user', req],
         ['setTokenCookies', 'new-access', 'new-refresh', 'user'],
+        ['buildSessionStatus', 'alice', 'user'],
     ]);
-    assert.deepEqual(res.body, { ok: true });
+    assert.deepEqual(res.body, { ok: true, data: { session: { username: 'alice', role: 'user' } } });
 });
 
 test('auth logout route revokes refresh token when present and always clears cookies', async () => {

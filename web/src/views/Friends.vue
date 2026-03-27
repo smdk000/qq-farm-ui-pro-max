@@ -11,7 +11,7 @@ import { useAccountStore } from '@/stores/account'
 import { useFriendStore } from '@/stores/friend'
 import { useStatusStore } from '@/stores/status'
 import { useToastStore } from '@/stores/toast'
-import { buildFriendFetchBannerCopy, buildFriendLogShortcut, isWechatFriendPlatform } from '@/utils/friend-fetch-status'
+import { buildFriendFetchBannerCopy, buildFriendFetchSourceCopy, buildFriendLogShortcut, isWechatFriendPlatform } from '@/utils/friend-fetch-status'
 
 const router = useRouter()
 const accountStore = useAccountStore()
@@ -19,7 +19,7 @@ const toast = useToastStore()
 const friendStore = useFriendStore()
 const statusStore = useStatusStore()
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
-const { friends, loading, seedCacheLoading, friendLands, friendLandsLoading, blacklist, friendFetchMeta } = storeToRefs(friendStore)
+const { friends, loading, seedCacheLoading, clearCacheLoading, friendLands, friendLandsLoading, blacklist, friendFetchMeta } = storeToRefs(friendStore)
 const { status, loading: statusLoading, realtimeConnected } = storeToRefs(statusStore)
 
 // Confirm Modal state
@@ -232,6 +232,22 @@ const seedCacheButtonLabel = computed(() => {
   return '访客补缓存'
 })
 
+const clearCacheButtonLabel = computed(() => {
+  if (!currentAccountId.value)
+    return '请选择账号'
+  if (clearCacheLoading.value)
+    return isAccountConnected.value ? '清理重建中...' : '清理中...'
+  if (loading.value)
+    return '列表加载中...'
+  if (seedCacheLoading.value)
+    return '补缓存中...'
+  if (statusLoading.value)
+    return '状态检查中...'
+  if (batchRunning.value)
+    return '批量执行中...'
+  return isAccountConnected.value ? '清理并重建' : '清理缓存'
+})
+
 const isReadOnlyFriendView = computed(() =>
   !!currentAccountId.value
   && !loading.value
@@ -248,6 +264,12 @@ const friendStatusBanner = computed(() => {
     ...banner,
     cooldownText: isWechatAccount.value ? friendAutoRetryText.value : '',
   }
+})
+
+const friendSourceCopy = computed(() => {
+  if (!currentAccountId.value || loading.value || statusLoading.value)
+    return null
+  return buildFriendFetchSourceCopy(friendFetchMeta.value)
 })
 
 const displayFriendBanner = computed(() => {
@@ -303,12 +325,61 @@ const canSeedFriendsCache = computed(() =>
   && isAccountConnected.value,
 )
 
+const canClearFriendsCache = computed(() =>
+  !!currentAccountId.value
+  && !clearCacheLoading.value
+  && !seedCacheLoading.value
+  && !loading.value
+  && !statusLoading.value
+  && !batchRunning.value,
+)
+
 const canMutateFriends = computed(() =>
   !!currentAccountId.value
   && !loading.value
   && !statusLoading.value
   && isAccountConnected.value,
 )
+
+async function handleClearFriendsCache() {
+  const accountId = currentAccountId.value
+  if (!accountId || !canClearFriendsCache.value)
+    return
+
+  const shouldRefresh = isAccountConnected.value
+  const confirmText = shouldRefresh
+    ? '确定清理当前账号的好友缓存，并立即按当前登录身份重建吗？这只会处理当前账号自己的好友缓存，不会影响其它账号。'
+    : '当前账号未连接，现在只能清理当前账号自己的好友缓存。清理后列表会暂时清空，待账号重新连接后再手动刷新即可重建。确定继续吗？'
+
+  confirmAction(confirmText, async () => {
+    const result = await friendStore.clearFriendsCache(accountId, { refresh: shouldRefresh })
+    if (!result.ok) {
+      toast.error(result.error || (shouldRefresh ? '清理并重建好友缓存失败' : '清理好友缓存失败'))
+      return
+    }
+
+    expandedFriends.value.clear()
+    selectedFriendIds.value = []
+    selectionMode.value = false
+    batchResult.value = null
+    avatarErrorKeys.value.clear()
+
+    if (shouldRefresh) {
+      if (currentAccount.value?.running) {
+        await friendStore.fetchBlacklist(accountId)
+      }
+      if ((result.friendCount || 0) > 0) {
+        toast.success(`已按当前账号重建 ${result.friendCount} 位好友缓存`)
+      }
+      else {
+        toast.warning('好友缓存已清理，但当前未重建出可用好友列表')
+      }
+      return
+    }
+
+    toast.success('已清理当前账号的好友缓存')
+  })
+}
 
 function openRelatedLogs() {
   if (!friendStatusLogShortcut.value)
@@ -498,14 +569,29 @@ function getFriendStatusClass(friend: any) {
 <template>
   <div class="friends-page ui-page-shell ui-page-density-relaxed h-full min-h-0 w-full flex flex-col">
     <div class="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-      <h2 class="flex items-center gap-2 text-2xl font-bold">
-        <div class="i-carbon-user-multiple" />
-        好友
-        <span v-if="friends.length" class="glass-text-muted ml-2 text-sm font-normal">
-          (共 {{ friends.length }} 人)
-        </span>
-      </h2>
-      <div class="w-full flex shrink-0 items-center gap-2 sm:w-auto">
+      <div class="min-w-0">
+        <h2 class="flex items-center gap-2 text-2xl font-bold">
+          <div class="i-carbon-user-multiple" />
+          好友
+          <span v-if="friends.length" class="glass-text-muted ml-2 text-sm font-normal">
+            (共 {{ friends.length }} 人)
+          </span>
+        </h2>
+        <div v-if="friendSourceCopy" class="mt-2 flex flex-wrap items-center gap-2">
+          <BaseBadge
+            surface="meta"
+            :tone="friendSourceCopy.tone"
+            class="friends-source-pill rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+            :title="friendSourceCopy.description"
+          >
+            {{ friendSourceCopy.label }}
+          </BaseBadge>
+          <span class="friends-summary-note friends-source-note text-sm">
+            {{ friendSourceCopy.description }}
+          </span>
+        </div>
+      </div>
+      <div class="w-full flex shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
         <button
           class="friends-refresh-btn h-[38px] shrink-0 rounded-lg px-3 text-sm font-medium transition"
           :disabled="!canManualRefreshFriends"
@@ -514,6 +600,16 @@ function getFriendStatusClass(friend: any) {
           <span class="inline-flex items-center gap-1.5">
             <span class="i-carbon-renew" />
             {{ manualRefreshButtonLabel }}
+          </span>
+        </button>
+        <button
+          class="friends-refresh-btn friends-clear-btn h-[38px] shrink-0 rounded-lg px-3 text-sm font-medium transition"
+          :disabled="!canClearFriendsCache"
+          @click="handleClearFriendsCache"
+        >
+          <span class="inline-flex items-center gap-1.5">
+            <span class="i-carbon-clean" />
+            {{ clearCacheButtonLabel }}
           </span>
         </button>
         <button
@@ -527,7 +623,7 @@ function getFriendStatusClass(friend: any) {
             {{ seedCacheButtonLabel }}
           </span>
         </button>
-        <div class="relative min-w-0 flex-1 sm:w-64">
+        <div class="relative min-w-0 w-full flex-1 basis-full sm:w-64 sm:basis-auto">
           <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <div class="friends-search-icon i-carbon-search" />
           </div>
@@ -674,7 +770,7 @@ function getFriendStatusClass(friend: any) {
           账号未登录
         </div>
         <div class="friends-summary-note mt-1 text-sm">
-          请先运行账号或检查网络连接。顶部“手动刷新”需要账号连接后才可用。
+          请先运行账号或检查网络连接。顶部“手动刷新”需要账号连接后才可用；如需清空历史好友缓存，可点击“清理缓存”。
         </div>
       </div>
     </div>
@@ -857,6 +953,18 @@ function getFriendStatusClass(friend: any) {
   z-index: 12;
 }
 
+.friends-source-pill {
+  display: inline-flex;
+  align-items: center;
+  border-width: 1px;
+  border-style: solid;
+  line-height: 1.2;
+}
+
+.friends-source-note {
+  line-height: 1.5;
+}
+
 .friends-refresh-btn {
   border: 1px solid var(--ui-border-subtle) !important;
   background: color-mix(in srgb, var(--ui-bg-surface) 76%, transparent) !important;
@@ -866,6 +974,15 @@ function getFriendStatusClass(friend: any) {
 .friends-refresh-btn:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--ui-status-info) 22%, var(--ui-border-subtle)) !important;
   background: color-mix(in srgb, var(--ui-status-info) 8%, var(--ui-bg-surface)) !important;
+}
+
+.friends-clear-btn {
+  border-color: color-mix(in srgb, var(--ui-status-warning) 20%, var(--ui-border-subtle)) !important;
+}
+
+.friends-clear-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ui-status-warning) 28%, var(--ui-border-subtle)) !important;
+  background: color-mix(in srgb, var(--ui-status-warning) 9%, var(--ui-bg-surface)) !important;
 }
 
 .friends-refresh-btn:disabled {

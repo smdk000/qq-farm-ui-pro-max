@@ -35,9 +35,17 @@ const QQ_MIN_RATE_LIMIT_MS = Math.max(334, Number.parseInt(process.env.FARM_QQ_M
 
 function buildFriendSeedCacheOptions(extra = {}) {
     const accountId = String(CONFIG.accountId || process.env.FARM_ACCOUNT_ID || '').trim();
+    const normalizedExtra = (extra && typeof extra === 'object') ? extra : {};
     return accountId
-        ? { accountId, ...extra }
-        : { ...extra };
+        ? {
+            accountId,
+            platform: CONFIG.platform || userState.platform || 'qq',
+            uin: String(CONFIG.uin || userState.uin || '').trim(),
+            openId: String(userState.openId || '').trim(),
+            userState,
+            ...normalizedExtra,
+        }
+        : { ...normalizedExtra, userState };
 }
 
 function getNetworkScheduler() {

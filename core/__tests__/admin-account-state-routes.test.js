@@ -33,9 +33,10 @@ function createResponse() {
     };
 }
 
-function getRouteParts(routes, path) {
-    const handlers = routes.get.get(path);
-    assert.ok(handlers, `missing route: GET ${path}`);
+function getRouteParts(routes, method, path) {
+    const map = routes[String(method || 'get').toLowerCase()];
+    const handlers = map && map.get(path);
+    assert.ok(handlers, `missing route: ${String(method || 'GET').toUpperCase()} ${path}`);
     assert.equal(typeof handlers[0], 'function');
     assert.equal(typeof handlers[1], 'function');
     return { middleware: handlers[0], handler: handlers[1] };
@@ -47,6 +48,13 @@ function createDeps(overrides = {}) {
         app: null,
         accountOwnershipRequired,
         getAccId: async () => 'acc-1',
+        getAccountSnapshotById: async () => ({
+            id: 'acc-1',
+            platform: 'qq',
+            uin: '10001',
+            qq: '10001',
+            openId: '',
+        }),
         getProvider: () => ({
             getStatus: async () => ({ status: { level: 11, exp: 88 } }),
             getLands: async () => [],
@@ -69,7 +77,7 @@ test('status route keeps middleware and appends level progress', async () => {
     const deps = createDeps({ app });
 
     registerAccountStateRoutes(deps);
-    const { middleware, handler } = getRouteParts(routes, '/api/status');
+    const { middleware, handler } = getRouteParts(routes, 'get', '/api/status');
     assert.equal(middleware, deps.accountOwnershipRequired);
 
     const res = createResponse();
@@ -103,7 +111,7 @@ test('friends cache route falls back to realtime list and updates cache asynchro
     });
 
     registerAccountStateRoutes(deps);
-    const { handler } = getRouteParts(routes, '/api/friends/cache');
+    const { handler } = getRouteParts(routes, 'get', '/api/friends/cache');
     const res = createResponse();
     await handler({}, res);
 
@@ -128,7 +136,7 @@ test('friends route falls back to cached friends when worker is offline', async 
     });
 
     registerAccountStateRoutes(deps);
-    const { handler } = getRouteParts(routes, '/api/friends');
+    const { handler } = getRouteParts(routes, 'get', '/api/friends');
     const res = createResponse();
     await handler({}, res);
 
@@ -161,7 +169,7 @@ test('friends route exposes runtime friend meta when available', async () => {
     });
 
     registerAccountStateRoutes(deps);
-    const { handler } = getRouteParts(routes, '/api/friends');
+    const { handler } = getRouteParts(routes, 'get', '/api/friends');
     const res = createResponse();
     await handler({}, res);
 
@@ -193,7 +201,7 @@ test('friends route forwards manual refresh flag to provider', async () => {
     });
 
     registerAccountStateRoutes(deps);
-    const { handler } = getRouteParts(routes, '/api/friends');
+    const { handler } = getRouteParts(routes, 'get', '/api/friends');
     const res = createResponse();
     await handler({ query: { refresh: '1' } }, res);
 
@@ -221,7 +229,7 @@ test('lands route delegates runtime failures to handleApiError', async () => {
     });
 
     registerAccountStateRoutes(deps);
-    const { handler } = getRouteParts(routes, '/api/lands');
+    const { handler } = getRouteParts(routes, 'get', '/api/lands');
     const res = createResponse();
     await handler({}, res);
 
@@ -235,7 +243,7 @@ test('friend lands route keeps ownership middleware', async () => {
     const deps = createDeps({ app });
 
     registerAccountStateRoutes(deps);
-    const { middleware } = getRouteParts(routes, '/api/friend/:gid/lands');
+    const { middleware } = getRouteParts(routes, 'get', '/api/friend/:gid/lands');
 
     assert.equal(middleware, deps.accountOwnershipRequired);
 });
@@ -254,7 +262,7 @@ test('interact records route returns business error for INTERACT-prefixed code',
     });
 
     registerAccountStateRoutes(deps);
-    const { handler } = getRouteParts(routes, '/api/interact-records');
+    const { handler } = getRouteParts(routes, 'get', '/api/interact-records');
     const res = createResponse();
     await handler({ query: { limit: '20' } }, res);
 
@@ -263,5 +271,142 @@ test('interact records route returns business error for INTERACT-prefixed code',
         ok: false,
         error: '访客接口维护中',
         errorCode: 'INTERACT_TEMP',
+    });
+});
+
+test('friends cache clear route clears scoped cache and can trigger manual rebuild', async () => {
+    const { app, routes } = createFakeApp();
+    const clearCalls = [];
+    const syncCalls = [];
+    const deps = createDeps({
+        app,
+        getProvider: () => ({
+            getFriends: async (_accountId, options) => {
+                assert.deepEqual(options, {
+                    manualRefresh: true,
+                    cacheOptions: {
+                        account: {
+                            id: 'acc-1',
+                            platform: 'qq',
+                            uin: '10001',
+                            qq: '10001',
+                            openId: '',
+                        },
+                        platform: 'qq',
+                        uin: '10001',
+                        qq: '10001',
+                        openId: '',
+                    },
+                });
+                return [{ gid: 2001, name: '重建好友' }];
+            },
+        }),
+        loadFriendsCacheApi: () => ({
+            getCachedFriends: async () => [],
+            mergeFriendsCache: async (accountId, data, options) => {
+                syncCalls.push({ accountId, data, options });
+            },
+            clearFriendsCache: async (accountId, options) => {
+                clearCalls.push({ accountId, options });
+                return {
+                    ok: true,
+                    deletedCount: 2,
+                    keys: [
+                        'friends_scope:qq:qq:10001:friends_cache',
+                        'account:acc-1:friends_cache',
+                    ],
+                    scopeKey: 'friends_scope:qq:qq:10001:friends_cache',
+                    legacyKey: 'account:acc-1:friends_cache',
+                };
+            },
+        }),
+    });
+
+    registerAccountStateRoutes(deps);
+    const { middleware, handler } = getRouteParts(routes, 'post', '/api/friends/cache/clear');
+    assert.equal(middleware, deps.accountOwnershipRequired);
+
+    const res = createResponse();
+    await handler({ body: { refresh: true } }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(clearCalls, [{
+        accountId: 'acc-1',
+        options: {
+            account: {
+                id: 'acc-1',
+                platform: 'qq',
+                uin: '10001',
+                qq: '10001',
+                openId: '',
+            },
+            platform: 'qq',
+            uin: '10001',
+            qq: '10001',
+            openId: '',
+        },
+    }]);
+    assert.deepEqual(syncCalls, [{
+        accountId: 'acc-1',
+        data: [{ gid: 2001, name: '重建好友' }],
+        options: {
+            account: {
+                id: 'acc-1',
+                platform: 'qq',
+                uin: '10001',
+                qq: '10001',
+                openId: '',
+            },
+            platform: 'qq',
+            uin: '10001',
+            qq: '10001',
+            openId: '',
+        },
+    }]);
+    assert.deepEqual(res.body, {
+        ok: true,
+        cleared: {
+            ok: true,
+            deletedCount: 2,
+            keys: [
+                'friends_scope:qq:qq:10001:friends_cache',
+                'account:acc-1:friends_cache',
+            ],
+            scopeKey: 'friends_scope:qq:qq:10001:friends_cache',
+            legacyKey: 'account:acc-1:friends_cache',
+        },
+        refreshed: {
+            data: [{ gid: 2001, name: '重建好友' }],
+            count: 1,
+            meta: null,
+        },
+    });
+});
+
+test('friends cache clear route surfaces clear failure instead of reporting success', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createDeps({
+        app,
+        loadFriendsCacheApi: () => ({
+            clearFriendsCache: async () => ({
+                ok: false,
+                reason: 'redis_unavailable',
+            }),
+        }),
+    });
+
+    registerAccountStateRoutes(deps);
+    const { handler } = getRouteParts(routes, 'post', '/api/friends/cache/clear');
+    const res = createResponse();
+    await handler({ body: { refresh: true } }, res);
+
+    assert.equal(res.statusCode, 503);
+    assert.deepEqual(res.body, {
+        ok: false,
+        error: 'redis_unavailable',
+        cleared: {
+            ok: false,
+            reason: 'redis_unavailable',
+        },
     });
 });

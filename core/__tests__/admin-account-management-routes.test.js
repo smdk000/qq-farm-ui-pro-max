@@ -186,9 +186,37 @@ test('accounts route starts an existing offline account when duplicate create ca
     }, res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(calls, [
-        ['console', '[API /api/accounts] 拦截重复创建: 标识 10001 已存在，转为更新 (ID: acc-9)'],
-        ['save', { uin: '10001', platform: 'qq', name: '原名字', code: 'fresh-code', loginType: 'qr', id: 'acc-9', username: 'alice', qq: '10001', wsError: null }],
+    assert.equal(calls.length, 5);
+    assert.deepEqual(calls[0], ['console', '[API /api/accounts] 拦截重复创建: 标识 10001 已存在，转为更新 (ID: acc-9)']);
+    assert.equal(calls[1][0], 'save');
+    assert.deepEqual({
+        uin: calls[1][1].uin,
+        platform: calls[1][1].platform,
+        name: calls[1][1].name,
+        code: calls[1][1].code,
+        loginType: calls[1][1].loginType,
+        id: calls[1][1].id,
+        username: calls[1][1].username,
+        qq: calls[1][1].qq,
+        wsError: calls[1][1].wsError,
+        lastCodeSource: calls[1][1].lastCodeSource,
+        lastCodeCaptureBy: calls[1][1].lastCodeCaptureBy,
+    }, {
+        uin: '10001',
+        platform: 'qq',
+        name: '原名字',
+        code: 'fresh-code',
+        loginType: 'qr',
+        id: 'acc-9',
+        username: 'alice',
+        qq: '10001',
+        wsError: null,
+        lastCodeSource: 'qr_login',
+        lastCodeCaptureBy: 'alice',
+    });
+    assert.equal(typeof calls[1][1].lastValidCodeAt, 'number');
+    assert.equal(typeof calls[1][1].lastCodeCaptureAt, 'number');
+    assert.deepEqual(calls.slice(2), [
         ['persist', 'acc-9', { strict: true }],
         ['log', 'update', '更新账号: 原名字', 'acc-9', '原名字'],
         ['start', 'acc-9'],
@@ -397,7 +425,21 @@ test('accounts route clears stale authTicket for manual updates and drops qq res
     }, res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(calls, [{
+    assert.equal(calls.length, 1);
+    assert.deepEqual({
+        id: calls[0].id,
+        platform: calls[0].platform,
+        username: calls[0].username,
+        name: calls[0].name,
+        code: calls[0].code,
+        uin: calls[0].uin,
+        loginType: calls[0].loginType,
+        qq: calls[0].qq,
+        authTicket: calls[0].authTicket,
+        wsError: calls[0].wsError,
+        lastCodeSource: calls[0].lastCodeSource,
+        lastCodeCaptureBy: calls[0].lastCodeCaptureBy,
+    }, {
         id: 'acc-3',
         platform: 'wx_car',
         username: 'alice',
@@ -408,7 +450,11 @@ test('accounts route clears stale authTicket for manual updates and drops qq res
         qq: '',
         authTicket: '',
         wsError: null,
-    }]);
+        lastCodeSource: 'manual_capture',
+        lastCodeCaptureBy: 'alice',
+    });
+    assert.equal(typeof calls[0].lastValidCodeAt, 'number');
+    assert.equal(typeof calls[0].lastCodeCaptureAt, 'number');
 });
 
 test('accounts route rejects new account when user exceeds maxAccounts', async () => {

@@ -6,7 +6,7 @@
 set -e
 
 # 配置
-NEW_VERSION="${1:-v4.5.41}"
+NEW_VERSION="${1:-v4.5.42}"
 COMMIT_MESSAGE="${2:-自动更新 Docker 镜像}"
 
 # 颜色定义

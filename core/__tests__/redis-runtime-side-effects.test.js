@@ -110,6 +110,11 @@ test('requiring redis-cache stays side-effect free until Redis is actually used'
             recordSuccess() { },
             recordFailure() { },
         },
+        cacheCircuitBreaker: {
+            allowRequest() { return true; },
+            recordSuccess() { },
+            recordFailure() { },
+        },
     });
     const restoreRedisDriver = mockModule(redisDriverModulePath, redisDriver.exports);
 
@@ -154,6 +159,11 @@ test('initRedis lazily creates Redis client and performs connect plus ping once'
     const restoreLogger = mockModule(loggerModulePath, createLoggerMock());
     const restoreCircuitBreaker = mockModule(circuitBreakerModulePath, {
         circuitBreaker: {
+            allowRequest() { return true; },
+            recordSuccess() { },
+            recordFailure() { },
+        },
+        cacheCircuitBreaker: {
             allowRequest() { return true; },
             recordSuccess() { },
             recordFailure() { },

@@ -26,10 +26,15 @@ function mockModule(modulePath, exports) {
 
 function createRuntimePathsMock(rootDir) {
     const dataDir = path.join(rootDir, 'data');
+    const logDir = path.join(rootDir, 'logs');
     return {
         getDataFile(filename) {
             fs.mkdirSync(dataDir, { recursive: true });
             return path.join(dataDir, filename);
+        },
+        ensureLogDir() {
+            fs.mkdirSync(logDir, { recursive: true });
+            return logDir;
         },
     };
 }
@@ -119,7 +124,7 @@ test('store loads and persists lastLoginAt for account list ordering', async () 
 
         const upsertEntry = recordedQueries.find(([sql]) => sql.includes('INSERT INTO accounts'));
         assert.ok(upsertEntry, 'expected INSERT INTO accounts upsert query');
-        assert.equal(new Date(upsertEntry[1][9]).getTime(), reloginAt);
+        assert.equal(new Date(upsertEntry[1][10]).getTime(), reloginAt);
     } finally {
         delete require.cache[storeModulePath];
         restoreRuntimePaths();
