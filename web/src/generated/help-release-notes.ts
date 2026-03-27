@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.46',
+    date: '2026-03-28',
+    title: '首装/更新主路径 GitHub Raw 兜底补齐',
+    summary: '`install-or-update.sh`、`fresh-install.sh`、`update-app.sh` 的远程下载统一切到 `HTTP/1.1 + timeout + retry + 原子落盘`，把真实服务器首装/更新主路径里的残留裸 `curl` 全部收口。',
+  },
+  {
     version: 'v4.5.45',
     date: '2026-03-28',
     title: '一键安装 GitHub Raw 下载稳态热修复',

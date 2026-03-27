@@ -1,3 +1,8 @@
+2026-03-28 首装/更新主路径 GitHub Raw 兜底补齐 前端：v4.5.46 后端：v4.5.46
+  - 🧩 [安装] `fresh-install.sh` 与 `update-app.sh` 的远程下载也统一切到 `HTTP/1.1 + timeout + retry + 原子落盘`，不再在第二层脚本里掉回裸 `curl -fsSL`。
+  - 🔁 [链路] `install-or-update / fresh-install / update-app` 三段主路径现在会复用同一套稳态下载函数，首装、更新和源码包回退口径一致。
+  - 📦 [发布] `core / web` 包版本、README、部署模板和帮助中心 Release Notes 已统一抬升到 `v4.5.46`。
+
 2026-03-28 一键安装 GitHub Raw 下载稳态热修复 前端：v4.5.45 后端：v4.5.45
   - 🌐 [安装] `install-or-update.sh` 的 bootstrap 下载固定改走 `HTTP/1.1`，继续保留超时、重试与原子落盘兜底。
   - 🔁 [命令] README、部署文档和 Docker 摘要里的一键安装命令统一补上 `curl --http1.1 --retry ... --max-time ...` 稳态参数。

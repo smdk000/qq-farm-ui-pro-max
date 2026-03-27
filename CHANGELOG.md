@@ -2,6 +2,7 @@
 
 ## 快速索引（精简版）
 
+- `v4.5.46 (2026-03-28)` 首装/更新主路径 GitHub Raw 兜底补齐：`install-or-update.sh`、`fresh-install.sh`、`update-app.sh` 的远程下载统一切到 `HTTP/1.1 + timeout + retry + 原子落盘`，把真实服务器首装/更新主路径里的残留裸 `curl` 全部收口。
 - `v4.5.45 (2026-03-28)` 一键安装 GitHub Raw 下载稳态热修复：bootstrap 下载固定走 `HTTP/1.1`，文档里的一键安装命令统一补上重试与超时参数，降低真实服务器命中异常 Raw 连接时反复挂起的概率。
 - `v4.5.44 (2026-03-27)` 一键安装 bootstrap 下载可靠性热修复：`install-or-update.sh` 为 bootstrap 脚本下载增加超时、重试与原子落盘，修复真实服务器命中异常 GitHub Raw 连接时可能长时间挂住的问题。
 - `v4.5.43 (2026-03-27)` 一键安装单文件 bootstrap 修复：`install-or-update.sh` 在单文件执行场景下会自动补齐缺失的 sibling 脚本，不再把 `bash <(curl -fsSL ...)` 入口误导到 `/dev/fd/*.sh`。
@@ -40,6 +41,15 @@
 - `v4.1.0 (2026-03-04)` 账号分级模式：主号/小号/风险规避模式上线，策略与控制面板能力补齐。
 
 > 说明：该索引用于快速浏览；详细变更说明、背景和技术细节请以下文各版本章节为准。
+
+## [v4.5.46] - 首装/更新主路径 GitHub Raw 兜底补齐 (2026-03-28)
+### 🚀 安装与更新主路径统一收口
+- **`fresh-install.sh / update-app.sh` 也切到稳态下载策略**: 两个主路径脚本现在新增和入口脚本同口径的 `download_remote_file()`，统一使用 `HTTP/1.1 + connect-timeout + max-time + retry-all-errors + 原子落盘`，不再在第二层脚本里重新回退到裸 `curl -fsSL`。
+- **首装、更新、源码包回退三条链路统一兜底**: `stack-layout.sh`、部署包文件以及源码包下载都改为复用同一套下载函数，服务器在 GitHub Raw 或 codeload 边缘连接波动时会保持一致行为，不会出现“入口稳了、下一层脚本又卡住”的分叉。
+
+### 🧪 服务器实测推进
+- **真实问题已定位到完整主路径而非单点脚本**: `aa.smdk000.com` 上的隔离自测先后暴露了入口脚本、`fresh-install.sh` 和 `update-app.sh` 的残留裸下载点；`v4.5.46` 直接把这三个真实命中的位置统一收口，避免后续只修到一半。
+- **程序版本已抬升到 `v4.5.46`**: `core/package.json`、`web/package.json`、README、部署模板、默认镜像标签、帮助中心 Release Notes 与系统更新相关单测 / E2E mock 已统一切到 `v4.5.46`。
 
 ## [v4.5.45] - 一键安装 GitHub Raw 下载稳态热修复 (2026-03-28)
 ### 🚀 一键安装链路继续收口

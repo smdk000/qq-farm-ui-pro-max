@@ -15,7 +15,7 @@ test('announcement runtime falls back to changelog quick index when update log i
                     '',
                     '## 快速索引（精简版）',
                     '',
-                    '- `v4.5.45 (2026-03-28)` 一键安装 GitHub Raw 下载稳态热修复：install-or-update 的 bootstrap 下载固定改走 HTTP/1.1。',
+                    '- `v4.5.46 (2026-03-28)` 首装/更新主路径 GitHub Raw 兜底补齐：install-or-update、fresh-install、update-app 会复用同一套稳态下载策略。',
                     '- `v4.5.39 (2026-03-25)` 旧版本说明：补齐最近一轮功能摘要。',
                     '',
                     '> 说明：demo',
@@ -29,11 +29,11 @@ test('announcement runtime falls back to changelog quick index when update log i
 
     assert.deepEqual(entries, [
         {
-            title: '一键安装 GitHub Raw 下载稳态热修复',
-            version: 'v4.5.45',
+            title: '首装/更新主路径 GitHub Raw 兜底补齐',
+            version: 'v4.5.46',
             publishDate: '2026-03-28',
-            content: 'install-or-update 的 bootstrap 下载固定改走 HTTP/1.1。',
-            summary: 'install-or-update 的 bootstrap 下载固定改走 HTTP/1.1。',
+            content: 'install-or-update、fresh-install、update-app 会复用同一套稳态下载策略。',
+            summary: 'install-or-update、fresh-install、update-app 会复用同一套稳态下载策略。',
             sourceType: 'embedded',
             sourceKey: entries[0].sourceKey,
             releaseUrl: '',
@@ -65,7 +65,7 @@ test('announcement materializer updates legacy announcement rows by version/date
         getAnnouncementsRef: async () => [{
             id: 7,
             title: '旧公告标题',
-            version: 'v4.5.45',
+            version: 'v4.5.46',
             publish_date: '2026-03-28',
             content: 'old',
             summary: '',
@@ -81,11 +81,11 @@ test('announcement materializer updates legacy announcement rows by version/date
         },
         getSystemUpdateReleaseCacheRef: async () => ({
             releases: [{
-                versionTag: 'v4.5.45',
-                title: '一键安装 GitHub Raw 下载稳态热修复',
+                versionTag: 'v4.5.46',
+                title: '首装/更新主路径 GitHub Raw 兜底补齐',
                 publishedAt: '2026-03-28T08:00:00.000Z',
                 notes: 'new notes',
-                url: 'https://example.com/releases/v4.5.45',
+                url: 'https://example.com/releases/v4.5.46',
                 assets: [{ name: 'bundle.tar.gz', url: 'https://example.com/bundle.tar.gz', size: 123 }],
             }],
         }),
@@ -101,12 +101,12 @@ test('announcement materializer updates legacy announcement rows by version/date
     assert.equal(result.skipped, 0);
     assert.equal(saveCalls.length, 1);
     assert.equal(saveCalls[0].id, 7);
-    assert.equal(saveCalls[0].title, '一键安装 GitHub Raw 下载稳态热修复');
-    assert.equal(saveCalls[0].version, 'v4.5.45');
+    assert.equal(saveCalls[0].title, '首装/更新主路径 GitHub Raw 兜底补齐');
+    assert.equal(saveCalls[0].version, 'v4.5.46');
     assert.equal(saveCalls[0].publish_date, '2026-03-28');
     assert.equal(saveCalls[0].summary, 'new notes');
     assert.equal(saveCalls[0].sourceType, 'release_cache');
-    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.45');
+    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.46');
     assert.deepEqual(saveCalls[0].assets, [{
         name: 'bundle.tar.gz',
         url: 'https://example.com/bundle.tar.gz',

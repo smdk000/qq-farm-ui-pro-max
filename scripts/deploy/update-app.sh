@@ -22,6 +22,9 @@ PRESERVE_COMPOSE_LAYOUT="${PRESERVE_COMPOSE_LAYOUT:-0}"
 OFFICIAL_DOCKERHUB_APP_IMAGE="${OFFICIAL_DOCKERHUB_APP_IMAGE:-smdk000/qq-farm-bot-ui}"
 OFFICIAL_GHCR_APP_IMAGE="${OFFICIAL_GHCR_APP_IMAGE:-ghcr.io/${REPO_SLUG}}"
 ALLOW_RELOGIN_RISK="${ALLOW_RELOGIN_RISK:-0}"
+BOOTSTRAP_CURL_CONNECT_TIMEOUT="${BOOTSTRAP_CURL_CONNECT_TIMEOUT:-10}"
+BOOTSTRAP_CURL_MAX_TIME="${BOOTSTRAP_CURL_MAX_TIME:-90}"
+BOOTSTRAP_CURL_RETRY="${BOOTSTRAP_CURL_RETRY:-4}"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -48,7 +51,10 @@ if [ ! -f "${STACK_LAYOUT_PATH}" ]; then
             echo "[ERROR] 缺少 stack-layout.sh 且系统未安装 curl，无法继续执行。" >&2
             exit 1
         }
-        curl -fsSL "${RAW_BASE_URL}/scripts/deploy/stack-layout.sh" -o "${STACK_LAYOUT_PATH}"
+        if ! download_remote_file "${RAW_BASE_URL}/scripts/deploy/stack-layout.sh" "${STACK_LAYOUT_PATH}"; then
+            echo "[ERROR] 无法下载 stack-layout.sh，请稍后重试或检查 GitHub Raw 网络连通性。" >&2
+            exit 1
+        fi
     fi
 fi
 # shellcheck source=stack-layout.sh
@@ -77,6 +83,27 @@ print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 print_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+download_remote_file() {
+    local source_url="$1"
+    local target_path="$2"
+    local temp_path="${target_path}.tmp.$$"
+
+    mkdir -p "$(dirname "${target_path}")"
+    rm -f "${temp_path}"
+    if ! curl --fail --silent --show-error --location \
+        --http1.1 \
+        --connect-timeout "${BOOTSTRAP_CURL_CONNECT_TIMEOUT}" \
+        --max-time "${BOOTSTRAP_CURL_MAX_TIME}" \
+        --retry "${BOOTSTRAP_CURL_RETRY}" \
+        --retry-delay 1 \
+        --retry-all-errors \
+        "${source_url}" -o "${temp_path}"; then
+        rm -f "${temp_path}"
+        return 1
+    fi
+    mv "${temp_path}" "${target_path}"
+}
 
 refresh_stack_layout() {
     STACK_NAME="$(normalize_stack_name "${STACK_NAME:-qq-farm}")"
@@ -273,7 +300,7 @@ ensure_docker() {
 download_file() {
     local remote_path="$1"
     local target_path="$2"
-    curl -fsSL "${RAW_BASE_URL}/${remote_path}" -o "${target_path}"
+    download_remote_file "${RAW_BASE_URL}/${remote_path}" "${target_path}"
 }
 
 copy_file_if_needed() {
@@ -645,7 +672,7 @@ prepare_source_checkout() {
     fi
 
     print_warning "镜像仓库不可用，开始下载源码包用于本地构建..."
-    if curl -fsSL "${SOURCE_ARCHIVE_URL}" -o "${archive}"; then
+    if download_remote_file "${SOURCE_ARCHIVE_URL}" "${archive}"; then
         first_entry="$(tar -tzf "${archive}" | head -n 1 || true)"
         if [[ "${first_entry}" == */* ]]; then
             strip_args=(--strip-components=1)
@@ -1210,7 +1237,7 @@ NODE
 }
 
 compose_pull_with_retry() {
-    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.45}"
+    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.46}"
 
     if is_truthy "${SKIP_DOCKER_PULL}"; then
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过主程序镜像拉取，直接使用本地镜像。"
