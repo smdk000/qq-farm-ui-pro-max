@@ -435,6 +435,28 @@ is_truthy() {
     esac
 }
 
+ensure_shared_network_ready() {
+    local env_file="$1"
+    local shared_network="${SHARED_DOCKER_NETWORK:-qq-farm-shared}"
+    local shared_external="${SHARED_DOCKER_NETWORK_EXTERNAL:-false}"
+
+    [ -n "${shared_network}" ] || return 0
+
+    if "${DOCKER[@]}" network inspect "${shared_network}" >/dev/null 2>&1; then
+        if ! is_truthy "${shared_external}"; then
+            print_warning "检测到共享网络 ${shared_network} 已存在，自动切换为 external 复用模式。"
+            SHARED_DOCKER_NETWORK_EXTERNAL=true
+            set_env_value "SHARED_DOCKER_NETWORK_EXTERNAL" "true" "${env_file}"
+        fi
+        return 0
+    fi
+
+    if is_truthy "${shared_external}"; then
+        print_info "共享网络 ${shared_network} 不存在，先创建外部共享网络。"
+        "${DOCKER[@]}" network create "${shared_network}" >/dev/null
+    fi
+}
+
 is_immutable_repo_ref() {
     local ref="${1:-}"
 
@@ -1034,7 +1056,7 @@ pull_required_images() {
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过镜像拉取，直接使用本地镜像。"
     fi
 
-    local requested_app_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.50}"
+    local requested_app_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.52}"
     local image=""
 
     resolve_app_image "${requested_app_image}" || return 1
@@ -1188,6 +1210,7 @@ main() {
     set_env_value "WEB_PORT" "${web_port}" "${DEPLOY_DIR}/.env"
     sync_env_from_shell "${DEPLOY_DIR}/.env"
     load_deploy_env "${DEPLOY_DIR}/.env"
+    ensure_shared_network_ready "${DEPLOY_DIR}/.env"
     if [ -z "${IMAGE_ARCHIVE_OVERRIDE}" ] && [ -n "${IMAGE_ARCHIVE:-}" ]; then
         IMAGE_ARCHIVE_OVERRIDE="${IMAGE_ARCHIVE}"
     fi

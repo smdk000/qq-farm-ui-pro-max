@@ -15,7 +15,7 @@ test('announcement runtime falls back to changelog quick index when update log i
                     '',
                     '## 快速索引（精简版）',
                     '',
-                    '- `v4.5.51 (2026-03-28)` 卡密发放总控、用户管理联动与帮助中心说明补齐：设置页新增一键开启/关闭卡密发放总控，统一收口注册、续费、体验卡与后台发码，用户页和帮助中心同步补齐总控联动提示。',
+                    '- `v4.5.52 (2026-03-29)` 发布口径统一、集群部署收口与双机升级复核：统一最近多轮更新的发布口径，补齐部署模板、默认镜像和工作流默认值到 v4.5.52，并继续复核 2400/2500/2600 多实例升级链路。',
                     '- `v4.5.39 (2026-03-25)` 旧版本说明：补齐最近一轮功能摘要。',
                     '',
                     '> 说明：demo',
@@ -29,11 +29,11 @@ test('announcement runtime falls back to changelog quick index when update log i
 
     assert.deepEqual(entries, [
         {
-            title: '卡密发放总控、用户管理联动与帮助中心说明补齐',
-            version: 'v4.5.51',
-            publishDate: '2026-03-28',
-            content: '设置页新增一键开启/关闭卡密发放总控，统一收口注册、续费、体验卡与后台发码，用户页和帮助中心同步补齐总控联动提示。',
-            summary: '设置页新增一键开启/关闭卡密发放总控，统一收口注册、续费、体验卡与后台发码，用户页和帮助中心同步补齐总控联动提示。',
+            title: '发布口径统一、集群部署收口与双机升级复核',
+            version: 'v4.5.52',
+            publishDate: '2026-03-29',
+            content: '统一最近多轮更新的发布口径，补齐部署模板、默认镜像和工作流默认值到 v4.5.52，并继续复核 2400/2500/2600 多实例升级链路。',
+            summary: '统一最近多轮更新的发布口径，补齐部署模板、默认镜像和工作流默认值到 v4.5.52，并继续复核 2400/2500/2600 多实例升级链路。',
             sourceType: 'embedded',
             sourceKey: entries[0].sourceKey,
             releaseUrl: '',
@@ -65,8 +65,8 @@ test('announcement materializer updates legacy announcement rows by version/date
         getAnnouncementsRef: async () => [{
             id: 7,
             title: '旧公告标题',
-            version: 'v4.5.51',
-            publish_date: '2026-03-28',
+            version: 'v4.5.52',
+            publish_date: '2026-03-29',
             content: 'old',
             summary: '',
             enabled: true,
@@ -81,11 +81,11 @@ test('announcement materializer updates legacy announcement rows by version/date
         },
         getSystemUpdateReleaseCacheRef: async () => ({
             releases: [{
-                versionTag: 'v4.5.51',
-                title: '卡密发放总控、用户管理联动与帮助中心说明补齐',
-                publishedAt: '2026-03-28T08:00:00.000Z',
+                versionTag: 'v4.5.52',
+                title: '发布口径统一、集群部署收口与双机升级复核',
+                publishedAt: '2026-03-29T08:00:00.000Z',
                 notes: 'new notes',
-                url: 'https://example.com/releases/v4.5.51',
+                url: 'https://example.com/releases/v4.5.52',
                 assets: [{ name: 'bundle.tar.gz', url: 'https://example.com/bundle.tar.gz', size: 123 }],
             }],
         }),
@@ -101,12 +101,12 @@ test('announcement materializer updates legacy announcement rows by version/date
     assert.equal(result.skipped, 0);
     assert.equal(saveCalls.length, 1);
     assert.equal(saveCalls[0].id, 7);
-    assert.equal(saveCalls[0].title, '卡密发放总控、用户管理联动与帮助中心说明补齐');
-    assert.equal(saveCalls[0].version, 'v4.5.51');
-    assert.equal(saveCalls[0].publish_date, '2026-03-28');
+    assert.equal(saveCalls[0].title, '发布口径统一、集群部署收口与双机升级复核');
+    assert.equal(saveCalls[0].version, 'v4.5.52');
+    assert.equal(saveCalls[0].publish_date, '2026-03-29');
     assert.equal(saveCalls[0].summary, 'new notes');
     assert.equal(saveCalls[0].sourceType, 'release_cache');
-    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.51');
+    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.52');
     assert.deepEqual(saveCalls[0].assets, [{
         name: 'bundle.tar.gz',
         url: 'https://example.com/bundle.tar.gz',

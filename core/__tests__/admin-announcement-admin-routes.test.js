@@ -230,10 +230,10 @@ test('announcement sync route prefers structured materializer results when provi
             updated: 1,
             skipped: 3,
             totalParsed: 6,
-            latestVersion: 'v4.5.51',
+            latestVersion: 'v4.5.52',
             sources: { release_cache: 4, embedded: 2 },
             entries: [
-                { title: '版本更新', version: 'v4.5.51', publishDate: '2026-03-28', summary: '卡密发放总控、用户管理联动与帮助中心说明补齐', sourceType: 'release_cache' },
+                { title: '版本更新', version: 'v4.5.52', publishDate: '2026-03-29', summary: '发布口径统一、集群部署收口与双机升级复核', sourceType: 'release_cache' },
             ],
         }),
         getIo: () => ({
@@ -255,16 +255,16 @@ test('announcement sync route prefers structured materializer results when provi
             updated: 1,
             skipped: 3,
             totalParsed: 6,
-            latestVersion: 'v4.5.51',
+            latestVersion: 'v4.5.52',
             sources: { release_cache: 4, embedded: 2 },
             sourceStats: { release_cache: 4, embedded: 2 },
             previewCount: 3,
             entries: [
                 {
                     title: '版本更新',
-                    version: 'v4.5.51',
-                    publishDate: '2026-03-28',
-                    summary: '卡密发放总控、用户管理联动与帮助中心说明补齐',
+                    version: 'v4.5.52',
+                    publishDate: '2026-03-29',
+                    summary: '发布口径统一、集群部署收口与双机升级复核',
                     sourceType: 'release_cache',
                     releaseUrl: '',
                 },
@@ -274,16 +274,16 @@ test('announcement sync route prefers structured materializer results when provi
         updated: 1,
         skipped: 3,
         totalParsed: 6,
-        latestVersion: 'v4.5.51',
+        latestVersion: 'v4.5.52',
         sources: { release_cache: 4, embedded: 2 },
         sourceStats: { release_cache: 4, embedded: 2 },
         previewCount: 3,
         entries: [
             {
                 title: '版本更新',
-                version: 'v4.5.51',
-                publishDate: '2026-03-28',
-                summary: '卡密发放总控、用户管理联动与帮助中心说明补齐',
+                version: 'v4.5.52',
+                publishDate: '2026-03-29',
+                summary: '发布口径统一、集群部署收口与双机升级复核',
                 sourceType: 'release_cache',
                 releaseUrl: '',
             },
@@ -304,7 +304,7 @@ test('announcement sync route supports dry run without emitting updates', async 
                 updated: 0,
                 skipped: 2,
                 totalParsed: 3,
-                latestVersion: 'v4.5.51',
+                latestVersion: 'v4.5.52',
                 sources: { embedded: 3 },
             };
         },
@@ -335,7 +335,7 @@ test('announcement sync route supports dry run without emitting updates', async 
     }]);
     assert.deepEqual(ioCalls, []);
     assert.equal(res.body.previewCount, 1);
-    assert.equal(res.body.data.latestVersion, 'v4.5.51');
+    assert.equal(res.body.data.latestVersion, 'v4.5.52');
 });
 
 test('third-party api get route blocks non-admin users', async () => {

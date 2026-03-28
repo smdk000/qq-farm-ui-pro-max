@@ -24,16 +24,16 @@ test.beforeEach(async ({ page }) => {
             currentVersion: 'v4.5.25',
             latestRelease: checked
               ? {
-                  versionTag: 'v4.5.51',
-                  title: 'v4.5.51 发布',
-                  url: 'https://example.com/releases/v4.5.51',
-                  publishedAt: '2026-03-27T08:00:00.000Z',
-                  notes: '卡密发放总控已接通设置页、用户页、登录页与帮助中心。',
+                  versionTag: 'v4.5.52',
+                  title: 'v4.5.52 发布',
+                  url: 'https://example.com/releases/v4.5.52',
+                  publishedAt: '2026-03-29T08:00:00.000Z',
+                  notes: '部署模板、默认镜像和工作流默认值已统一抬升到 v4.5.52。',
                   assets: [],
                 }
               : null,
             runtime: {
-              lastCheckedAt: '2026-03-27T08:10:00.000Z',
+              lastCheckedAt: '2026-03-29T08:10:00.000Z',
               status: 'idle',
               sourceLabel: 'GitHub Releases',
               lastError: '',
@@ -66,14 +66,14 @@ test.beforeEach(async ({ page }) => {
                   updated: 1,
                   skipped: 0,
                   totalParsed: 3,
-                  latestVersion: 'v4.5.51',
+                  latestVersion: 'v4.5.52',
                   sources: { release_cache: 2, embedded: 1 },
                   entries: [
                     {
-                      title: '卡密发放总控、用户管理联动与帮助中心说明补齐',
-                      version: 'v4.5.51',
-                      publishDate: '2026-03-27',
-                      summary: '设置页新增一键开启/关闭卡密发放总控，统一收口注册、续费、体验卡与后台发码，用户页和帮助中心同步补齐总控联动提示。',
+                      title: '发布口径统一、集群部署收口与双机升级复核',
+                      version: 'v4.5.52',
+                      publishDate: '2026-03-29',
+                      summary: '统一最近多轮更新的发布口径，补齐部署模板、默认镜像和工作流默认值到 v4.5.52，并继续复核 2400/2500/2600 多实例升级链路。',
                       sourceType: 'release_cache',
                     },
                   ],
@@ -84,7 +84,7 @@ test.beforeEach(async ({ page }) => {
                   suggested: true,
                   reason: '检测到 2 条可新增公告',
                   pendingCount: 3,
-                  latestVersion: 'v4.5.51',
+                  latestVersion: 'v4.5.52',
                 }
               : null,
             activeJob: null,
@@ -101,22 +101,22 @@ test.beforeEach(async ({ page }) => {
               added: 2,
               updated: 1,
               skipped: 0,
-              latestVersion: 'v4.5.51',
+              latestVersion: 'v4.5.52',
               previewCount: 3,
               sourceStats: { release_cache: 2, embedded: 1 },
             },
             overview: {
               currentVersion: 'v4.5.25',
               latestRelease: {
-                versionTag: 'v4.5.51',
-                title: 'v4.5.51 发布',
-                url: 'https://example.com/releases/v4.5.51',
-                publishedAt: '2026-03-27T08:00:00.000Z',
-                notes: '卡密发放总控已接通设置页、用户页、登录页与帮助中心。',
+                versionTag: 'v4.5.52',
+                title: 'v4.5.52 发布',
+                url: 'https://example.com/releases/v4.5.52',
+                publishedAt: '2026-03-29T08:00:00.000Z',
+                notes: '部署模板、默认镜像和工作流默认值已统一抬升到 v4.5.52。',
                 assets: [],
               },
               runtime: {
-                lastCheckedAt: '2026-03-27T08:10:00.000Z',
+                lastCheckedAt: '2026-03-29T08:10:00.000Z',
                 status: 'idle',
                 sourceLabel: 'GitHub Releases',
                 lastError: '',
@@ -148,7 +148,7 @@ test.beforeEach(async ({ page }) => {
                 updated: 0,
                 skipped: 3,
                 totalParsed: 3,
-                latestVersion: 'v4.5.51',
+                latestVersion: 'v4.5.52',
                 sources: { release_cache: 2, embedded: 1 },
                 entries: [],
               },
@@ -156,13 +156,13 @@ test.beforeEach(async ({ page }) => {
                 suggested: false,
                 reason: '当前公告已与系统版本源保持同步',
                 pendingCount: 0,
-                latestVersion: 'v4.5.51',
+                latestVersion: 'v4.5.52',
               },
               lastAnnouncementSyncResult: {
                 added: 2,
                 updated: 1,
                 skipped: 0,
-                latestVersion: 'v4.5.51',
+                latestVersion: 'v4.5.52',
               },
               activeJob: null,
               activeBatch: null,
@@ -178,10 +178,10 @@ test.beforeEach(async ({ page }) => {
         announcements = [
           {
             id: 1,
-            title: '卡密发放总控、用户管理联动与帮助中心说明补齐',
-            version: 'v4.5.51',
-            publish_date: '2026-03-27',
-            content: '设置页新增一键开启/关闭卡密发放总控，统一收口注册、续费、体验卡与后台发码，用户页和帮助中心同步补齐总控联动提示。',
+            title: '发布口径统一、集群部署收口与双机升级复核',
+            version: 'v4.5.52',
+            publish_date: '2026-03-29',
+            content: '统一最近多轮更新的发布口径，补齐部署模板、默认镜像和工作流默认值到 v4.5.52，并继续复核 2400/2500/2600 多实例升级链路。',
             enabled: true,
           },
         ]
@@ -192,7 +192,7 @@ test.beforeEach(async ({ page }) => {
             updated: 0,
             skipped: 0,
             totalParsed: 1,
-            latestVersion: 'v4.5.51',
+            latestVersion: 'v4.5.52',
             previewCount: 1,
             sourceStats: { release_cache: 1 },
           },
@@ -211,7 +211,7 @@ test('shows release-note preview after checking updates and finishes announcemen
   await expect(page.getByText('执行“检查更新”后，这里会显示最新版本的说明摘要和资产信息。')).toBeVisible()
   await page.getByRole('button', { name: '检查更新' }).first().click()
 
-  await expect(page.getByText('卡密发放总控、用户管理联动与帮助中心说明补齐', { exact: true })).toBeVisible()
+  await expect(page.getByText('发布口径统一、集群部署收口与双机升级复核', { exact: true })).toBeVisible()
   await expect(page.getByText('待新增 2 · 待更新 1 · 已跳过 0')).toBeVisible()
   await expect(page.getByText('当前已是最新版本，但仍有 3 条公告可同步')).toBeVisible()
   await page.getByRole('button', { name: '知道了' }).click()
@@ -220,7 +220,7 @@ test('shows release-note preview after checking updates and finishes announcemen
   await expect(page.getByText('公告同步完成：新增 2 条，更新 1 条，跳过 0 条')).toBeVisible()
   await page.getByRole('button', { name: '知道了' }).click()
 
-  await expect(page.getByText('最近同步：新增 2 · 更新 1 · 跳过 0 · 最新版本 v4.5.51')).toBeVisible()
+  await expect(page.getByText('最近同步：新增 2 · 更新 1 · 跳过 0 · 最新版本 v4.5.52')).toBeVisible()
 })
 
 test('keeps announcement manager aligned with the unified version-source sync result', async ({ page }) => {
@@ -235,6 +235,6 @@ test('keeps announcement manager aligned with the unified version-source sync re
   await page.getByRole('button', { name: '知道了' }).click()
 
   await expect(page.getByText('最近一次版本源同步')).toBeVisible()
-  await expect(page.getByText('最新同步版本：v4.5.51')).toBeVisible()
-  await expect(page.getByText('卡密发放总控、用户管理联动与帮助中心说明补齐')).toBeVisible()
+  await expect(page.getByText('最新同步版本：v4.5.52')).toBeVisible()
+  await expect(page.getByText('发布口径统一、集群部署收口与双机升级复核')).toBeVisible()
 })

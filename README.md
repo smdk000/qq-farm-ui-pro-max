@@ -2,7 +2,7 @@
 
 > 🔴 **醒目提醒：现在扫码登录失效，等其他大佬修复，本仓库暂停更新功能，仅修复bug了。**基于 Node.js 的 QQ 农场自动化工具，支持多账号管理、Web 控制面板、实时日志与数据分析。
 
-![版本](https://img.shields.io/badge/版本-v4.5.51-blue)
+![版本](https://img.shields.io/badge/版本-v4.5.52-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange)
 ![Redis](https://img.shields.io/badge/Redis-6.0-red)
@@ -311,7 +311,7 @@ bash <(curl --http1.1 --retry 4 --retry-delay 1 --retry-all-errors --connect-tim
 如需固定镜像版本或覆盖仓库，可在 `.env` 中设置：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.51
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.52
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -366,7 +366,7 @@ bash install-or-update.sh --action update --preserve-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.51
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.52
 
 # 弱网 / 离线环境：先 docker load，再用离线镜像包更新
 bash update-app.sh --image-archive /root/qq-farm-bot-images-amd64.tar.gz
@@ -421,8 +421,8 @@ curl http://localhost:3080/api/ping
 
 - `qq-farm-bot-images-amd64.tar.gz`
 - `qq-farm-bot-images-arm64.tar.gz`
-- `qq-farm-bot-v4.5.51-offline-amd64.tar.gz`
-- `qq-farm-bot-v4.5.51-offline-arm64.tar.gz`
+- `qq-farm-bot-v4.5.52-offline-amd64.tar.gz`
+- `qq-farm-bot-v4.5.52-offline-arm64.tar.gz`
 
 其中 `arm64` 离线包里的 `ipad860` 仍是 `linux/amd64`，目标宿主机需支持 QEMU。
 
@@ -456,7 +456,7 @@ echo $GH_PAT | docker login ghcr.io -u smdk000 --password-stdin
 **使用脚本构建（推荐）**:
 ```bash
 chmod +x scripts/docker/docker-build-multiarch.sh
-./scripts/docker/docker-build-multiarch.sh --version 4.5.51
+./scripts/docker/docker-build-multiarch.sh --version 4.5.52
 ```
 
 **手动构建**:
@@ -464,7 +464,7 @@ chmod +x scripts/docker/docker-build-multiarch.sh
 # 构建并推送到 Docker Hub
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t smdk000/qq-farm-bot-ui:4.5.51 \
+  -t smdk000/qq-farm-bot-ui:4.5.52 \
   -t smdk000/qq-farm-bot-ui:latest \
   -f core/Dockerfile . \
   --push
@@ -472,7 +472,7 @@ docker buildx build \
 # 构建并推送到 GitHub Container Registry
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.51 \
+  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.52 \
   -t ghcr.io/smdk000/qq-farm-ui-pro-max:latest \
   -f core/Dockerfile . \
   --push
@@ -482,7 +482,7 @@ docker buildx build \
 
 ```bash
 chmod +x scripts/release/build-release-assets.sh
-./scripts/release/build-release-assets.sh --version v4.5.51
+./scripts/release/build-release-assets.sh --version v4.5.52
 
 # 产物默认输出到 ./release-assets
 ls release-assets
@@ -492,7 +492,7 @@ ls release-assets
 
 ```bash
 # 查看镜像信息
-docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.51
+docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.52
 
 # Docker Hub 查看
 # https://hub.docker.com/r/smdk000/qq-farm-bot-ui/tags
@@ -734,7 +734,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 
 **维护者**: smdk000
 **最后更新**: 2026-03-28
-**版本**: v4.5.51
+**版本**: v4.5.52
 
 ## 多用户模式
 
@@ -1107,6 +1107,13 @@ ISC License
 ---
 
 ## 🎉 最近更新
+
+### v4.5.52 - 发布口径统一、集群部署收口与双机升级复核 (2026-03-29)
+- ✅ 把最近 `v4.5.47` 到 `v4.5.51` 的 QQ 好友导入 / 巡检台增强 / 卡密发放总控等更新统一收口成新的发布版本，便于对外说明、部署和回滚定位。
+- ✅ `core / web` 包版本、README、部署模板、离线包脚本、国内部署文档和 GitHub Actions 默认版本已统一抬升到 `v4.5.52`。
+- ✅ `deploy/docker-compose.yml` 与 `.env.example` 的默认主程序镜像已从旧的 `4.5.50` 切到 `4.5.52`，新装和旧服修复时不会再默认回落到旧镜像。
+- ✅ 本轮特别补齐 `2400 / 2500 / 2600` 多实例场景的升级复核口径，主程序和子程序同步升级时不再继续混跑旧版默认值。
+- ✅ 安装 / 更新脚本检测到 `qq-farm-shared` 等共享网络已存在时，会自动按 `external` 复用，多栈共存、自测和滚动升级不会再被 Compose 网络标签冲突卡住。
 
 ### v4.5.51 - 卡密发放总控、用户管理联动与帮助中心说明补齐 (2026-03-28)
 - ✅ 设置页“账号与安全”新增卡密发放总控，管理员可以一键开启 / 关闭卡密注册、卡密续费、体验卡领取和后台发码。
