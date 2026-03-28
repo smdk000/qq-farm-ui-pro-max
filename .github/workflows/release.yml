@@ -68,6 +68,11 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           bash scripts/release/build-release-assets.sh --version "${VERSION}" --output-dir release-assets
 
+      - name: Render Release Notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          node scripts/utils/render-release-notes.js "${VERSION}" > release-body.md
+
       - name: List Artifacts
         run: ls -R release-assets
 
@@ -76,6 +81,12 @@ jobs:
         with:
           name: release-assets
           path: ./release-assets/*
+
+      - name: Upload Release Body
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-body
+          path: ./release-body.md
 
   Release:
     runs-on: ubuntu-latest
@@ -91,15 +102,22 @@ jobs:
           name: release-assets
           path: release-assets
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-body
+          path: release-body
+
       - name: Display structure of downloaded files
-        run: ls -R release-assets
+        run: |
+          ls -R release-assets
+          ls -R release-body
 
       - name: Release
         uses: ncipollo/release-action@v1
         with:
           name: ${{ needs.build.outputs.version || github.event.inputs.version || github.ref_name }}
           tag: ${{ needs.build.outputs.version || github.event.inputs.version || github.ref_name }}
-          body: ${{ needs.build.outputs.version || github.event.inputs.version || github.ref_name }}
+          bodyFile: release-body/release-body.md
           token: ${{ secrets.GITHUB_TOKEN }}
           makeLatest: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.latest || 'true' }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prerelease || 'false' }}

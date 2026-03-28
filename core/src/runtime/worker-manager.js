@@ -17,6 +17,46 @@ function normalizeAvatarUrl(value) {
     return String(value || '').trim();
 }
 
+function normalizeRuntimeIdentity(platform, identity = {}) {
+    const normalizedPlatform = String(platform || identity.platform || '').trim().toLowerCase();
+    const normalizedUin = String(identity.uin || '').trim();
+    const normalizedOpenId = String(identity.openId || identity.open_id || '').trim();
+    if (!normalizedPlatform) {
+        return {
+            platform: '',
+            uin: '',
+            qq: '',
+            openId: '',
+        };
+    }
+    if (normalizedPlatform === 'qq') {
+        const qq = normalizeNumericQQUin(identity.qq || normalizedUin);
+        return {
+            platform: normalizedPlatform,
+            uin: qq,
+            qq,
+            openId: normalizedOpenId,
+        };
+    }
+    return {
+        platform: normalizedPlatform,
+        uin: normalizedUin || normalizedOpenId,
+        qq: '',
+        openId: normalizedOpenId,
+    };
+}
+
+function hasRuntimeIdentity(identity = {}) {
+    return !!String(identity.platform || '').trim()
+        && !!(String(identity.uin || '').trim() || String(identity.openId || '').trim());
+}
+
+function isSameRuntimeIdentity(left = {}, right = {}) {
+    return String(left.platform || '').trim() === String(right.platform || '').trim()
+        && String(left.uin || '').trim() === String(right.uin || '').trim()
+        && String(left.openId || '').trim() === String(right.openId || '').trim();
+}
+
 function normalizeAccountWsError(code, message) {
     const normalizedCode = Number(code) || 0;
     const normalizedMessage = String(message || '').trim();
@@ -80,6 +120,7 @@ function createWorkerManager(options) {
         upsertFriendBlacklist,
         updateFriendsCache,
         mergeFriendsCache,
+        clearFriendsCache,
         broadcastConfigToWorkers,
         onStatusSync,
         onWorkerLog,
@@ -456,11 +497,51 @@ function createWorkerManager(options) {
             const connected = !!(panelStatus.connection && panelStatus.connection.connected);
             const liveStatus = (panelStatus.status && typeof panelStatus.status === 'object') ? panelStatus.status : {};
             const liveUin = normalizeNumericQQUin(liveStatus.uin);
+            const liveOpenId = String(liveStatus.openId || liveStatus.open_id || '').trim();
             const liveAvatar = normalizeAvatarUrl(liveStatus.avatarUrl || liveStatus.avatar);
+            const previousIdentity = normalizeRuntimeIdentity(worker.account && worker.account.platform, worker.account || {});
+            const nextIdentity = normalizeRuntimeIdentity(
+                liveStatus.platform || (worker.account && worker.account.platform),
+                {
+                    ...worker.account,
+                    platform: liveStatus.platform || (worker.account && worker.account.platform),
+                    uin: liveUin || liveStatus.uin || (worker.account && worker.account.uin),
+                    qq: liveUin || (worker.account && worker.account.qq),
+                    openId: liveOpenId || (worker.account && worker.account.openId),
+                },
+            );
+            const shouldClearPreviousFriendsCache = typeof clearFriendsCache === 'function'
+                && hasRuntimeIdentity(previousIdentity)
+                && hasRuntimeIdentity(nextIdentity)
+                && !isSameRuntimeIdentity(previousIdentity, nextIdentity);
+            if (shouldClearPreviousFriendsCache) {
+                clearFriendsCache(accountId, previousIdentity).then((cleared) => {
+                    if (!cleared || !cleared.ok) return;
+                    addAccountLog(
+                        'friend_cache_identity_reset',
+                        `账号 ${worker.name} 已切换登录身份，旧好友缓存已按历史身份自动清理`,
+                        accountId,
+                        worker.name,
+                        {
+                            module: 'friend',
+                            event: 'friend_cache_identity_reset',
+                            previousIdentity,
+                            nextIdentity,
+                            deletedCount: Number(cleared.deletedCount || 0),
+                        },
+                    );
+                }).catch(() => {});
+            }
             if (worker.account) {
                 if (liveUin) {
                     worker.account.uin = liveUin;
                     worker.account.qq = liveUin;
+                }
+                if (liveOpenId) {
+                    worker.account.openId = liveOpenId;
+                }
+                if (liveStatus.platform) {
+                    worker.account.platform = String(liveStatus.platform).trim();
                 }
                 if (liveAvatar) {
                     worker.account.avatar = liveAvatar;

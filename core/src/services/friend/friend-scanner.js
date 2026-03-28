@@ -89,8 +89,10 @@ function _buildFriendsListMeta(reply, options = {}) {
     const cooldownUntil = Math.max(0, Number(reply?._wxAutoRetryAt || 0));
     const syncAllUnsupportedUntil = Math.max(0, Number(reply?._wxSyncAllUnsupportedUntil || 0));
     const cacheSource = String(reply?._cacheSource || options.cacheSource || '').trim();
+    const syncSource = String(reply?._syncSource || options.syncSource || '').trim();
+    const importOpenIdCount = Math.max(0, Number(reply?._importOpenIdCount || options.importOpenIdCount || 0));
     const seededCount = Math.max(0, Number(reply?._cacheSeededCount || options.seededCount || 0));
-    const needsMeta = isWechatFallback || isQqCacheFallback || source === 'cache' || source === 'empty' || cooldownUntil > 0 || syncAllUnsupportedUntil > 0 || !!cacheSource || seededCount > 0 || options.force;
+    const needsMeta = isWechatFallback || isQqCacheFallback || source === 'cache' || source === 'empty' || cooldownUntil > 0 || syncAllUnsupportedUntil > 0 || !!cacheSource || !!syncSource || importOpenIdCount > 0 || seededCount > 0 || options.force;
     if (!needsMeta) {
         return null;
     }
@@ -103,6 +105,12 @@ function _buildFriendsListMeta(reply, options = {}) {
     };
     if (cacheSource) {
         meta.cacheSource = cacheSource;
+    }
+    if (syncSource) {
+        meta.syncSource = syncSource;
+    }
+    if (importOpenIdCount > 0) {
+        meta.importOpenIdCount = importOpenIdCount;
     }
     if (seededCount > 0) {
         meta.seededCount = seededCount;
@@ -591,12 +599,13 @@ async function getFriendsList(options = {}) {
         const platformInst = PlatformFactory.createPlatform(CONFIG.platform);
         const isWechatEnv = !platformInst.allowSyncAll();
         const filteredOut = [];
+        const preserveImportedSyncAll = String(reply?._syncSource || '').trim() === 'imported_syncall';
 
         const filtered = friends
             .filter(f => {
                 const fGid = toNum(f.gid);
                 const isSelf = fGid === userState.gid;
-                const isXiaoNongFu = f.name === '小小农夫' || f.remark === '小小农夫';
+                const isXiaoNongFu = !preserveImportedSyncAll && (f.name === '小小农夫' || f.remark === '小小农夫');
                 if (isSelf || isXiaoNongFu) {
                     filteredOut.push({
                         gid: fGid,

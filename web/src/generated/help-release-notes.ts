@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.47',
+    date: '2026-03-28',
+    title: 'QQ 好友手动导入 SyncAll 与身份链路继续收口',
+    summary: '新增手动导入 QQ 好友 SyncAll 能力、好友缓存与访客身份继续按当前登录身份隔离透传，好友页补齐导入来源、筛选状态和清理/重建反馈，减少跨账号串缓存与导入后不可见的问题。',
+  },
+  {
     version: 'v4.5.46',
     date: '2026-03-28',
     title: '首装/更新主路径 GitHub Raw 兜底补齐',

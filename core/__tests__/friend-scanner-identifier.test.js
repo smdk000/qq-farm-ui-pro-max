@@ -118,3 +118,80 @@ test('getFriendsList keeps QQ uin semantic stable and no longer overloads gid/op
         restoreFns.reverse().forEach(restore => restore());
     }
 });
+
+test('getFriendsList keeps imported SyncAll friends named 小小农夫 when source is imported_syncall', async () => {
+    const restoreFns = [
+        mockModule(configModulePath, { CONFIG: { platform: 'qq' }, PlantPhase: {}, PHASE_NAMES: {} }),
+        mockModule(gameConfigModulePath, {
+            getPlantName: () => '',
+            getPlantById: () => null,
+            getSeedImageBySeedId: () => '',
+        }),
+        mockModule(storeModulePath, {
+            isAutomationOn: () => false,
+            getFriendBlacklist: () => [],
+            getStakeoutStealConfig: () => ({ enabled: false }),
+        }),
+        mockModule(networkModulePath, {
+            getUserState: () => ({ gid: 999 }),
+            networkEvents: {
+                on() {},
+                off() {},
+                emit() {},
+            },
+        }),
+        mockModule(utilsModulePath, {
+            toLong: (value) => value,
+            toNum: (value) => Number(value) || 0,
+            toTimeSec: () => 0,
+            getServerTimeSec: () => 0,
+            log() {},
+            logWarn() {},
+            sleep: async () => {},
+        }),
+        mockModule(farmModulePath, {
+            getCurrentPhase: () => null,
+            setOperationLimitsCallback() {},
+        }),
+        mockModule(statsModulePath, { recordOperation() {} }),
+        mockModule(warehouseModulePath, { sellAllFruits: async () => {} }),
+        mockModule(accountModePolicyModulePath, {
+            getRuntimeAccountModePolicy: () => ({ collaborationEnabled: true }),
+        }),
+        mockModule(platformFactoryModulePath, {
+            createPlatform: () => ({ allowSyncAll: () => true }),
+        }),
+        mockModule(friendStateModulePath, {
+            friendScheduler: { setTimeoutTask() {}, clearAll() {} },
+            activeStakeouts: new Map(),
+        }),
+        mockModule(friendDecisionModulePath, {}),
+        mockModule(friendActionsModulePath, {
+            getAllFriends: async () => ({
+                _syncSource: 'imported_syncall',
+                game_friends: [
+                    { gid: 20005, open_id: '', uin: '', name: '小小农夫', remark: '', avatar_url: '' },
+                    { gid: 999, open_id: '', uin: '', name: '自己', remark: '', avatar_url: '' },
+                ],
+            }),
+        }),
+        mockModule(circuitBreakerModulePath, {
+            circuitBreaker: {
+                allowRequest: () => true,
+            },
+        }),
+    ];
+
+    try {
+        delete require.cache[scannerModulePath];
+        const { getFriendsList } = require(scannerModulePath);
+        const list = await getFriendsList();
+        assert.deepEqual(
+            list.map(friend => ({ gid: friend.gid, name: friend.name })),
+            [{ gid: 20005, name: '小小农夫' }],
+        );
+    } finally {
+        delete require.cache[scannerModulePath];
+        restoreFns.reverse().forEach(restore => restore());
+    }
+});

@@ -5,7 +5,13 @@ export interface FriendFetchMetaLike {
   reason?: string
   platform?: string
   cacheSource?: string
+  cacheScope?: string
+  identityType?: string
+  updatedAt?: number
+  entryCount?: number
   seededCount?: number
+  syncSource?: string
+  importOpenIdCount?: number
 }
 
 export interface FriendStatusCopy {
@@ -19,6 +25,7 @@ export interface FriendFetchSourceCopy {
   tone: FriendStatusTone
   label: string
   description: string
+  detail?: string
 }
 
 export interface FriendGuardCopyParams {
@@ -110,6 +117,8 @@ export function buildFriendFetchBannerCopy(meta: FriendFetchMetaLike | null | un
   const reason = normalizeText(meta?.reason)
   const platform = normalizeText(meta?.platform)
   const cacheSource = normalizeText(meta?.cacheSource)
+  const syncSource = normalizeText(meta?.syncSource)
+  const importOpenIdCount = Math.max(0, Number(meta?.importOpenIdCount || 0))
   const seededCount = Math.max(0, Number(meta?.seededCount || 0))
 
   if (source === 'live' && !reason)
@@ -175,7 +184,24 @@ export function buildFriendFetchBannerCopy(meta: FriendFetchMetaLike | null | un
   }
 
   if (isQqFriendPlatform(platform)) {
+    if (source === 'live' && syncSource === 'imported_syncall' && importOpenIdCount > 0) {
+      return {
+        tone: 'success',
+        title: 'QQ 已按导入的 SyncAll 源同步好友',
+        description: `当前好友列表来自你手动导入的 SyncAll 请求，共携带 ${importOpenIdCount} 个 open_id，页面展示的是这次实时同步结果。`,
+        badge: '导入同步源',
+      }
+    }
+
     if (source === 'cache') {
+      if (syncSource === 'imported_syncall' && importOpenIdCount > 0) {
+        return {
+          tone: 'warning',
+          title: '导入的 SyncAll 源本轮回退到缓存',
+          description: `系统已经按你导入的 ${importOpenIdCount} 个 open_id 尝试 SyncAll，但这次没有拿到可用实时好友，所以页面暂时回退到缓存好友。`,
+          badge: '缓存展示',
+        }
+      }
       return {
         tone: 'warning',
         title: 'QQ 保守链路已回退缓存',
@@ -185,6 +211,14 @@ export function buildFriendFetchBannerCopy(meta: FriendFetchMetaLike | null | un
     }
 
     if (source === 'empty') {
+      if (syncSource === 'imported_syncall' && importOpenIdCount > 0) {
+        return {
+          tone: 'danger',
+          title: '导入的 SyncAll 源未拿到可用好友',
+          description: `系统已经按你导入的 ${importOpenIdCount} 个 open_id 发起 SyncAll，但这次既没有拿到可用实时好友，也没有缓存可回退，所以页面暂时无法展示好友。`,
+          badge: '暂未同步',
+        }
+      }
       return {
         tone: 'danger',
         title: 'QQ 保守链路未拿到可用好友',
@@ -219,7 +253,34 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
   const source = normalizeText(meta?.source || 'live') || 'live'
   const reason = normalizeText(meta?.reason)
   const cacheSource = normalizeText(meta?.cacheSource)
+  const cacheScope = normalizeText(meta?.cacheScope)
+  const identityType = normalizeText(meta?.identityType)
+  const updatedAt = Math.max(0, Number(meta?.updatedAt || 0))
+  const entryCount = Math.max(0, Number(meta?.entryCount || 0))
   const seededCount = Math.max(0, Number(meta?.seededCount || 0))
+  const updatedText = updatedAt > 0 ? new Date(updatedAt).toLocaleString('zh-CN', { hour12: false }) : ''
+  const identityText = identityType === 'qq'
+    ? 'QQ号'
+    : identityType === 'openid'
+      ? 'OpenID'
+      : identityType === 'uin'
+        ? 'UIN'
+        : ''
+  const scopeText = cacheScope === 'identity'
+    ? '当前登录身份作用域'
+    : cacheScope === 'legacy'
+      ? '历史账号缓存键'
+      : ''
+  const detailParts = []
+  if (entryCount > 0)
+    detailParts.push(`缓存 ${entryCount} 人`)
+  if (scopeText)
+    detailParts.push(scopeText)
+  if (identityText)
+    detailParts.push(`按 ${identityText} 隔离`)
+  if (updatedText)
+    detailParts.push(`更新于 ${updatedText}`)
+  const detail = detailParts.join(' · ')
 
   if (source === 'cache') {
     if (cacheSource === 'interact_records') {
@@ -229,12 +290,14 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
         description: seededCount > 0
           ? `当前显示的是最近访客/互动记录补建出来的临时好友列表，本次识别了 ${seededCount} 个访客种子。`
           : '当前显示的是最近访客/互动记录补建出来的临时好友列表。',
+        detail,
       }
     }
     return {
       tone: 'warning',
       label: '身份缓存',
       description: '当前显示的是当前登录身份自己的好友缓存，不与其它账号共享。',
+      detail,
     }
   }
 
@@ -244,6 +307,7 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
         tone: 'neutral',
         label: '缓存已清空',
         description: '当前账号的好友缓存已经清理，重新连接后可手动刷新重建。',
+        detail,
       }
     }
     if (reason === 'cache_rebuilt_empty') {
@@ -251,6 +315,7 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
         tone: 'warning',
         label: '重建后仍为空',
         description: '缓存已经按当前账号清理并重建，但暂未拿到可用好友。',
+        detail,
       }
     }
     if (cacheSource === 'interact_records') {
@@ -260,6 +325,7 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
         description: seededCount > 0
           ? `最近访客/互动记录里已经识别出 ${seededCount} 个访客种子，但还没补成可用好友列表。`
           : '最近访客/互动记录暂时也没补成可用好友列表。',
+        detail,
       }
     }
     const reasonLabel = formatFriendFetchReasonLabel(reason)
@@ -267,6 +333,7 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
       tone: 'danger',
       label: '暂无可用好友',
       description: reason ? `当前账号暂未拿到可用好友，原因：${reasonLabel}。` : '当前账号暂未拿到可用好友。',
+      detail,
     }
   }
 
@@ -275,6 +342,7 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
       tone: 'success',
       label: '实时好友',
       description: '当前显示的是本次实时同步到的好友列表。',
+      detail: updatedText ? `最近一次缓存写入时间 ${updatedText}` : '',
     }
   }
 
@@ -282,6 +350,7 @@ export function buildFriendFetchSourceCopy(meta: FriendFetchMetaLike | null | un
     tone: 'info',
     label: '好友状态',
     description: '当前显示的是当前账号最近一次可用的好友结果。',
+    detail,
   }
 }
 

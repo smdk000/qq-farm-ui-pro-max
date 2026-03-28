@@ -9,6 +9,10 @@ export const useFriendStore = defineStore('friend', () => {
     reason: '',
     platform: '',
     cacheSource: '',
+    cacheScope: '',
+    identityType: '',
+    updatedAt: 0,
+    entryCount: 0,
     seededCount: 0,
     conservative: false,
     realtimeAvailable: true,
@@ -22,6 +26,10 @@ export const useFriendStore = defineStore('friend', () => {
   const loading = ref(false)
   const seedCacheLoading = ref(false)
   const clearCacheLoading = ref(false)
+  const importHexLoading = ref(false)
+  const importedSyncAllSource = ref<any | null>(null)
+  const importedSyncAllLoading = ref(false)
+  const clearImportedSyncAllLoading = ref(false)
   const friendLands = ref<Record<string, any[]>>({})
   const friendLandsLoading = ref<Record<string, boolean>>({})
   const blacklist = ref<number[]>([])
@@ -37,7 +45,13 @@ export const useFriendStore = defineStore('friend', () => {
       reason: String(next.reason || '').trim(),
       platform: String(next.platform || '').trim(),
       cacheSource: String(next.cacheSource || '').trim(),
+      cacheScope: String(next.cacheScope || '').trim(),
+      identityType: String(next.identityType || '').trim(),
+      updatedAt: Math.max(0, Number(next.updatedAt || 0)),
+      entryCount: Math.max(0, Number(next.entryCount || 0)),
       seededCount: Math.max(0, Number(next.seededCount || 0)),
+      syncSource: String(next.syncSource || '').trim(),
+      importOpenIdCount: Math.max(0, Number(next.importOpenIdCount || 0)),
       conservative: !!next.conservative,
       realtimeAvailable: next.realtimeAvailable !== false,
       cooldownUntil: Math.max(0, Number(next.cooldownUntil || 0)),
@@ -47,6 +61,28 @@ export const useFriendStore = defineStore('friend', () => {
 
   function setFriendFetchMeta(meta?: any) {
     friendFetchMeta.value = meta ? normalizeFriendFetchMeta(meta) : defaultFriendFetchMeta()
+  }
+
+  function normalizeImportedSyncAllSource(source: any) {
+    if (!source || typeof source !== 'object')
+      return null
+    const openIds = Array.isArray(source.openIds)
+      ? source.openIds.map((item: any) => String(item || '').trim()).filter(Boolean)
+      : []
+    return {
+      active: !!source.active,
+      sourceHash: String(source.sourceHash || '').trim(),
+      openIds,
+      openIdCount: Math.max(0, Number(source.openIdCount || openIds.length || 0)),
+      importedAt: Math.max(0, Number(source.importedAt || 0)),
+      updatedAt: Math.max(0, Number(source.updatedAt || 0)),
+      lastUsedAt: Math.max(0, Number(source.lastUsedAt || 0)),
+      lastSyncAt: Math.max(0, Number(source.lastSyncAt || 0)),
+      lastSyncFriendCount: Math.max(0, Number(source.lastSyncFriendCount || 0)),
+      lastSyncSource: String(source.lastSyncSource || '').trim(),
+      lastErrorCode: String(source.lastErrorCode || '').trim(),
+      meta: source.meta && typeof source.meta === 'object' ? source.meta : {},
+    }
   }
 
   function normalizeInteractError(input: any, errorCode?: string) {
@@ -285,6 +321,12 @@ export const useFriendStore = defineStore('friend', () => {
       })
       if (res.data.ok) {
         cachedFriends.value = res.data.data || []
+        if (res.data?.meta) {
+          setFriendFetchMeta({
+            ...friendFetchMeta.value,
+            ...normalizeFriendFetchMeta(res.data.meta),
+          })
+        }
       }
     }
     catch (error) {
@@ -429,6 +471,108 @@ export const useFriendStore = defineStore('friend', () => {
     }
   }
 
+  async function importFriendsByHex(accountId: string, hex: string): Promise<{
+    ok: boolean
+    results?: any
+    meta?: any
+    refreshed?: any
+    error?: string
+    errorCode?: string
+  }> {
+    const normalizedAccountId = String(accountId || '').trim()
+    const normalizedHex = String(hex || '').trim()
+    if (!normalizedAccountId)
+      return { ok: false, error: '缺少账号标识' }
+    if (!normalizedHex)
+      return { ok: false, error: '请输入 Hex 内容' }
+
+    importHexLoading.value = true
+    try {
+      const res = await api.post('/api/friends/import-hex', {
+        hex: normalizedHex,
+      }, {
+        headers: { 'x-account-id': normalizedAccountId },
+      })
+      if (!res.data?.ok) {
+        return {
+          ok: false,
+          error: String(res.data?.error || '导入好友同步 Hex 失败'),
+          errorCode: String(res.data?.errorCode || '').trim(),
+        }
+      }
+
+      const refreshedData = Array.isArray(res.data?.refreshed?.data) ? res.data.refreshed.data : []
+      friends.value = [...refreshedData]
+      cachedFriends.value = [...refreshedData]
+      setFriendFetchMeta(res.data?.refreshed?.meta || friendFetchMeta.value)
+      importedSyncAllSource.value = normalizeImportedSyncAllSource(res.data?.source || importedSyncAllSource.value)
+      return {
+        ok: true,
+        results: res.data?.results || null,
+        meta: res.data?.meta || null,
+        refreshed: res.data?.refreshed || null,
+      }
+    }
+    catch (error: any) {
+      return {
+        ok: false,
+        error: String(error?.response?.data?.error || error?.message || '导入好友同步 Hex 失败'),
+        errorCode: String(error?.response?.data?.errorCode || '').trim(),
+      }
+    }
+    finally {
+      importHexLoading.value = false
+    }
+  }
+
+  async function fetchImportedSyncAllSource(accountId: string) {
+    const normalizedAccountId = String(accountId || '').trim()
+    if (!normalizedAccountId) {
+      importedSyncAllSource.value = null
+      return null
+    }
+    importedSyncAllLoading.value = true
+    try {
+      const res = await api.get('/api/friends/imported-syncall', {
+        headers: { 'x-account-id': normalizedAccountId },
+      })
+      importedSyncAllSource.value = normalizeImportedSyncAllSource(res.data?.data)
+      return importedSyncAllSource.value
+    }
+    finally {
+      importedSyncAllLoading.value = false
+    }
+  }
+
+  async function clearImportedSyncAllSource(accountId: string): Promise<{ ok: boolean, error?: string }> {
+    const normalizedAccountId = String(accountId || '').trim()
+    if (!normalizedAccountId)
+      return { ok: false, error: '缺少账号标识' }
+    clearImportedSyncAllLoading.value = true
+    try {
+      const res = await api.delete('/api/friends/imported-syncall', {
+        headers: { 'x-account-id': normalizedAccountId },
+      })
+      if (!res.data?.ok) {
+        return {
+          ok: false,
+          error: String(res.data?.error || '清除导入同步源失败'),
+        }
+      }
+      importedSyncAllSource.value = normalizeImportedSyncAllSource(res.data?.data)
+      return { ok: true }
+    }
+    catch (error: any) {
+      return {
+        ok: false,
+        error: String(error?.response?.data?.error || error?.message || '清除导入同步源失败'),
+      }
+    }
+    finally {
+      clearImportedSyncAllLoading.value = false
+    }
+  }
+
   async function fetchInteractRecords(accountId: string, limit = 50): Promise<boolean> {
     const normalizedAccountId = String(accountId || '').trim()
     if (!normalizedAccountId) {
@@ -488,6 +632,10 @@ export const useFriendStore = defineStore('friend', () => {
     loading,
     seedCacheLoading,
     clearCacheLoading,
+    importHexLoading,
+    importedSyncAllSource,
+    importedSyncAllLoading,
+    clearImportedSyncAllLoading,
     friendLands,
     friendLandsLoading,
     blacklist,
@@ -499,6 +647,9 @@ export const useFriendStore = defineStore('friend', () => {
     fetchCachedFriends,
     seedFriendsCache,
     clearFriendsCache,
+    importFriendsByHex,
+    fetchImportedSyncAllSource,
+    clearImportedSyncAllSource,
     fetchBlacklist,
     toggleBlacklist,
     fetchFriendLands,

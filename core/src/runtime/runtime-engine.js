@@ -9,7 +9,7 @@ const { createDataProvider } = require('./data-provider')
 const { createReloginReminderService } = require('./relogin-reminder')
 const { createRuntimeState } = require('./runtime-state')
 const { createWorkerManager } = require('./worker-manager')
-const { updateFriendsCache, mergeFriendsCache } = require('../services/database')
+const { updateFriendsCache, mergeFriendsCache, clearFriendsCache } = require('../services/database')
 const { createReportService } = require('../services/report-service')
 const accountRepository = require('../repositories/account-repository')
 
@@ -95,6 +95,7 @@ function createRuntimeEngine(options = {}) {
     deleteAccount: store.deleteAccount,
     updateFriendsCache,
     mergeFriendsCache,
+    clearFriendsCache,
     onStatusSync: (accountId, status, accountName) => {
       runtimeEvents.emit('status', { accountId, status, accountName })
       if (onStatusSync) onStatusSync(accountId, status, accountName)

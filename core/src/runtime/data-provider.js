@@ -247,6 +247,29 @@ function createDataProvider(options) {
         getFriends: async (accountRef, options) => callWorkerApi(await resolveAccountRefId(accountRef), 'getFriends', options || {}),
         getFriendLands: async (accountRef, gid) => callWorkerApi(await resolveAccountRefId(accountRef), 'getFriendLands', gid),
         getInteractRecords: async (accountRef, limit) => callWorkerApi(await resolveAccountRefId(accountRef), 'getInteractRecords', limit),
+        importFriendsByHex: async (accountRef, hex) => callWorkerApi(await resolveAccountRefId(accountRef), 'importFriendsByHex', hex),
+        getImportedSyncAllSource: async (accountRef) => {
+            const accountId = await resolveAccountRefId(accountRef);
+            if (!accountId || !store || typeof store.getImportedSyncAllSource !== 'function') return null;
+            return store.getImportedSyncAllSource(accountId);
+        },
+        clearImportedSyncAllSource: async (accountRef) => {
+            const accountId = await resolveAccountRefId(accountRef);
+            if (!accountId || !store || typeof store.setImportedSyncAllSource !== 'function') return null;
+            return store.setImportedSyncAllSource(accountId, {
+                active: false,
+                sourceHash: '',
+                openIds: [],
+                openIdCount: 0,
+                updatedAt: Date.now(),
+                lastUsedAt: 0,
+                lastSyncAt: 0,
+                lastSyncFriendCount: 0,
+                lastSyncSource: '',
+                lastErrorCode: '',
+                meta: {},
+            });
+        },
         doFriendOp: async (accountRef, gid, opType) => callWorkerApi(await resolveAccountRefId(accountRef), 'doFriendOp', gid, opType),
         doFriendBatchOp: async (accountRef, gids, opType, options) => callWorkerApi(await resolveAccountRefId(accountRef), 'doFriendBatchOp', gids, opType, options),
         getBag: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getBag'),

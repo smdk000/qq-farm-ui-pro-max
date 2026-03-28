@@ -1,7 +1,7 @@
 const { CONFIG } = require('../config/config');
 const { getFruitName, getPlantByFruitId, getPlantById, getPlantName } = require('../config/gameConfig');
 const { cacheFriendSeeds, resolveFriendSeedAccountId } = require('./friend-cache-seeds');
-const { sendMsgAsync } = require('../utils/network');
+const { sendMsgAsync, getUserState } = require('../utils/network');
 const { types } = require('../utils/proto');
 const { logWarn, toNum, toTimeSec } = require('../utils/utils');
 
@@ -154,20 +154,29 @@ function buildFriendSeedsFromInteractRecords(records) {
     return Array.from(deduped.values());
 }
 
+function buildInteractFriendCacheOptions() {
+    const userState = typeof getUserState === 'function' ? getUserState() : null;
+    const accountId = resolveFriendSeedAccountId(CONFIG.accountId, userState);
+    if (!accountId) return null;
+    return {
+        accountId,
+        platform: String(CONFIG.platform || (userState && userState.platform) || '').trim(),
+        uin: String(CONFIG.uin || (userState && userState.uin) || '').trim(),
+        openId: String((userState && (userState.openId || userState.open_id)) || CONFIG.openId || '').trim(),
+        userState,
+        immediate: true,
+    };
+}
+
 async function getInteractRecords(limit = 50) {
     const reply = await fetchInteractReply();
     const records = Array.isArray(reply && reply.records) ? reply.records : [];
     const normalized = records
         .map((record, index) => normalizeInteractRecord(record, index))
         .sort((a, b) => (b.serverTimeSec - a.serverTimeSec) || (b.visitorGid - a.visitorGid) || (b.actionType - a.actionType));
-    const accountId = resolveFriendSeedAccountId(CONFIG.accountId);
-    if (accountId) {
-        await cacheFriendSeeds(buildFriendSeedsFromInteractRecords(normalized), {
-            accountId,
-            platform: CONFIG.platform,
-            uin: String(CONFIG.uin || '').trim(),
-            immediate: true,
-        });
+    const cacheOptions = buildInteractFriendCacheOptions();
+    if (cacheOptions) {
+        await cacheFriendSeeds(buildFriendSeedsFromInteractRecords(normalized), cacheOptions);
     }
     const max = Math.max(1, Math.min(200, Number(limit) || 50));
     return normalized.slice(0, max);

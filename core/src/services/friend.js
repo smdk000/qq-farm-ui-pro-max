@@ -11,6 +11,7 @@
 const actions = require('./friend/friend-actions');
 const decision = require('./friend/friend-decision');
 const scanner = require('./friend/friend-scanner');
+const { importFriendsByHex } = require('./friend/friend-hex-import');
 const { resetRuntimeAccountModePolicyState } = require('./account-mode-policy');
 
 function resetFriendRuntimeState() {
@@ -45,6 +46,7 @@ module.exports = {
     // 操作指令入口
     doFriendOperation: actions.doFriendOperation,
     doFriendBatchOperation: actions.doFriendBatchOperation,
+    importFriendsByHex,
 
     // 蹲守暴露
     getActiveStakeouts: scanner.getActiveStakeouts,

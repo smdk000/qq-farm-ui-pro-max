@@ -56,6 +56,15 @@ test('resolveVisitorIdentity backfills anonymous visitor from interact records',
             kind: 'weed',
             landId: 15,
             accountId: '1016',
+            platform: 'qq',
+            uin: '3400470486',
+            openId: 'wx-open-1016',
+            userState: {
+                accountId: '1016',
+                platform: 'qq',
+                uin: '3400470486',
+                openId: 'wx-open-1016',
+            },
             getFriendNameByGid: async () => '',
         });
 
@@ -73,6 +82,17 @@ test('resolveVisitorIdentity backfills anonymous visitor from interact records',
             }],
             options: {
                 accountId: '1016',
+                platform: 'qq',
+                uin: '3400470486',
+                qq: '',
+                openId: 'wx-open-1016',
+                userState: {
+                    accountId: '1016',
+                    platform: 'qq',
+                    uin: '3400470486',
+                    openId: 'wx-open-1016',
+                },
+                account: null,
                 immediate: true,
             },
         }]);
@@ -161,6 +181,15 @@ test('resolveVisitorIdentity upgrades generic gid display name from interact rec
             kind: 'insect',
             landId: 11,
             accountId: '1',
+            platform: 'wx_car',
+            uin: 'wxid_demo_001',
+            openId: 'wx-open-1',
+            userState: {
+                accountId: '1',
+                platform: 'wx_car',
+                uin: 'wxid_demo_001',
+                openId: 'wx-open-1',
+            },
             getFriendNameByGid: async () => 'GID:1172159984',
         });
 
@@ -178,6 +207,17 @@ test('resolveVisitorIdentity upgrades generic gid display name from interact rec
             }],
             options: {
                 accountId: '1',
+                platform: 'wx_car',
+                uin: 'wxid_demo_001',
+                qq: '',
+                openId: 'wx-open-1',
+                userState: {
+                    accountId: '1',
+                    platform: 'wx_car',
+                    uin: 'wxid_demo_001',
+                    openId: 'wx-open-1',
+                },
+                account: null,
                 immediate: true,
             },
         }]);

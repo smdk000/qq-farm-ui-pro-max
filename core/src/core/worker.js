@@ -923,6 +923,9 @@ async function handleApiCall(msg) {
             case 'doFriendBatchOp':
                 result = await friendService.doFriendBatchOperation(args[0], args[1], args[2] || {});
                 break;
+            case 'importFriendsByHex':
+                result = await friendService.importFriendsByHex(args[0] || '');
+                break;
             case 'getSeeds':
                 result = await farmService.getAvailableSeeds();
                 break;

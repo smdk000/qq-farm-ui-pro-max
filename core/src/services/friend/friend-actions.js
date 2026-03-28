@@ -1,6 +1,6 @@
 
 const { CONFIG } = require('../../config/config');
-const { isAutomationOn, getFriendBlacklist, getAutomation, getForceGetAllConfig } = require('../../models/store');
+const { isAutomationOn, getFriendBlacklist, getAutomation, getForceGetAllConfig, getImportedSyncAllSource, setImportedSyncAllSource } = require('../../models/store');
 const { sendMsgAsync, sendMsgAsyncUrgent, getUserState, networkEvents } = require('../../utils/network');
 const { types } = require('../../utils/proto');
 const { toLong, toNum, log, logWarn, sleep } = require('../../utils/utils');
@@ -36,6 +36,24 @@ const WECHAT_GET_ALL_FAILURE_STREAK_RESET_MS = 2 * 60 * 60 * 1000;
 const _friendFetchStateByAccount = new Map();
 const _qqConservativeFetchLogCache = new Map();
 const _wechatConservativeFetchLogCache = new Map();
+
+function _getImportedSyncAllSourceSafe(accountId = null) {
+    if (!accountId || typeof getImportedSyncAllSource !== 'function') return null;
+    try {
+        return getImportedSyncAllSource(accountId);
+    } catch {
+        return null;
+    }
+}
+
+function _setImportedSyncAllSourceSafe(accountId = null, payload = null) {
+    if (!accountId || !payload || typeof setImportedSyncAllSource !== 'function') return null;
+    try {
+        return setImportedSyncAllSource(accountId, payload);
+    } catch {
+        return null;
+    }
+}
 
 
 function _resolveRuntimeAccountId(userState = null) {
@@ -120,6 +138,7 @@ async function getAllFriends(options = {}) {
             label,
             userState,
             forceGetAll,
+            disableVisitorSeed: !!options.disableVisitorSeed,
         });
         if (reply && reply.game_friends && networkEvents) {
             networkEvents.emit('friends_updated', reply.game_friends);
@@ -258,6 +277,7 @@ async function _getAllViaConservativeQQSyncAll(options = {}) {
     const userState = options.userState || null;
     const label = options.label || 'QQ';
     const forceGetAll = !!options.forceGetAll;
+    const disableVisitorSeed = !!options.disableVisitorSeed;
 
     _setFriendFetchMode(fetchState, FRIEND_FETCH_MODE.SYNC_ALL, `${label} 保守模式固定使用 SyncAll，关闭额外探测链路`, 'qq_conservative');
     if (forceGetAll) {
@@ -278,7 +298,7 @@ async function _getAllViaConservativeQQSyncAll(options = {}) {
 
     const cachedReply = await _getCachedFriendsReply(accountId, fetchState, {
         userState,
-        allowVisitorSeed: true,
+        allowVisitorSeed: !disableVisitorSeed,
     });
     if (cachedReply) {
         _logQQConservativeFetch('cache_fallback', 'QQ 保守好友链路：SyncAll 未拿到可用实时好友列表，本轮仅回退本地缓存，不再追加其他腾讯接口探测。', 'warn', {
@@ -825,14 +845,40 @@ async function _getAllViaSyncAll(isWeChat, options = {}) {
     const label = isWeChat ? '微信' : 'QQ';
     const fetchState = options.fetchState || null;
     try {
-        const requestObj = types.SyncAllFriendsRequest.create({ open_ids: [] });
+        const accountId = _resolveRuntimeAccountId(getUserState());
+        const importedSource = !isWeChat ? _getImportedSyncAllSourceSafe(accountId) : null;
+        const importedOpenIds = importedSource && importedSource.active
+            ? importedSource.openIds
+            : [];
+        const requestObj = types.SyncAllFriendsRequest.create({ open_ids: importedOpenIds });
         const body = types.SyncAllFriendsRequest.encode(requestObj).finish();
         const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'SyncAll', body);
         const reply = types.SyncAllFriendsReply.decode(replyBody);
+        if (!isWeChat && importedSource && importedSource.active && accountId) {
+            _setImportedSyncAllSourceSafe(accountId, {
+                ...importedSource,
+                lastUsedAt: Date.now(),
+                lastSyncAt: Date.now(),
+                lastSyncFriendCount: Array.isArray(reply?.game_friends) ? reply.game_friends.length : 0,
+                lastSyncSource: 'imported_syncall',
+                lastErrorCode: '',
+            });
+            reply._syncSource = 'imported_syncall';
+            reply._importOpenIdCount = importedOpenIds.length;
+        }
         _logFriendFetchResult('SyncAll', label, reply, fetchState);
         return reply;
     } catch (syncErr) {
         const errMsg = syncErr.message || '';
+        const accountId = _resolveRuntimeAccountId(getUserState());
+        const importedSource = !isWeChat ? _getImportedSyncAllSourceSafe(accountId) : null;
+        if (!isWeChat && importedSource && importedSource.active && accountId) {
+            _setImportedSyncAllSourceSafe(accountId, {
+                ...importedSource,
+                lastUsedAt: Date.now(),
+                lastErrorCode: String(syncErr.code || '').trim() || 'SYNC_ALL_FAILED',
+            });
+        }
         if (errMsg.includes('code=1000020')) {
             if (isWeChat) {
                 _markWeChatSyncAllUnsupported(fetchState, label);
@@ -911,6 +957,43 @@ function _dedupeFriendsByGid(friends) {
         seen.add(gid);
         return true;
     });
+}
+
+async function fetchFriendProfilesByGids(gids = []) {
+    if (!types.GetGameFriendsRequest) {
+        return [];
+    }
+
+    const normalized = [...new Set(
+        (Array.isArray(gids) ? gids : [])
+            .map(gid => toNum(gid))
+            .filter(gid => gid > 0)
+    )];
+    if (normalized.length <= 0) {
+        return [];
+    }
+
+    const profiles = [];
+    for (let i = 0; i < normalized.length; i += GET_GAME_FRIENDS_BATCH_SIZE) {
+        const batch = normalized.slice(i, i + GET_GAME_FRIENDS_BATCH_SIZE);
+        try {
+            const body = types.GetGameFriendsRequest.encode(types.GetGameFriendsRequest.create({
+                gids: batch.map(gid => toLong(gid)),
+            })).finish();
+            const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetGameFriends', body);
+            const reply = _decodeGetGameFriendsReply(replyBody);
+            if (Array.isArray(reply?.game_friends) && reply.game_friends.length > 0) {
+                profiles.push(...reply.game_friends);
+            }
+        } catch (err) {
+            logWarn('好友', `批量补全好友资料失败(${i + 1}-${i + batch.length}): ${err.message || err}`);
+        }
+        if (i + GET_GAME_FRIENDS_BATCH_SIZE < normalized.length) {
+            await sleep(100);
+        }
+    }
+
+    return _dedupeFriendsByGid(profiles);
 }
 
 async function _getKnownFriendGids(accountId, options = {}) {
@@ -1564,4 +1647,4 @@ async function doFriendBatchOperation(friendGids = [], opType, options = {}) {
     };
 }
 
-Object.assign(module.exports, { getAllFriends, getApplications, acceptFriends, enterFriendFarm, leaveFriendFarm, updateOperationLimits, canGetExp, canGetExpByCandidates, canOperate, getRemainingTimes, getOperationLimits, helpWater, helpWeed, helpInsecticide, stealHarvest, putPlantItems, putPlantItemsDetailed, putInsects, putWeeds, putInsectsDetailed, putWeedsDetailed, checkCanOperateRemote, doFriendOperation, doFriendBatchOperation, resetGetAllMode, resetFriendActionRuntimeState, isGetAllMode, getFriendFetchDiagnostics });
+Object.assign(module.exports, { getAllFriends, getApplications, acceptFriends, enterFriendFarm, leaveFriendFarm, updateOperationLimits, canGetExp, canGetExpByCandidates, canOperate, getRemainingTimes, getOperationLimits, helpWater, helpWeed, helpInsecticide, stealHarvest, putPlantItems, putPlantItemsDetailed, putInsects, putWeeds, putInsectsDetailed, putWeedsDetailed, checkCanOperateRemote, doFriendOperation, doFriendBatchOperation, resetGetAllMode, resetFriendActionRuntimeState, isGetAllMode, getFriendFetchDiagnostics, fetchFriendProfilesByGids });

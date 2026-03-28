@@ -24,9 +24,9 @@ test.beforeEach(async ({ page }) => {
             currentVersion: 'v4.5.25',
             latestRelease: checked
               ? {
-                  versionTag: 'v4.5.46',
-                  title: 'v4.5.46 发布',
-                  url: 'https://example.com/releases/v4.5.46',
+                  versionTag: 'v4.5.47',
+                  title: 'v4.5.47 发布',
+                  url: 'https://example.com/releases/v4.5.47',
                   publishedAt: '2026-03-27T08:00:00.000Z',
                   notes: '一键安装单文件 bootstrap 修复。',
                   assets: [],
@@ -66,12 +66,12 @@ test.beforeEach(async ({ page }) => {
                   updated: 1,
                   skipped: 0,
                   totalParsed: 3,
-                  latestVersion: 'v4.5.46',
+                  latestVersion: 'v4.5.47',
                   sources: { release_cache: 2, embedded: 1 },
                   entries: [
                     {
                       title: '一键安装单文件 bootstrap 修复',
-                      version: 'v4.5.46',
+                      version: 'v4.5.47',
                       publishDate: '2026-03-27',
                       summary: 'install-or-update 单文件执行时会自动补齐缺失脚本，一键安装入口重新打通。',
                       sourceType: 'release_cache',
@@ -84,7 +84,7 @@ test.beforeEach(async ({ page }) => {
                   suggested: true,
                   reason: '检测到 2 条可新增公告',
                   pendingCount: 3,
-                  latestVersion: 'v4.5.46',
+                  latestVersion: 'v4.5.47',
                 }
               : null,
             activeJob: null,
@@ -101,16 +101,16 @@ test.beforeEach(async ({ page }) => {
               added: 2,
               updated: 1,
               skipped: 0,
-              latestVersion: 'v4.5.46',
+              latestVersion: 'v4.5.47',
               previewCount: 3,
               sourceStats: { release_cache: 2, embedded: 1 },
             },
             overview: {
               currentVersion: 'v4.5.25',
               latestRelease: {
-                versionTag: 'v4.5.46',
-                title: 'v4.5.46 发布',
-                url: 'https://example.com/releases/v4.5.46',
+                versionTag: 'v4.5.47',
+                title: 'v4.5.47 发布',
+                url: 'https://example.com/releases/v4.5.47',
                 publishedAt: '2026-03-27T08:00:00.000Z',
                 notes: '一键安装单文件 bootstrap 修复。',
                 assets: [],
@@ -148,7 +148,7 @@ test.beforeEach(async ({ page }) => {
                 updated: 0,
                 skipped: 3,
                 totalParsed: 3,
-                latestVersion: 'v4.5.46',
+                latestVersion: 'v4.5.47',
                 sources: { release_cache: 2, embedded: 1 },
                 entries: [],
               },
@@ -156,13 +156,13 @@ test.beforeEach(async ({ page }) => {
                 suggested: false,
                 reason: '当前公告已与系统版本源保持同步',
                 pendingCount: 0,
-                latestVersion: 'v4.5.46',
+                latestVersion: 'v4.5.47',
               },
               lastAnnouncementSyncResult: {
                 added: 2,
                 updated: 1,
                 skipped: 0,
-                latestVersion: 'v4.5.46',
+                latestVersion: 'v4.5.47',
               },
               activeJob: null,
               activeBatch: null,
@@ -179,7 +179,7 @@ test.beforeEach(async ({ page }) => {
           {
             id: 1,
             title: '一键安装单文件 bootstrap 修复',
-            version: 'v4.5.46',
+            version: 'v4.5.47',
             publish_date: '2026-03-27',
             content: 'install-or-update 单文件执行时会自动补齐缺失脚本，一键安装入口重新打通。',
             enabled: true,
@@ -192,7 +192,7 @@ test.beforeEach(async ({ page }) => {
             updated: 0,
             skipped: 0,
             totalParsed: 1,
-            latestVersion: 'v4.5.46',
+            latestVersion: 'v4.5.47',
             previewCount: 1,
             sourceStats: { release_cache: 1 },
           },
@@ -220,7 +220,7 @@ test('shows release-note preview after checking updates and finishes announcemen
   await expect(page.getByText('公告同步完成：新增 2 条，更新 1 条，跳过 0 条')).toBeVisible()
   await page.getByRole('button', { name: '知道了' }).click()
 
-  await expect(page.getByText('最近同步：新增 2 · 更新 1 · 跳过 0 · 最新版本 v4.5.46')).toBeVisible()
+  await expect(page.getByText('最近同步：新增 2 · 更新 1 · 跳过 0 · 最新版本 v4.5.47')).toBeVisible()
 })
 
 test('keeps announcement manager aligned with the unified version-source sync result', async ({ page }) => {
@@ -235,6 +235,6 @@ test('keeps announcement manager aligned with the unified version-source sync re
   await page.getByRole('button', { name: '知道了' }).click()
 
   await expect(page.getByText('最近一次版本源同步')).toBeVisible()
-  await expect(page.getByText('最新同步版本：v4.5.46')).toBeVisible()
+  await expect(page.getByText('最新同步版本：v4.5.47')).toBeVisible()
   await expect(page.getByText('一键安装单文件 bootstrap 修复')).toBeVisible()
 })

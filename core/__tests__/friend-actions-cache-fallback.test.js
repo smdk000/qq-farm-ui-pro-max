@@ -150,3 +150,100 @@ test('getAllFriends falls back to cached friends when QQ GetAll returns paramete
         restoreFns.reverse().forEach(restore => restore());
     }
 });
+
+test('QQ conservative manual refresh with disableVisitorSeed does not rebuild cache from interact records', async () => {
+    let interactCalls = 0;
+    const previousAccountId = process.env.FARM_ACCOUNT_ID;
+    process.env.FARM_ACCOUNT_ID = '1005';
+
+    const restoreFns = [
+        mockModule(configModulePath, { CONFIG: { platform: 'qq' }, PlantPhase: {}, PHASE_NAMES: {} }),
+        mockModule(gameConfigModulePath, {
+            getPlantName: () => '',
+            getPlantById: () => null,
+            getSeedImageBySeedId: () => '',
+        }),
+        mockModule(storeModulePath, {
+            isAutomationOn: () => false,
+            getFriendQuietHours: () => ({ enabled: false }),
+            getFriendBlacklist: () => [],
+            setFriendBlacklist: () => [],
+            getStealFilterConfig: () => ({ enabled: false, mode: 'blacklist', plantIds: [] }),
+            getStealFriendFilterConfig: () => ({ enabled: false, mode: 'blacklist', friendIds: [] }),
+            getStakeoutStealConfig: () => ({ enabled: false, delaySec: 3 }),
+            getAutomation: () => ({ qqFriendFetchMultiChain: false }),
+            getConfigSnapshot: () => ({}),
+            getForceGetAllConfig: () => ({ enabled: false }),
+        }),
+        mockModule(networkModulePath, {
+            sendMsgAsync: async (_serviceName, methodName) => {
+                if (methodName === 'SyncAll') {
+                    return { body: Buffer.from('sync-all') };
+                }
+                throw new Error(`unexpected method: ${methodName}`);
+            },
+            sendMsgAsyncUrgent: async () => ({ body: Buffer.alloc(0) }),
+            getUserState: () => ({ gid: 999 }),
+            networkEvents: { emit() {} },
+        }),
+        mockModule(protoModulePath, {
+            types: {
+                SyncAllFriendsRequest: {
+                    create: (value) => value || {},
+                    encode: () => ({ finish: () => Buffer.alloc(0) }),
+                },
+                SyncAllFriendsReply: {
+                    decode: () => ({
+                        game_friends: [{ gid: 999, name: 'self' }],
+                        invitations: [],
+                        application_count: 0,
+                    }),
+                },
+            },
+        }),
+        mockModule(utilsModulePath, {
+            toLong: (value) => value,
+            toNum: (value) => Number(value) || 0,
+            toTimeSec: () => 0,
+            getServerTimeSec: () => 0,
+            log() {},
+            logWarn() {},
+            sleep: async () => {},
+        }),
+        mockModule(farmModulePath, {
+            getCurrentPhase: () => null,
+            setOperationLimitsCallback() {},
+        }),
+        mockModule(statsModulePath, { recordOperation() {} }),
+        mockModule(warehouseModulePath, { sellAllFruits: async () => {} }),
+        mockModule(mysqlDbModulePath, { getPool: () => ({}) }),
+        mockModule(databaseModulePath, {
+            getCachedFriends: async () => [],
+        }),
+        mockModule(interactModulePath, {
+            getInteractRecords: async () => {
+                interactCalls += 1;
+                return [{ visitorGid: 123 }];
+            },
+        }),
+        mockModule(platformFactoryModulePath, {
+            createPlatform: () => ({ allowSyncAll: () => true }),
+        }),
+        mockModule(friendStateModulePath, {}),
+        mockModule(friendScannerModulePath, {}),
+        mockModule(friendDecisionModulePath, {}),
+    ];
+
+    try {
+        delete require.cache[friendActionsModulePath];
+        const { getAllFriends } = require(friendActionsModulePath);
+        const reply = await getAllFriends({ manualRefresh: true, disableVisitorSeed: true });
+        assert.deepEqual(reply.game_friends.map(friend => Number(friend.gid)), [999]);
+        assert.equal(interactCalls, 0);
+    } finally {
+        if (previousAccountId === undefined) delete process.env.FARM_ACCOUNT_ID;
+        else process.env.FARM_ACCOUNT_ID = previousAccountId;
+        delete require.cache[friendActionsModulePath];
+        restoreFns.reverse().forEach(restore => restore());
+    }
+});

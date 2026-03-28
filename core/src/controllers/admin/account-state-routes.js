@@ -39,6 +39,31 @@ function registerAccountStateRoutes({
         return Array.isArray(data) ? data : [];
     }
 
+    async function getCachedFriendsSnapshot(id, cacheOptions = null) {
+        const { getCachedFriendsDetails, getCachedFriends } = loadFriendsCacheApi();
+        const options = cacheOptions && typeof cacheOptions === 'object'
+            ? cacheOptions
+            : await getAccountCacheOptions(id);
+        if (typeof getCachedFriendsDetails === 'function') {
+            const details = await getCachedFriendsDetails(id, options);
+            return {
+                data: Array.isArray(details && details.friends) ? details.friends : [],
+                meta: normalizeFriendsMeta(details),
+            };
+        }
+        if (typeof getCachedFriends === 'function') {
+            const data = await getCachedFriends(id, options);
+            return {
+                data: Array.isArray(data) ? data : [],
+                meta: null,
+            };
+        }
+        return {
+            data: [],
+            meta: null,
+        };
+    }
+
     async function syncFriendsCache(id, data, cacheOptions = null) {
         const { updateFriendsCache, mergeFriendsCache } = loadFriendsCacheApi();
         const syncFn = mergeFriendsCache || updateFriendsCache;
@@ -57,12 +82,16 @@ function registerAccountStateRoutes({
         const reason = String(meta.reason || '').trim();
         const platform = String(meta.platform || '').trim();
         const cacheSource = String(meta.cacheSource || '').trim();
+        const cacheScope = String(meta.cacheScope || '').trim();
+        const identityType = String(meta.identityType || '').trim();
+        const updatedAt = Math.max(0, Number(meta.updatedAt || 0));
+        const entryCount = Math.max(0, Number(meta.entryCount || 0));
         const seededCount = Math.max(0, Number(meta.seededCount || 0));
         const conservative = typeof meta.conservative === 'boolean' ? meta.conservative : undefined;
         const realtimeAvailable = typeof meta.realtimeAvailable === 'boolean' ? meta.realtimeAvailable : undefined;
         const cooldownUntil = Math.max(0, Number(meta.cooldownUntil || 0));
         const syncAllUnsupportedUntil = Math.max(0, Number(meta.syncAllUnsupportedUntil || 0));
-        const hasPayload = source || reason || platform || cacheSource || conservative !== undefined || realtimeAvailable !== undefined || cooldownUntil > 0 || syncAllUnsupportedUntil > 0 || seededCount > 0;
+        const hasPayload = source || reason || platform || cacheSource || cacheScope || identityType || conservative !== undefined || realtimeAvailable !== undefined || cooldownUntil > 0 || syncAllUnsupportedUntil > 0 || seededCount > 0 || updatedAt > 0 || entryCount > 0;
         if (!hasPayload) {
             return null;
         }
@@ -71,6 +100,10 @@ function registerAccountStateRoutes({
         if (reason) normalized.reason = reason;
         if (platform) normalized.platform = platform;
         if (cacheSource) normalized.cacheSource = cacheSource;
+        if (cacheScope) normalized.cacheScope = cacheScope;
+        if (identityType) normalized.identityType = identityType;
+        if (updatedAt > 0) normalized.updatedAt = updatedAt;
+        if (entryCount > 0) normalized.entryCount = entryCount;
         if (seededCount > 0) normalized.seededCount = seededCount;
         if (conservative !== undefined) normalized.conservative = conservative;
         if (realtimeAvailable !== undefined) normalized.realtimeAvailable = realtimeAvailable;
@@ -112,6 +145,37 @@ function registerAccountStateRoutes({
         return text === '1' || text === 'true' || text === 'yes' || text === 'on';
     }
 
+    function normalizeImportedSyncAllSource(source) {
+        if (!source || typeof source !== 'object') return null;
+        const openIds = Array.isArray(source.openIds)
+            ? source.openIds.map(item => String(item || '').trim()).filter(Boolean)
+            : [];
+        const meta = (source.meta && typeof source.meta === 'object') ? source.meta : {};
+        const normalized = {
+            active: !!source.active,
+            sourceHash: String(source.sourceHash || '').trim(),
+            openIds,
+            openIdCount: Math.max(0, Number(source.openIdCount || openIds.length || 0)),
+            importedAt: Math.max(0, Number(source.importedAt || 0)),
+            updatedAt: Math.max(0, Number(source.updatedAt || 0)),
+            lastUsedAt: Math.max(0, Number(source.lastUsedAt || 0)),
+            lastSyncAt: Math.max(0, Number(source.lastSyncAt || 0)),
+            lastSyncFriendCount: Math.max(0, Number(source.lastSyncFriendCount || 0)),
+            lastSyncSource: String(source.lastSyncSource || '').trim(),
+            lastErrorCode: String(source.lastErrorCode || '').trim(),
+            meta: {
+                serviceName: String(meta.serviceName || '').trim(),
+                methodName: String(meta.methodName || '').trim(),
+                messageType: Math.max(0, Number(meta.messageType || 0)),
+                clientSeq: Math.max(0, Number(meta.clientSeq || 0)),
+                serverSeq: Math.max(0, Number(meta.serverSeq || 0)),
+                wireBytes: Math.max(0, Number(meta.wireBytes || 0)),
+                bodyBytes: Math.max(0, Number(meta.bodyBytes || 0)),
+            },
+        };
+        return normalized;
+    }
+
     function countInteractSeedCandidates(records) {
         return [...new Set(
             (Array.isArray(records) ? records : [])
@@ -140,11 +204,15 @@ function registerAccountStateRoutes({
                 void syncFriendsCache(id, data, cacheOptions);
                 return { data, meta };
             }
-            const cached = await getCachedFriendsData(id, cacheOptions);
+            const cachedSnapshot = await getCachedFriendsSnapshot(id, cacheOptions);
+            const cached = Array.isArray(cachedSnapshot.data) ? cachedSnapshot.data : [];
             if (cached.length > 0) {
                 return {
                     data: cached,
-                    meta: buildFriendsCacheMeta(meta, 'cache_fallback'),
+                    meta: buildFriendsCacheMeta({
+                        ...(cachedSnapshot.meta || {}),
+                        ...(meta || {}),
+                    }, 'cache_fallback'),
                 };
             }
             return {
@@ -152,11 +220,13 @@ function registerAccountStateRoutes({
                 meta,
             };
         } catch (err) {
-            const cached = await getCachedFriendsData(id, cacheOptions);
+            const cachedSnapshot = await getCachedFriendsSnapshot(id, cacheOptions);
+            const cached = Array.isArray(cachedSnapshot.data) ? cachedSnapshot.data : [];
             if (cached.length > 0) {
                 return {
                     data: cached,
                     meta: buildFriendsCacheMeta({
+                        ...(cachedSnapshot.meta || {}),
                         source: 'cache',
                         reason: 'worker_error',
                     }, 'worker_error'),
@@ -215,12 +285,21 @@ function registerAccountStateRoutes({
         if (!id) return res.status(400).json({ ok: false });
         try {
             const cacheOptions = await getAccountCacheOptions(id);
-            let data = await getCachedFriendsData(id, cacheOptions);
+            let cachedSnapshot = await getCachedFriendsSnapshot(id, cacheOptions);
+            let data = Array.isArray(cachedSnapshot.data) ? cachedSnapshot.data : [];
             if (data.length === 0) {
                 const result = await getFriendsWithFallback(id, { cacheOptions });
                 data = Array.isArray(result && result.data) ? result.data : [];
+                cachedSnapshot = {
+                    data,
+                    meta: normalizeFriendsMeta(result && result.meta),
+                };
             }
-            res.json({ ok: true, data });
+            res.json({
+                ok: true,
+                data,
+                ...(cachedSnapshot.meta ? { meta: cachedSnapshot.meta } : {}),
+            });
         } catch (e) {
             handleApiError(res, e);
         }
@@ -255,6 +334,7 @@ function registerAccountStateRoutes({
                 const result = await getFriendsWithFallback(id, {
                     manualRefresh: true,
                     cacheOptions,
+                    disableVisitorSeed: true,
                 });
                 refreshed = {
                     data: Array.isArray(result && result.data) ? [...result.data] : [],
@@ -346,6 +426,60 @@ function registerAccountStateRoutes({
         try {
             const data = await getProvider().getFriendLands(id, req.params.gid);
             res.json({ ok: true, data });
+        } catch (e) {
+            handleApiError(res, e);
+        }
+    });
+
+    app.post('/api/friends/import-hex', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
+        if (!id) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+        try {
+            const hex = String((req.body && req.body.hex) || '').trim();
+            if (!hex) {
+                return res.status(400).json({ ok: false, error: '请输入 Hex 内容' });
+            }
+            const result = await getProvider().importFriendsByHex(id, hex);
+            const refreshed = await getFriendsWithFallback(id, {
+                cacheOptions: await getAccountCacheOptions(id),
+            });
+            res.json({
+                ...result,
+                refreshed: {
+                    data: Array.isArray(refreshed.data) ? refreshed.data : [],
+                    meta: refreshed.meta || null,
+                },
+            });
+        } catch (e) {
+            const errorCode = String((e && e.code) || '').trim();
+            if (errorCode.startsWith('FRIEND_SYNC_IMPORT_')) {
+                return res.status(400).json({
+                    ok: false,
+                    error: String(e.message || '导入好友同步 Hex 失败'),
+                    errorCode,
+                });
+            }
+            handleApiError(res, e);
+        }
+    });
+
+    app.get('/api/friends/imported-syncall', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
+        if (!id) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+        try {
+            const source = await getProvider().getImportedSyncAllSource(id);
+            res.json({ ok: true, data: normalizeImportedSyncAllSource(source) });
+        } catch (e) {
+            handleApiError(res, e);
+        }
+    });
+
+    app.delete('/api/friends/imported-syncall', accountOwnershipRequired, async (req, res) => {
+        const id = await getAccId(req);
+        if (!id) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+        try {
+            const source = await getProvider().clearImportedSyncAllSource(id);
+            res.json({ ok: true, data: normalizeImportedSyncAllSource(source) });
         } catch (e) {
             handleApiError(res, e);
         }

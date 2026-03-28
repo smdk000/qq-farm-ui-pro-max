@@ -127,6 +127,48 @@ async function findVisitorMatchWithRetry(kind, landId, finder) {
     return { records, match };
 }
 
+function buildVisitorFriendCacheOptions(options = {}) {
+    const normalizedOptions = (options && typeof options === 'object') ? options : {};
+    const userState = normalizedOptions.userState && typeof normalizedOptions.userState === 'object'
+        ? normalizedOptions.userState
+        : null;
+    const account = normalizedOptions.account && typeof normalizedOptions.account === 'object'
+        ? normalizedOptions.account
+        : null;
+    const accountId = String(normalizedOptions.accountId || (userState && userState.accountId) || '').trim();
+    if (!accountId) return null;
+    return {
+        accountId,
+        platform: String(
+            normalizedOptions.platform
+            || (account && account.platform)
+            || (userState && userState.platform)
+            || ''
+        ).trim(),
+        uin: String(
+            normalizedOptions.uin
+            || (account && account.uin)
+            || (userState && userState.uin)
+            || ''
+        ).trim(),
+        qq: String(
+            normalizedOptions.qq
+            || (account && account.qq)
+            || ''
+        ).trim(),
+        openId: String(
+            normalizedOptions.openId
+            || normalizedOptions.open_id
+            || (account && (account.openId || account.open_id))
+            || (userState && (userState.openId || userState.open_id))
+            || ''
+        ).trim(),
+        userState,
+        account,
+        immediate: true,
+    };
+}
+
 async function resolveVisitorIdentity(options = {}) {
     const numericGid = toNum(options.gid);
     const getFriendNameByGid = typeof options.getFriendNameByGid === 'function'
@@ -151,19 +193,16 @@ async function resolveVisitorIdentity(options = {}) {
         );
         if (match) {
             const matchedName = String(match.nick || '').trim();
-            const accountId = String(options.accountId || '').trim();
+            const cacheOptions = buildVisitorFriendCacheOptions(options);
             const resolvedName = !isAnonymousVisitorName(matchedName, numericGid)
                 ? matchedName
                 : '';
-            if (accountId) {
+            if (cacheOptions) {
                 await cacheFriendSeeds([{
                     gid: numericGid,
                     name: resolvedName,
                     avatarUrl: String(match.avatarUrl || '').trim(),
-                }], {
-                    accountId,
-                    immediate: true,
-                });
+                }], cacheOptions);
             }
             if (resolvedName) {
                 return {
@@ -204,16 +243,13 @@ async function resolveVisitorIdentity(options = {}) {
     const known = !isAnonymousVisitorName(matchedName, matchedGid);
     if (!known) matchedName = '';
 
-    const accountId = String(options.accountId || '').trim();
-    if (accountId && matchedGid > 0) {
+    const cacheOptions = buildVisitorFriendCacheOptions(options);
+    if (cacheOptions && matchedGid > 0) {
         await cacheFriendSeeds([{
             gid: matchedGid,
             name: matchedName,
             avatarUrl: String(match.avatarUrl || '').trim(),
-        }], {
-            accountId,
-            immediate: true,
-        });
+        }], cacheOptions);
     }
 
     return {

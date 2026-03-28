@@ -185,6 +185,28 @@ const DEFAULT_EXPERIMENTAL_FEATURES = {
     tlogFlowReportEnabled: false,
     advancedRedpacketTriggerEnabled: false,
 };
+const DEFAULT_IMPORTED_SYNCALL_SOURCE = {
+    active: false,
+    sourceHash: '',
+    openIds: [],
+    openIdCount: 0,
+    importedAt: 0,
+    updatedAt: 0,
+    lastUsedAt: 0,
+    lastSyncAt: 0,
+    lastSyncFriendCount: 0,
+    lastSyncSource: '',
+    lastErrorCode: '',
+    meta: {
+        serviceName: '',
+        methodName: '',
+        messageType: 0,
+        clientSeq: 0,
+        serverSeq: 0,
+        wireBytes: 0,
+        bodyBytes: 0,
+    },
+};
 // ============ 全局配置 ============
 const DEFAULT_ACCOUNT_CONFIG = {
     automation: {
@@ -262,6 +284,7 @@ const DEFAULT_ACCOUNT_CONFIG = {
     friendRiskConfig: { ...DEFAULT_FRIEND_RISK_CONFIG },
     specialCareFriendIds: [],
     experimentalFeatures: { ...DEFAULT_EXPERIMENTAL_FEATURES },
+    importedSyncAllSource: { ...DEFAULT_IMPORTED_SYNCALL_SOURCE, meta: { ...DEFAULT_IMPORTED_SYNCALL_SOURCE.meta }, openIds: [] },
     redpacketConfig: { ...DEFAULT_REDPACKET_CONFIG },
     behaviorReportConfig: { ...DEFAULT_BEHAVIOR_REPORT_CONFIG },
     proxyBindingConfig: { ...DEFAULT_PROXY_BINDING_CONFIG },
@@ -289,6 +312,7 @@ let accountFallbackConfig = {
     friendRiskConfig: { ...DEFAULT_ACCOUNT_CONFIG.friendRiskConfig },
     specialCareFriendIds: [...DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds],
     experimentalFeatures: { ...DEFAULT_ACCOUNT_CONFIG.experimentalFeatures },
+    importedSyncAllSource: { ...DEFAULT_IMPORTED_SYNCALL_SOURCE, meta: { ...DEFAULT_IMPORTED_SYNCALL_SOURCE.meta }, openIds: [] },
     redpacketConfig: { ...DEFAULT_ACCOUNT_CONFIG.redpacketConfig },
     behaviorReportConfig: { ...DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig },
     proxyBindingConfig: { ...DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig },
@@ -921,6 +945,7 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
     const friendRiskConfig = normalizeFriendRiskConfig(base.friendRiskConfig, DEFAULT_ACCOUNT_CONFIG.friendRiskConfig);
     const specialCareFriendIds = normalizeSpecialCareFriendIds(base.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
     const experimentalFeatures = normalizeExperimentalFeatures(base.experimentalFeatures, DEFAULT_ACCOUNT_CONFIG.experimentalFeatures);
+    const importedSyncAllSource = normalizeImportedSyncAllSource(base.importedSyncAllSource, DEFAULT_ACCOUNT_CONFIG.importedSyncAllSource);
     const redpacketConfig = normalizeRedpacketConfig(base.redpacketConfig, DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
     const behaviorReportConfig = normalizeBehaviorReportConfig(base.behaviorReportConfig, DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig);
     const proxyBindingConfig = normalizeProxyBindingConfig(base.proxyBindingConfig, DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig);
@@ -952,6 +977,7 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
         friendRiskConfig,
         specialCareFriendIds,
         experimentalFeatures,
+        importedSyncAllSource,
         redpacketConfig,
         behaviorReportConfig,
         proxyBindingConfig,
@@ -1092,6 +1118,11 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
         cfg.experimentalFeatures = normalizeExperimentalFeatures(src.experimentalFeatures, cfg.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
     } else {
         cfg.experimentalFeatures = normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES);
+    }
+    if (src.importedSyncAllSource && typeof src.importedSyncAllSource === 'object') {
+        cfg.importedSyncAllSource = normalizeImportedSyncAllSource(src.importedSyncAllSource, cfg.importedSyncAllSource || DEFAULT_IMPORTED_SYNCALL_SOURCE);
+    } else {
+        cfg.importedSyncAllSource = normalizeImportedSyncAllSource(cfg.importedSyncAllSource, DEFAULT_IMPORTED_SYNCALL_SOURCE);
     }
     if (src.redpacketConfig && typeof src.redpacketConfig === 'object') {
         cfg.redpacketConfig = normalizeRedpacketConfig(src.redpacketConfig, cfg.redpacketConfig || DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
@@ -1283,6 +1314,7 @@ async function loadGlobalConfigFromDB() {
                 tradeConfig: adv.tradeConfig,
                 reportConfig: adv.reportConfig,
                 reportState: adv.reportState,
+                importedSyncAllSource: adv.importedSyncAllSource,
             }, accountFallbackConfig);
 
             if (!hasPersistedGlobalConfig && adv.ui) {
@@ -1566,6 +1598,7 @@ async function saveGlobalConfigImmediate() {
                         tradeConfig: normalizeTradeConfig(cfg.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
                         reportConfig: normalizeReportConfig(cfg.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
                         reportState: normalizeReportState(cfg.reportState, DEFAULT_ACCOUNT_CONFIG.reportState),
+                        importedSyncAllSource: normalizeImportedSyncAllSource(cfg.importedSyncAllSource, DEFAULT_IMPORTED_SYNCALL_SOURCE),
                     });
                     const automationKeys = cfg.automation || {};
                     await conn.query(`
@@ -1688,12 +1721,14 @@ function getConfigSnapshot(accountId) {
         friendRiskConfig: normalizeFriendRiskConfig(cfg.friendRiskConfig, DEFAULT_FRIEND_RISK_CONFIG),
         specialCareFriendIds: normalizeSpecialCareFriendIds(cfg.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds),
         experimentalFeatures: normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES),
+        importedSyncAllSource: normalizeImportedSyncAllSource(cfg.importedSyncAllSource, DEFAULT_IMPORTED_SYNCALL_SOURCE),
         redpacketConfig: normalizeRedpacketConfig(cfg.redpacketConfig, DEFAULT_ACCOUNT_CONFIG.redpacketConfig),
         behaviorReportConfig: normalizeBehaviorReportConfig(cfg.behaviorReportConfig, DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig),
         proxyBindingConfig: normalizeProxyBindingConfig(cfg.proxyBindingConfig, DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig),
         workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
         tradeConfig: normalizeTradeConfig(cfg.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
         reportConfig: normalizeReportConfig(cfg.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
+        reportState: normalizeReportState(cfg.reportState, DEFAULT_ACCOUNT_CONFIG.reportState),
         ui: { ...normalizeUIConfig(globalConfig.ui, DEFAULT_UI_CONFIG) },
     };
 }
@@ -1832,6 +1867,9 @@ function applyConfigSnapshot(snapshot, options = {}) {
     }
     if (cfg.experimentalFeatures && typeof cfg.experimentalFeatures === 'object') {
         next.experimentalFeatures = normalizeExperimentalFeatures(cfg.experimentalFeatures, next.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
+    }
+    if (cfg.importedSyncAllSource && typeof cfg.importedSyncAllSource === 'object') {
+        next.importedSyncAllSource = normalizeImportedSyncAllSource(cfg.importedSyncAllSource, next.importedSyncAllSource || DEFAULT_IMPORTED_SYNCALL_SOURCE);
     }
     if (cfg.redpacketConfig && typeof cfg.redpacketConfig === 'object') {
         next.redpacketConfig = normalizeRedpacketConfig(cfg.redpacketConfig, next.redpacketConfig || DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
@@ -1996,6 +2034,55 @@ function normalizeSpecialCareFriendIds(value, fallback = DEFAULT_ACCOUNT_CONFIG.
     ));
 }
 
+function normalizeImportedSyncAllMeta(input, fallback = DEFAULT_IMPORTED_SYNCALL_SOURCE.meta) {
+    const src = (input && typeof input === 'object') ? input : {};
+    const current = (fallback && typeof fallback === 'object') ? fallback : DEFAULT_IMPORTED_SYNCALL_SOURCE.meta;
+    return {
+        serviceName: String(src.serviceName || current.serviceName || '').trim(),
+        methodName: String(src.methodName || current.methodName || '').trim(),
+        messageType: Math.max(0, Number.parseInt(src.messageType, 10) || current.messageType || 0),
+        clientSeq: Math.max(0, Number.parseInt(src.clientSeq, 10) || current.clientSeq || 0),
+        serverSeq: Math.max(0, Number.parseInt(src.serverSeq, 10) || current.serverSeq || 0),
+        wireBytes: Math.max(0, Number.parseInt(src.wireBytes, 10) || current.wireBytes || 0),
+        bodyBytes: Math.max(0, Number.parseInt(src.bodyBytes, 10) || current.bodyBytes || 0),
+    };
+}
+
+function normalizeImportedSyncAllOpenIds(values, fallback = []) {
+    const source = Array.isArray(values) ? values : (Array.isArray(fallback) ? fallback : []);
+    const normalized = [];
+    const seen = new Set();
+    for (const item of source) {
+        const value = String(item || '').trim().toUpperCase();
+        if (!value || value.length > 128) continue;
+        if (!/^[0-9A-Z_-]+$/.test(value)) continue;
+        if (seen.has(value)) continue;
+        seen.add(value);
+        normalized.push(value);
+    }
+    return normalized;
+}
+
+function normalizeImportedSyncAllSource(input, fallback = DEFAULT_IMPORTED_SYNCALL_SOURCE) {
+    const src = (input && typeof input === 'object') ? input : {};
+    const current = (fallback && typeof fallback === 'object') ? fallback : DEFAULT_IMPORTED_SYNCALL_SOURCE;
+    const openIds = normalizeImportedSyncAllOpenIds(src.openIds, current.openIds);
+    return {
+        active: src.active !== undefined ? !!src.active : !!current.active,
+        sourceHash: String(src.sourceHash || current.sourceHash || '').trim(),
+        openIds,
+        openIdCount: Math.max(0, Number.parseInt(src.openIdCount, 10) || openIds.length || current.openIdCount || 0),
+        importedAt: Math.max(0, Number.parseInt(src.importedAt, 10) || current.importedAt || 0),
+        updatedAt: Math.max(0, Number.parseInt(src.updatedAt, 10) || current.updatedAt || 0),
+        lastUsedAt: Math.max(0, Number.parseInt(src.lastUsedAt, 10) || current.lastUsedAt || 0),
+        lastSyncAt: Math.max(0, Number.parseInt(src.lastSyncAt, 10) || current.lastSyncAt || 0),
+        lastSyncFriendCount: Math.max(0, Number.parseInt(src.lastSyncFriendCount, 10) || current.lastSyncFriendCount || 0),
+        lastSyncSource: String(src.lastSyncSource || current.lastSyncSource || '').trim(),
+        lastErrorCode: String(src.lastErrorCode || current.lastErrorCode || '').trim(),
+        meta: normalizeImportedSyncAllMeta(src.meta, current.meta),
+    };
+}
+
 function normalizeExperimentalFeatures(cfg, fallback = DEFAULT_EXPERIMENTAL_FEATURES) {
     const current = (fallback && typeof fallback === 'object') ? fallback : DEFAULT_EXPERIMENTAL_FEATURES;
     const input = (cfg && typeof cfg === 'object') ? cfg : {};
@@ -2127,6 +2214,18 @@ function setSpecialCareFriendIds(accountId, list) {
     next.specialCareFriendIds = normalizeSpecialCareFriendIds(list, next.specialCareFriendIds || DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
     setAccountConfigSnapshot(accountId, next);
     return getSpecialCareFriendIds(accountId);
+}
+
+function getImportedSyncAllSource(accountId) {
+    return normalizeImportedSyncAllSource(getAccountConfigSnapshot(accountId).importedSyncAllSource, DEFAULT_IMPORTED_SYNCALL_SOURCE);
+}
+
+function setImportedSyncAllSource(accountId, payload) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.importedSyncAllSource = normalizeImportedSyncAllSource(payload, next.importedSyncAllSource || DEFAULT_IMPORTED_SYNCALL_SOURCE);
+    setAccountConfigSnapshot(accountId, next);
+    return getImportedSyncAllSource(accountId);
 }
 
 function getExperimentalFeatures(accountId) {
@@ -3236,6 +3335,8 @@ module.exports = {
     setFriendRiskConfig,
     getSpecialCareFriendIds,
     setSpecialCareFriendIds,
+    getImportedSyncAllSource,
+    setImportedSyncAllSource,
     getExperimentalFeatures,
     setExperimentalFeatures,
     getRedpacketConfig,

@@ -10,6 +10,7 @@
     "start:headless-runtime": "pnpm -C core start:headless-runtime",
     "build:release-assets": "bash scripts/release/build-release-assets.sh",
     "check:announcements": "node scripts/utils/check-announcements.js",
+    "check:release-assets": "node scripts/utils/check-release-assets.js",
     "check:doc-links": "node scripts/utils/check-doc-links.js",
     "check:readme-links": "node scripts/utils/check-readme-links.js",
     "import:item-icons": "node scripts/utils/import-item-icons.js",

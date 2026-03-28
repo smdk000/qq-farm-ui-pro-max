@@ -478,11 +478,16 @@ async function getFriendNameByGid(gid) {
 }
 
 async function resolveVisitorActor(gid, kind, landId) {
+    const userState = getUserState();
     return await resolveVisitorIdentity({
         gid,
         kind,
         landId,
         accountId: resolveVisitorCacheAccountId(),
+        platform: CONFIG.platform,
+        uin: String(CONFIG.uin || userState.uin || '').trim(),
+        openId: String(userState.openId || '').trim(),
+        userState,
         getFriendNameByGid,
     });
 }

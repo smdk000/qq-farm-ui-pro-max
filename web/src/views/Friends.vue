@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import LandCard from '@/components/LandCard.vue'
@@ -19,7 +19,7 @@ const toast = useToastStore()
 const friendStore = useFriendStore()
 const statusStore = useStatusStore()
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
-const { friends, loading, seedCacheLoading, clearCacheLoading, friendLands, friendLandsLoading, blacklist, friendFetchMeta } = storeToRefs(friendStore)
+const { friends, loading, seedCacheLoading, clearCacheLoading, importHexLoading, importedSyncAllSource, importedSyncAllLoading, clearImportedSyncAllLoading, friendLands, friendLandsLoading, blacklist, friendFetchMeta } = storeToRefs(friendStore)
 const { status, loading: statusLoading, realtimeConnected } = storeToRefs(statusStore)
 
 // Confirm Modal state
@@ -34,6 +34,10 @@ const batchRunning = ref(false)
 const batchResult = ref<any | null>(null)
 const nowTs = ref(Date.now())
 const manualRefreshLockedUntil = ref(0)
+const importHexText = ref('')
+const showImportHexModal = ref(false)
+const importHexPrefillPending = ref(false)
+const importHexTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 function confirmAction(msg: string, action: () => Promise<void>) {
   confirmMessage.value = msg
@@ -80,6 +84,13 @@ function getFriendAutoRetryText() {
   return remainMs > 0 ? formatDuration(remainMs) : ''
 }
 
+function formatDateTime(ts: number) {
+  const value = Math.max(0, Number(ts || 0))
+  if (!value)
+    return '-'
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
 async function loadFriends(options: { manualRefresh?: boolean } = {}) {
   if (currentAccountId.value) {
     const acc = currentAccount.value
@@ -91,6 +102,7 @@ async function loadFriends(options: { manualRefresh?: boolean } = {}) {
     }
 
     avatarErrorKeys.value.clear()
+    await friendStore.fetchImportedSyncAllSource(currentAccountId.value)
     const result = await friendStore.fetchFriends(currentAccountId.value, options)
     const bannerCopy = buildFriendFetchBannerCopy(friendFetchMeta.value, getFriendAutoRetryText())
     if (result?.fromCache) {
@@ -163,6 +175,11 @@ useIntervalFn(() => {
 
 onMounted(() => {
   loadFriends()
+  window.addEventListener('keydown', handleImportHexModalKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleImportHexModalKeydown)
 })
 
 // 【修复闪烁】监听 accountId 字符串值而非 currentAccount 对象引用
@@ -170,6 +187,8 @@ watch(() => currentAccountId.value, () => {
   expandedFriends.value.clear()
   selectedFriendIds.value = []
   batchResult.value = null
+  showImportHexModal.value = false
+  importHexText.value = ''
   loadFriends()
 })
 
@@ -246,6 +265,18 @@ const clearCacheButtonLabel = computed(() => {
   if (batchRunning.value)
     return '批量执行中...'
   return isAccountConnected.value ? '清理并重建' : '清理缓存'
+})
+
+const importHexButtonLabel = computed(() => {
+  if (!currentAccountId.value)
+    return '请选择账号'
+  if (importHexLoading.value)
+    return '导入中...'
+  if (loading.value)
+    return '列表加载中...'
+  if (statusLoading.value)
+    return '状态检查中...'
+  return '导入同步 Hex'
 })
 
 const isReadOnlyFriendView = computed(() =>
@@ -334,6 +365,32 @@ const canClearFriendsCache = computed(() =>
   && !batchRunning.value,
 )
 
+const canImportFriendsHex = computed(() =>
+  !!currentAccountId.value
+  && !importHexLoading.value
+  && !clearCacheLoading.value
+  && !seedCacheLoading.value
+  && !loading.value
+  && !statusLoading.value,
+)
+
+const canSubmitImportHex = computed(() =>
+  canImportFriendsHex.value && importHexText.value.trim().length > 0,
+)
+
+const hasImportedSyncAllSource = computed(() =>
+  !!importedSyncAllSource.value?.active && Number(importedSyncAllSource.value?.openIdCount || 0) > 0,
+)
+
+const canClearImportedSyncAllSource = computed(() =>
+  !!currentAccountId.value
+  && hasImportedSyncAllSource.value
+  && !clearImportedSyncAllLoading.value
+  && !importHexLoading.value
+  && !loading.value
+  && !statusLoading.value,
+)
+
 const canMutateFriends = computed(() =>
   !!currentAccountId.value
   && !loading.value
@@ -379,6 +436,115 @@ async function handleClearFriendsCache() {
 
     toast.success('已清理当前账号的好友缓存')
   })
+}
+
+async function handleImportFriendsHex() {
+  const accountId = currentAccountId.value
+  const hex = importHexText.value.trim()
+  if (!accountId || !canImportFriendsHex.value)
+    return
+  if (!hex) {
+    toast.warning('请输入好友同步 Hex 内容')
+    return
+  }
+
+  const result = await friendStore.importFriendsByHex(accountId, hex)
+  if (!result.ok) {
+    const errorCode = String(result.errorCode || '').trim()
+    if (errorCode)
+      toast.error(`${result.error || '导入好友同步 Hex 失败'} (${errorCode})`)
+    else
+      toast.error(result.error || '导入好友同步 Hex 失败')
+    return
+  }
+
+  importHexText.value = ''
+  const successCount = Math.max(0, Number(result.results?.successCount || 0))
+  const skippedCount = Math.max(0, Number(result.results?.skippedCount || 0))
+  const patchedCount = Math.max(0, Number(result.meta?.profilePatchedCount || 0))
+  if (successCount > 0) {
+    toast.success(
+      patchedCount > 0
+        ? `已导入并启用 ${successCount} 个 open_id，同步时会优先按这份 SyncAll 源拉取好友`
+        : `已导入并启用 ${successCount} 个 open_id${skippedCount > 0 ? `，跳过 ${skippedCount} 个` : ''}`,
+    )
+  }
+  else {
+    toast.warning(skippedCount > 0 ? `没有可导入项，已跳过 ${skippedCount} 个` : '没有解析到可导入的 open_id')
+  }
+  if (currentAccount.value?.running) {
+    await friendStore.fetchBlacklist(accountId)
+  }
+  showImportHexModal.value = false
+}
+
+function handleClearImportedSyncAllSource() {
+  const accountId = currentAccountId.value
+  if (!accountId || !canClearImportedSyncAllSource.value)
+    return
+  confirmAction('确定清除当前账号已导入的 SyncAll 同步源吗？清除后好友刷新会恢复为默认链路，不会影响其它账号。', async () => {
+    const result = await friendStore.clearImportedSyncAllSource(accountId)
+    if (!result.ok) {
+      toast.error(result.error || '清除导入同步源失败')
+      return
+    }
+    toast.success('当前账号的导入 SyncAll 同步源已清除')
+    await loadFriends()
+  })
+}
+
+function focusImportHexTextarea() {
+  nextTick(() => {
+    importHexTextareaRef.value?.focus()
+    importHexTextareaRef.value?.select()
+  })
+}
+
+function closeImportHexModal() {
+  if (importHexLoading.value)
+    return
+  showImportHexModal.value = false
+}
+
+function clearImportHexInput() {
+  if (importHexLoading.value)
+    return
+  importHexText.value = ''
+  focusImportHexTextarea()
+}
+
+async function tryPrefillImportHexFromClipboard() {
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
+    focusImportHexTextarea()
+    return
+  }
+  try {
+    importHexPrefillPending.value = true
+    const clipboardText = (await navigator.clipboard.readText()).trim()
+    if (clipboardText)
+      importHexText.value = clipboardText
+  }
+  catch {
+    // 浏览器或系统未授权读取剪贴板时静默降级，仍允许手动粘贴。
+  }
+  finally {
+    importHexPrefillPending.value = false
+    focusImportHexTextarea()
+  }
+}
+
+async function openImportHexModal() {
+  if (!canImportFriendsHex.value)
+    return
+  showImportHexModal.value = true
+  await tryPrefillImportHexFromClipboard()
+}
+
+function handleImportHexModalKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !showImportHexModal.value || importHexLoading.value)
+    return
+  event.preventDefault()
+  closeImportHexModal()
 }
 
 function openRelatedLogs() {
@@ -589,6 +755,9 @@ function getFriendStatusClass(friend: any) {
           <span class="friends-summary-note friends-source-note text-sm">
             {{ friendSourceCopy.description }}
           </span>
+          <span v-if="friendSourceCopy.detail" class="friends-summary-note friends-source-note text-xs">
+            {{ friendSourceCopy.detail }}
+          </span>
         </div>
       </div>
       <div class="w-full flex shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
@@ -610,6 +779,16 @@ function getFriendStatusClass(friend: any) {
           <span class="inline-flex items-center gap-1.5">
             <span class="i-carbon-clean" />
             {{ clearCacheButtonLabel }}
+          </span>
+        </button>
+        <button
+          class="friends-refresh-btn friends-import-trigger h-[38px] shrink-0 rounded-lg px-3 text-sm font-medium transition"
+          :disabled="!canImportFriendsHex"
+          @click="openImportHexModal"
+        >
+          <span class="inline-flex items-center gap-1.5">
+            <span class="i-carbon-data-bin" />
+            {{ importHexButtonLabel }}
           </span>
         </button>
         <button
@@ -922,6 +1101,156 @@ function getFriendStatusClass(friend: any) {
       @confirm="onConfirm"
       @cancel="!confirmLoading && (showConfirm = false)"
     />
+
+    <Teleport to="body">
+      <div
+        v-if="showImportHexModal"
+        class="friends-import-modal fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <button
+          class="friends-import-modal-overlay absolute inset-0"
+          type="button"
+          aria-label="关闭导入同步 Hex 弹窗"
+          @click="closeImportHexModal"
+        />
+        <div class="friends-import-modal-shell glass-panel relative z-10 max-h-[min(88vh,48rem)] w-full max-w-2xl overflow-hidden rounded-[28px] shadow-2xl" @click.stop>
+          <div class="friends-import-modal-header flex items-start justify-between gap-4 px-5 py-5 sm:px-6">
+            <div class="min-w-0">
+              <div class="friends-import-modal-eyebrow">
+                QQ 好友同步源
+              </div>
+              <h3 class="friends-import-modal-title mt-2 text-xl font-bold sm:text-2xl">
+                导入同步 Hex
+              </h3>
+              <p class="friends-import-modal-desc mt-2 text-sm leading-6">
+                点击按钮后会优先尝试读取剪贴板内容并填入输入框，你只需要确认导入即可。
+              </p>
+            </div>
+            <button
+              class="friends-import-modal-close mt-1 h-10 w-10 flex shrink-0 items-center justify-center rounded-full transition"
+              type="button"
+              :disabled="importHexLoading"
+              aria-label="关闭导入同步 Hex 弹窗"
+              @click="closeImportHexModal"
+            >
+              <span class="i-carbon-close text-lg" />
+            </button>
+          </div>
+
+          <div class="friends-import-modal-body max-h-[calc(min(88vh,48rem)-11rem)] overflow-y-auto px-5 pb-5 sm:px-6 sm:pb-6">
+            <div class="friends-import-panel rounded-3xl p-4 sm:p-5">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="friends-import-panel-title text-sm font-semibold">
+                    SyncAll 请求 Hex
+                  </div>
+                  <div class="friends-summary-note mt-1 text-xs leading-5">
+                    支持直接确认导入；如剪贴板未读取成功，也可以在这里手动粘贴。
+                  </div>
+                </div>
+                <button
+                  class="friends-import-clear-btn rounded-full px-3 py-1.5 text-xs font-medium transition"
+                  type="button"
+                  :disabled="importHexLoading || !importHexText"
+                  @click="clearImportHexInput"
+                >
+                  清除内容
+                </button>
+              </div>
+
+              <div v-if="importHexPrefillPending" class="friends-import-hint mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs">
+                <span class="i-svg-spinners-ring-resize text-sm" />
+                正在尝试读取剪贴板内容...
+              </div>
+
+              <textarea
+                ref="importHexTextareaRef"
+                v-model="importHexText"
+                rows="8"
+                placeholder="粘贴 QQ 好友 SyncAll 请求 Hex，导入后会启用当前账号的同步源"
+                class="friends-import-textarea mt-4 w-full rounded-2xl px-4 py-3 text-sm leading-6 outline-none transition"
+              />
+
+              <div class="friends-import-note mt-4 rounded-2xl px-4 py-3 text-sm leading-6">
+                导入后会为当前账号保存一份可持续使用的 SyncAll open_id 同步源，后续手动刷新和正常好友拉取都会优先按这份导入源请求。
+              </div>
+            </div>
+
+            <div class="friends-import-status-card mt-4 rounded-3xl px-4 py-4 sm:px-5">
+              <template v-if="importedSyncAllLoading">
+                <div class="friends-summary-note flex items-center gap-2 text-sm">
+                  <span class="i-svg-spinners-ring-resize text-base" />
+                  正在读取当前账号的导入同步源状态...
+                </div>
+              </template>
+              <template v-else-if="hasImportedSyncAllSource">
+                <div class="flex flex-wrap items-center gap-2">
+                  <BaseBadge surface="meta" tone="success" class="rounded-full px-2.5 py-1 text-[11px] font-medium">
+                    当前已启用导入源
+                  </BaseBadge>
+                  <span class="friends-import-status-strong text-sm font-semibold">
+                    open_id {{ importedSyncAllSource?.openIdCount || 0 }}
+                  </span>
+                </div>
+                <div class="friends-import-status-grid mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                  <div class="friends-import-status-item">
+                    导入时间：{{ formatDateTime(importedSyncAllSource?.importedAt || 0) }}
+                  </div>
+                  <div v-if="Number(importedSyncAllSource?.lastUsedAt || 0) > 0" class="friends-import-status-item">
+                    最近使用：{{ formatDateTime(importedSyncAllSource?.lastUsedAt || 0) }}
+                  </div>
+                  <div v-if="Number(importedSyncAllSource?.lastSyncFriendCount || 0) > 0" class="friends-import-status-item">
+                    最近同步好友：{{ importedSyncAllSource?.lastSyncFriendCount || 0 }}
+                  </div>
+                  <div class="friends-import-status-item">
+                    来源：{{ importedSyncAllSource?.meta?.serviceName || '-' }} / {{ importedSyncAllSource?.meta?.methodName || '-' }}
+                  </div>
+                </div>
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div class="friends-summary-note text-xs leading-5">
+                    清除后仅移除当前账号的导入同步源，不会影响其它账号。
+                  </div>
+                  <button
+                    class="friends-refresh-btn friends-clear-btn h-[34px] shrink-0 rounded-full px-4 text-xs font-medium transition"
+                    :disabled="!canClearImportedSyncAllSource"
+                    @click="handleClearImportedSyncAllSource"
+                  >
+                    清除导入源
+                  </button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="friends-summary-note text-sm leading-6">
+                  当前账号还没有启用导入的 SyncAll 同步源。
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="friends-import-modal-footer flex flex-col-reverse gap-3 border-t px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+            <button
+              class="friends-import-footer-btn friends-import-footer-secondary rounded-2xl px-4 py-2.5 text-sm font-medium transition"
+              type="button"
+              :disabled="importHexLoading"
+              @click="closeImportHexModal"
+            >
+              关闭
+            </button>
+            <button
+              class="friends-import-footer-btn friends-import-footer-primary rounded-2xl px-5 py-2.5 text-sm font-semibold transition"
+              type="button"
+              :disabled="!canSubmitImportHex"
+              @click="handleImportFriendsHex"
+            >
+              <span class="inline-flex items-center gap-2">
+                <span v-if="importHexLoading" class="i-svg-spinners-ring-resize text-base" />
+                确认导入
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -985,7 +1314,129 @@ function getFriendStatusClass(friend: any) {
   background: color-mix(in srgb, var(--ui-status-warning) 9%, var(--ui-bg-surface)) !important;
 }
 
+.friends-import-trigger {
+  border-color: color-mix(in srgb, var(--ui-brand-500) 22%, var(--ui-border-subtle)) !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ui-brand-500) 12%, transparent), transparent 58%),
+    color-mix(in srgb, var(--ui-bg-surface) 76%, transparent) !important;
+}
+
 .friends-refresh-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.friends-import-modal-overlay {
+  border: 0;
+  background: color-mix(in srgb, var(--ui-overlay-backdrop) 82%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.friends-import-modal-shell {
+  border: 1px solid color-mix(in srgb, var(--ui-brand-500) 14%, var(--ui-border-subtle));
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--ui-brand-500) 12%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ui-bg-surface-raised) 96%, transparent), color-mix(in srgb, var(--ui-bg-surface) 92%, transparent));
+}
+
+.friends-import-modal-header,
+.friends-import-modal-footer {
+  border-color: var(--ui-border-subtle);
+}
+
+.friends-import-modal-eyebrow {
+  color: color-mix(in srgb, var(--ui-brand-500) 84%, var(--ui-text-1));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.friends-import-modal-title,
+.friends-import-panel-title,
+.friends-import-status-strong {
+  color: var(--ui-text-1);
+}
+
+.friends-import-modal-desc,
+.friends-import-hint,
+.friends-import-note,
+.friends-import-status-item {
+  color: var(--ui-text-2);
+}
+
+.friends-import-modal-close,
+.friends-import-clear-btn,
+.friends-import-footer-secondary {
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 84%, transparent);
+  color: var(--ui-text-2);
+}
+
+.friends-import-modal-close:hover:not(:disabled),
+.friends-import-clear-btn:hover:not(:disabled),
+.friends-import-footer-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 96%, transparent);
+  color: var(--ui-text-1);
+}
+
+.friends-import-panel,
+.friends-import-status-card {
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface) 76%, transparent);
+}
+
+.friends-import-textarea {
+  min-height: 12rem;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-500) 14%, var(--ui-border-subtle));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ui-bg-surface-raised) 94%, transparent), color-mix(in srgb, var(--ui-bg-surface) 92%, transparent));
+  color: var(--ui-text-1);
+}
+
+.friends-import-textarea:focus {
+  border-color: var(--ui-brand-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-focus-ring) 78%, transparent);
+}
+
+.friends-import-hint {
+  border: 1px solid color-mix(in srgb, var(--ui-status-info) 18%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-status-info) 8%, var(--ui-bg-surface));
+}
+
+.friends-import-note {
+  border: 1px solid color-mix(in srgb, var(--ui-brand-500) 14%, var(--ui-border-subtle));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ui-brand-500) 7%, transparent), color-mix(in srgb, var(--ui-bg-surface) 82%, transparent));
+}
+
+.friends-import-status-item {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 94%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 72%, transparent);
+  padding: 0.75rem 0.9rem;
+}
+
+.friends-import-footer-btn {
+  min-width: 7.5rem;
+}
+
+.friends-import-footer-primary {
+  border: 1px solid transparent;
+  background: linear-gradient(135deg, var(--ui-brand-600), var(--ui-brand-500));
+  color: var(--ui-text-on-brand);
+}
+
+.friends-import-footer-primary:hover:not(:disabled) {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.friends-import-footer-primary:disabled,
+.friends-import-modal-close:disabled,
+.friends-import-clear-btn:disabled,
+.friends-import-footer-secondary:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -1233,6 +1684,20 @@ function getFriendStatusClass(friend: any) {
   background-color: color-mix(in srgb, var(--ui-bg-surface) 68%, transparent);
   color: var(--ui-text-2);
   border-color: var(--ui-border-subtle);
+}
+
+@media (max-width: 640px) {
+  .friends-import-modal-shell {
+    border-radius: 24px;
+  }
+
+  .friends-import-modal-body {
+    max-height: calc(100vh - 11.5rem);
+  }
+
+  .friends-import-footer-btn {
+    width: 100%;
+  }
 }
 </style>
 

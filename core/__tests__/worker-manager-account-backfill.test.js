@@ -82,6 +82,7 @@ test('worker-manager backfills qq uin and avatar from live status sync', async (
             upsertFriendBlacklist() { return false; },
             updateFriendsCache() {},
             mergeFriendsCache() {},
+            clearFriendsCache() {},
             broadcastConfigToWorkers() {},
             onStatusSync() {},
             onWorkerLog() {},
@@ -132,6 +133,106 @@ test('worker-manager backfills qq uin and avatar from live status sync', async (
         ));
         assert.equal(markLoginCalls.length, 1);
         assert.equal(markLoginCalls[0].accountId, '1004');
+    } finally {
+        globalThis.setInterval = originalSetInterval;
+        delete require.cache[workerManagerModulePath];
+        restoreScheduler();
+    }
+});
+
+test('worker-manager clears previous friends cache when live login identity changes', async () => {
+    const restoreScheduler = mockModule(schedulerModulePath, {
+        createScheduler() {
+            return createSchedulerStub();
+        },
+    });
+
+    const originalSetInterval = globalThis.setInterval;
+    globalThis.setInterval = () => ({
+        unref() {},
+    });
+
+    try {
+        delete require.cache[workerManagerModulePath];
+        const { createWorkerManager } = require(workerManagerModulePath);
+        const workers = {};
+        const clearCalls = [];
+        let child = null;
+
+        const manager = createWorkerManager({
+            fork() {
+                child = new EventEmitter();
+                child.send = () => {};
+                child.kill = () => {};
+                return child;
+            },
+            WorkerThread: null,
+            runtimeMode: 'fork',
+            processRef: { env: {}, pkg: false },
+            mainEntryPath: '/tmp/main.js',
+            workerScriptPath: '/tmp/worker.js',
+            workers,
+            globalLogs: [],
+            log() {},
+            addAccountLog() {},
+            normalizeStatusForPanel(status) { return status; },
+            buildConfigSnapshotForAccount() { return {}; },
+            getOfflineAutoDeleteMs() { return 0; },
+            triggerOfflineReminder() {},
+            addOrUpdateAccount() {},
+            async markAccountLoginSuccess() {},
+            deleteAccount() {},
+            upsertFriendBlacklist() { return false; },
+            updateFriendsCache() {},
+            mergeFriendsCache() {},
+            async clearFriendsCache(accountId, options) {
+                clearCalls.push({ accountId, options });
+                return { ok: true, deletedCount: 2 };
+            },
+            broadcastConfigToWorkers() {},
+            onStatusSync() {},
+            onWorkerLog() {},
+        });
+
+        await manager.startWorker({
+            id: '1005',
+            name: '账号1005',
+            platform: 'qq',
+            code: 'auth-code-1005',
+            uin: '111111111',
+            qq: '111111111',
+        });
+
+        child.emit('message', {
+            type: 'status_sync',
+            data: {
+                connection: { connected: true },
+                status: {
+                    name: '新身份',
+                    level: 10,
+                    gold: 100,
+                    exp: 200,
+                    coupon: 1,
+                    uin: '222222222',
+                    avatarUrl: 'https://img/next.png',
+                    platform: 'qq',
+                },
+                uptime: 3,
+            },
+        });
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        assert.deepEqual(clearCalls, [{
+            accountId: '1005',
+            options: {
+                platform: 'qq',
+                uin: '111111111',
+                qq: '111111111',
+                openId: '',
+            },
+        }]);
+        assert.equal(workers['1005'].account.uin, '222222222');
     } finally {
         globalThis.setInterval = originalSetInterval;
         delete require.cache[workerManagerModulePath];

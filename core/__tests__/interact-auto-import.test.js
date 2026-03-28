@@ -28,7 +28,7 @@ test('getInteractRecords auto-imports visitor gids into friends cache seeds', as
     const mergeCalls = [];
 
     const restoreConfig = mockModule(configModulePath, {
-        CONFIG: { accountId: 'acc-9' },
+        CONFIG: { accountId: 'acc-9', platform: 'wx_car' },
     });
     const restoreGameConfig = mockModule(gameConfigModulePath, {
         getFruitName: () => '',
@@ -39,11 +39,17 @@ test('getInteractRecords auto-imports visitor gids into friends cache seeds', as
     const restoreFriendCacheSeeds = mockModule(friendCacheSeedsModulePath, {
         resolveFriendSeedAccountId: () => 'acc-9',
         cacheFriendSeeds: async (friends, options) => {
-            mergeCalls.push({ accountId: options && options.accountId, friends });
+            mergeCalls.push({ options, friends });
         },
     });
     const restoreNetwork = mockModule(networkModulePath, {
         sendMsgAsync: async () => ({ body: Buffer.from('reply') }),
+        getUserState: () => ({
+            accountId: 'acc-9',
+            platform: 'wx_car',
+            uin: 'wxid_demo_9001',
+            openId: 'wx-open-9001',
+        }),
     });
     const restoreProto = mockModule(protoModulePath, {
         types: {
@@ -76,7 +82,19 @@ test('getInteractRecords auto-imports visitor gids into friends cache seeds', as
         assert.equal(records.length, 3);
         assert.deepEqual(mergeCalls, [
             {
-                accountId: 'acc-9',
+                options: {
+                    accountId: 'acc-9',
+                    platform: 'wx_car',
+                    uin: 'wxid_demo_9001',
+                    openId: 'wx-open-9001',
+                    userState: {
+                        accountId: 'acc-9',
+                        platform: 'wx_car',
+                        uin: 'wxid_demo_9001',
+                        openId: 'wx-open-9001',
+                    },
+                    immediate: true,
+                },
                 friends: [
                     { gid: 3001, name: '偷菜甲', avatarUrl: 'https://img/a2.png' },
                     { gid: 3002, name: '', avatarUrl: '' },
