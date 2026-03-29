@@ -46,6 +46,7 @@ test('public api whitelist keeps expected unauthenticated endpoints', () => {
         '/notifications',
         '/announcement',
         '/trial-card',
+        '/public-card-feature-config',
         '/ui-config',
         '/ping',
         '/health/basic',

@@ -10,6 +10,7 @@ const PUBLIC_API_PATHS = Object.freeze([
     '/notifications',
     '/announcement',
     '/trial-card',
+    '/public-card-feature-config',
     '/ui-config',
     '/ping',
     '/health/basic',

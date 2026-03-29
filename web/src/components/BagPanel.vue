@@ -369,6 +369,36 @@ function getItemDescription(item: any) {
   return String(item?.effectDesc || item?.desc || '').trim()
 }
 
+function getItemStatusTags(item: any) {
+  const tags: string[] = []
+  if (item?.canPlant)
+    tags.push('可种植')
+  if (item?.canUse)
+    tags.push('可使用')
+  if (item?.category === 'fruit')
+    tags.push('可出售')
+  if (item?.locked)
+    tags.push('未解锁')
+  if (Number(item?.rarity || 0) >= 4)
+    tags.push('高稀有')
+  return tags
+}
+
+function getBagCategoryHint(item: any) {
+  const category = resolveBagCategory(item)
+  if (category === 'seed')
+    return item?.canPlant ? '优先留意可种植与等级要求，适合和背包优先策略一起判断。' : '当前更适合作为收藏或等待等级、土地条件满足后再消耗。'
+  if (category === 'fruit')
+    return '可加入出售策略，也可以按保留规则继续囤货。'
+  if (category === 'fertilizer')
+    return '用于补充普通/有机化肥容器，建议结合自动购肥与今日状态一起查看。'
+  if (category === 'pack')
+    return '开启后通常会获得种子、化肥或礼包奖励。'
+  if (category === 'pet')
+    return '宠物与狗粮类物品，建议结合宠物状态一起判断是否消耗。'
+  return '可在详情里查看用途、交互类型和可执行动作。'
+}
+
 function getItemLongDescription(item: any) {
   const segments = [String(item?.desc || '').trim(), String(item?.effectDesc || '').trim()].filter(Boolean)
   return Array.from(new Set(segments))
@@ -2388,6 +2418,16 @@ useIntervalFn(loadBag, 60000)
               </span>
             </div>
 
+            <div v-if="getItemStatusTags(item).length" class="inventory-card__tag-list">
+              <span
+                v-for="tag in getItemStatusTags(item)"
+                :key="`${item.id}-${tag}`"
+                class="inventory-card__tag"
+              >
+                {{ tag }}
+              </span>
+            </div>
+
             <div class="inventory-card__footer">
               <span>点击查看详情</span>
               <span v-if="item.canUse" class="inventory-card__footer-tag">可使用</span>
@@ -2957,6 +2997,18 @@ useIntervalFn(loadBag, 60000)
                   </div>
                   <div class="detail-summary">
                     {{ getItemDescription(bagDetailItem) || '暂无物品说明' }}
+                  </div>
+                  <div class="detail-copy detail-copy--muted text-xs leading-6">
+                    {{ getBagCategoryHint(bagDetailItem) }}
+                  </div>
+                  <div v-if="getItemStatusTags(bagDetailItem).length" class="detail-tag-list">
+                    <span
+                      v-for="tag in getItemStatusTags(bagDetailItem)"
+                      :key="`detail-${bagDetailItem.id}-${tag}`"
+                      class="inventory-pill inventory-pill-sky"
+                    >
+                      {{ tag }}
+                    </span>
                   </div>
                   <div class="detail-actions">
                     <div v-if="bagDetailItem.canUse && !itemNeedsLandSelection(bagDetailItem)" class="trade-stepper">
@@ -4169,6 +4221,28 @@ useIntervalFn(loadBag, 60000)
   font-size: 0.8rem;
 }
 
+.inventory-card__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.inventory-card__tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 88%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 68%, transparent);
+  color: var(--bag-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+
 .inventory-card__footer {
   margin-top: auto;
   display: flex;
@@ -4185,6 +4259,17 @@ useIntervalFn(loadBag, 60000)
   background: var(--ui-status-success-soft);
   padding: 0.18rem 0.48rem;
   color: var(--ui-status-success);
+}
+
+.detail-copy--muted {
+  color: var(--ui-text-2);
+}
+
+.detail-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
 }
 
 .bag-inventory-grid {

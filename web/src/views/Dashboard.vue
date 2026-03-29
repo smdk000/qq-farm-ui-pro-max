@@ -6,6 +6,7 @@ import type { DashboardViewState } from '@/utils/view-preferences'
 import { useIntervalFn, useStorage } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -26,6 +27,7 @@ const statusStore = useStatusStore()
 const accountStore = useAccountStore()
 const bagStore = useBagStore()
 const toast = useToastStore()
+const router = useRouter()
 const {
   status,
   logs: statusLogs,
@@ -36,6 +38,32 @@ const { dashboardItems } = storeToRefs(bagStore)
 const logContainer = ref<HTMLElement | null>(null)
 const autoScroll = ref(true)
 const lastBagFetchAt = ref(0)
+const adminWorkbenchLoading = ref(false)
+const adminWorkbenchOverview = ref<{
+  users: number | null
+  cards: number | null
+  trialEnabled: boolean | null
+  announcements: number | null
+  latestAnnouncementVersion: string
+  openFeedback: number | null
+  systemUpdateLatestVersion: string
+  systemUpdateHasUpdate: boolean | null
+  recentAdminOperations: Array<{
+    id: string
+    scope: string
+    actionLabel: string
+    status: string
+    timestamp: number
+    affectedNames: string[]
+  }>
+} | null>(null)
+const adminWorkbenchActions = [
+  { key: 'users', label: '用户管理', desc: '查看用户、续费与权限状态', routeName: 'users', icon: 'i-carbon-user-multiple' },
+  { key: 'cards', label: '卡密管理', desc: '发码、试用卡与总控开关', routeName: 'cards', icon: 'i-carbon-id-management' },
+  { key: 'announcement', label: '公告管理', desc: '维护公告并同步用户可见版本', routeName: 'announcements', icon: 'i-carbon-notification' },
+  { key: 'feedback', label: '帮助反馈', desc: '处理文档过期、跳转异常和缺失步骤', routeName: 'help-center-feedback', icon: 'i-carbon-chat' },
+  { key: 'settings', label: '系统更新', desc: '检查版本、预检与远程更新任务', routeName: 'Settings', icon: 'i-carbon-rocket' },
+]
 
 // ========== 任务队列预览 ==========
 const schedulerPreview = ref<any>(null)
@@ -349,7 +377,7 @@ const protectionHint = computed(() => {
   const friendGuardRemainSec = Number(wechat.friendCooldownRemainSec || 0)
   if (wechat.friendGuardActive && friendGuardRemainSec > 0) {
     const minutes = Math.max(1, Math.ceil(friendGuardRemainSec / 60))
-    return `微信好友休息一会（约 ${minutes} 分钟）`
+    return `微信好友链路冷却中（约 ${minutes} 分钟）`
   }
 
   return ''
@@ -1653,6 +1681,8 @@ async function refresh() {
     // 拉取任务队列预览
     await fetchSchedulerPreview()
   }
+  if (dashboardIsAdmin.value)
+    await fetchAdminWorkbenchOverview()
 }
 
 function clearFilter() {
@@ -1727,6 +1757,71 @@ function onLogScroll(e: Event) {
   autoScroll.value = isNearBottom
 }
 
+async function fetchAdminWorkbenchOverview() {
+  if (!dashboardCurrentUser.value || dashboardCurrentUser.value.role !== 'admin') {
+    adminWorkbenchOverview.value = null
+    return
+  }
+  adminWorkbenchLoading.value = true
+  try {
+    const [usersRes, cardsRes, trialRes, announcementsRes, feedbackRes, adminLogsRes, updateRes] = await Promise.allSettled([
+      api.get('/api/users'),
+      api.get('/api/cards'),
+      api.get('/api/public-card-feature-config'),
+      api.get('/api/announcement'),
+      api.get('/api/help-center/feedback', { params: { status: 'open', limit: 50 } }),
+      api.get('/api/admin-operation-logs', { params: { limit: 5 } }),
+      api.get('/api/admin/system-update/overview'),
+    ])
+    const announcements = announcementsRes.status === 'fulfilled' && announcementsRes.value.data?.ok && Array.isArray(announcementsRes.value.data.data)
+      ? announcementsRes.value.data.data
+      : null
+    const feedbackItems = feedbackRes.status === 'fulfilled' && feedbackRes.value.data?.ok && Array.isArray(feedbackRes.value.data.data?.items)
+      ? feedbackRes.value.data.data.items
+      : null
+    adminWorkbenchOverview.value = {
+      users: usersRes.status === 'fulfilled' && usersRes.value.data?.ok
+        ? (Array.isArray(usersRes.value.data.data) ? usersRes.value.data.data.length : null)
+        : null,
+      cards: cardsRes.status === 'fulfilled' && cardsRes.value.data?.ok
+        ? (Array.isArray(cardsRes.value.data.data) ? cardsRes.value.data.data.length : null)
+        : null,
+      trialEnabled: trialRes.status === 'fulfilled' && trialRes.value.data?.ok
+        ? !!trialRes.value.data.data?.trialEnabled
+        : null,
+      announcements: announcements ? announcements.length : null,
+      latestAnnouncementVersion: announcements && announcements.length > 0
+        ? String(announcements[0]?.version || '').trim()
+        : '',
+      openFeedback: feedbackItems ? feedbackItems.filter((item: any) => String(item?.status || '').trim() === 'open').length : null,
+      systemUpdateLatestVersion: updateRes.status === 'fulfilled' && updateRes.value.data?.ok
+        ? String(updateRes.value.data.latestRelease?.versionTag || '').trim()
+        : '',
+      systemUpdateHasUpdate: updateRes.status === 'fulfilled' && updateRes.value.data?.ok
+        ? !!updateRes.value.data.hasUpdate
+        : null,
+      recentAdminOperations: adminLogsRes.status === 'fulfilled' && Array.isArray(adminLogsRes.value.data?.data?.items)
+        ? adminLogsRes.value.data.data.items
+            .map((item: any) => ({
+              id: String(item?.id || '').trim(),
+              scope: String(item?.scope || '').trim(),
+              actionLabel: String(item?.actionLabel || '').trim() || '未命名操作',
+              status: String(item?.status || '').trim() || 'success',
+              timestamp: Number(item?.timestamp || 0),
+              affectedNames: Array.isArray(item?.affectedNames) ? item.affectedNames.map((value: any) => String(value || '').trim()).filter(Boolean) : [],
+            }))
+            .filter((item: any) => item.id || item.actionLabel)
+        : [],
+    }
+  }
+  catch {
+    adminWorkbenchOverview.value = null
+  }
+  finally {
+    adminWorkbenchLoading.value = false
+  }
+}
+
 // Auto scroll logs
 watch(allLogs, () => {
   nextTick(() => {
@@ -1743,6 +1838,7 @@ onMounted(async () => {
   statusStore.setRealtimeLogsEnabled(!hasActiveLogFilter.value)
   await refresh()
   settingStore.fetchTrialCardConfig()
+  await fetchAdminWorkbenchOverview()
   enableDashboardViewSync()
 })
 
@@ -1782,6 +1878,111 @@ const dashboardTrialIsExpired = computed(() => {
     return false
   return user.card.expiresAt < Date.now()
 })
+
+const dashboardIsAdmin = computed(() => dashboardCurrentUser.value?.role === 'admin')
+const adminWorkbenchSummaryCards = computed(() => {
+  const data = adminWorkbenchOverview.value
+  if (!data)
+    return []
+  return [
+    {
+      key: 'users',
+      label: '用户数',
+      value: data.users === null ? '未同步' : `${data.users}`,
+      desc: data.users === null ? '当前未能拉取用户统计' : '当前可管理账号用户',
+      tone: data.users === null ? 'warning' : 'info',
+    },
+    {
+      key: 'cards',
+      label: '卡密库存',
+      value: data.cards === null ? '未同步' : `${data.cards}`,
+      desc: data.cards === null ? '当前未能拉取卡密统计' : '后台可审计卡密条目',
+      tone: data.cards === null ? 'warning' : 'brand',
+    },
+    {
+      key: 'trial',
+      label: '体验卡',
+      value: data.trialEnabled === null ? '未同步' : (data.trialEnabled ? '已开启' : '已暂停'),
+      desc: data.trialEnabled === null ? '当前未能拉取体验卡配置' : '前台体验卡入口状态',
+      tone: data.trialEnabled === null ? 'warning' : (data.trialEnabled ? 'success' : 'warning'),
+    },
+    {
+      key: 'announcement',
+      label: '公告状态',
+      value: data.announcements === null ? '未同步' : `${data.announcements} 条`,
+      desc: data.announcements === null
+        ? '当前未能拉取公告列表'
+        : (data.latestAnnouncementVersion ? `最新公告 ${data.latestAnnouncementVersion}` : '已接通公告管理入口'),
+      tone: data.announcements === null ? 'warning' : 'info',
+    },
+    {
+      key: 'feedback',
+      label: '帮助反馈',
+      value: data.openFeedback === null ? '未同步' : `${data.openFeedback} 条待处理`,
+      desc: data.openFeedback === null ? '当前未能拉取帮助反馈状态' : '优先处理文档过期、跳转异常和步骤缺失',
+      tone: data.openFeedback === null ? 'warning' : (data.openFeedback > 0 ? 'warning' : 'success'),
+    },
+    {
+      key: 'update',
+      label: '系统更新',
+      value: data.systemUpdateLatestVersion || '未获取',
+      desc: data.systemUpdateHasUpdate === null
+        ? '当前未能拉取更新中心状态'
+        : (data.systemUpdateHasUpdate ? '检测到可更新版本' : '当前版本链路稳定'),
+      tone: data.systemUpdateHasUpdate === null ? 'warning' : (data.systemUpdateHasUpdate ? 'warning' : 'success'),
+    },
+  ]
+})
+
+const adminWorkbenchRecentOperations = computed(() => {
+  return (adminWorkbenchOverview.value?.recentAdminOperations || []).slice(0, 4)
+})
+
+function getAdminWorkbenchScopeLabel(scope: string) {
+  if (scope === 'users')
+    return '用户'
+  if (scope === 'runtime')
+    return '运行时'
+  if (scope === 'help_center')
+    return '帮助中心'
+  if (scope === 'account_ownership')
+    return '账号归属'
+  return '系统'
+}
+
+function getAdminWorkbenchOperationStatusClass(status: string) {
+  if (status === 'error')
+    return 'dashboard-admin-operation__status dashboard-admin-operation__status--error'
+  if (status === 'warning')
+    return 'dashboard-admin-operation__status dashboard-admin-operation__status--warning'
+  return 'dashboard-admin-operation__status dashboard-admin-operation__status--success'
+}
+
+function formatAdminWorkbenchOperationTime(timestamp: number) {
+  if (!timestamp)
+    return '刚刚'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(timestamp)
+}
+
+function getAdminWorkbenchCardClass(tone: string) {
+  if (tone === 'success')
+    return 'dashboard-admin-card dashboard-admin-card--success'
+  if (tone === 'warning')
+    return 'dashboard-admin-card dashboard-admin-card--warning'
+  if (tone === 'brand')
+    return 'dashboard-admin-card dashboard-admin-card--brand'
+  return 'dashboard-admin-card dashboard-admin-card--info'
+}
+
+function openAdminWorkbenchRoute(routeName: string) {
+  void router.push({ name: routeName })
+}
 
 function updateTrialCountdown() {
   const user = dashboardCurrentUser.value
@@ -1843,6 +2044,88 @@ async function handleDashboardTrialRenew() {
         {{ dashboardTrialRenewing ? '续费中...' : '🔄 一键续费' }}
       </button>
     </div>
+
+    <section
+      v-if="dashboardIsAdmin"
+      class="glass-panel dashboard-admin-workbench rounded-lg px-4 py-4 shadow"
+    >
+      <div class="dashboard-admin-workbench__header">
+        <div>
+          <h3 class="dashboard-admin-workbench__title glass-text-main flex items-center gap-2 text-base font-medium">
+            <div class="i-carbon-dashboard" />
+            <span>管理员总控工作台</span>
+          </h3>
+          <p class="dashboard-admin-workbench__desc">
+            把用户、卡密、公告和系统更新的高频状态收口到一屏里，方便快速跳转处理。
+          </p>
+        </div>
+        <span class="dashboard-admin-workbench__meta">
+          {{ adminWorkbenchLoading ? '状态同步中…' : '状态已同步' }}
+        </span>
+      </div>
+
+      <div class="dashboard-admin-workbench__grid">
+        <div
+          v-for="item in adminWorkbenchSummaryCards"
+          :key="item.key"
+          :class="getAdminWorkbenchCardClass(item.tone)"
+        >
+          <div class="dashboard-admin-card__label">{{ item.label }}</div>
+          <div class="dashboard-admin-card__value">{{ item.value }}</div>
+          <div class="dashboard-admin-card__desc">{{ item.desc }}</div>
+        </div>
+      </div>
+
+      <div class="dashboard-admin-workbench__actions">
+        <button
+          v-for="item in adminWorkbenchActions"
+          :key="item.key"
+          class="dashboard-admin-action"
+          type="button"
+          @click="openAdminWorkbenchRoute(item.routeName)"
+        >
+          <div class="dashboard-admin-action__icon" :class="item.icon" />
+          <div class="dashboard-admin-action__body">
+            <div class="dashboard-admin-action__label">{{ item.label }}</div>
+            <div class="dashboard-admin-action__desc">{{ item.desc }}</div>
+          </div>
+          <div class="dashboard-admin-action__arrow i-carbon-arrow-right" />
+        </button>
+      </div>
+
+      <div class="dashboard-admin-workbench__timeline">
+        <div class="dashboard-admin-workbench__timeline-header">
+          <div class="dashboard-admin-workbench__timeline-title">最近操作摘要</div>
+          <div class="dashboard-admin-workbench__timeline-meta">帮助你快速判断刚刚改过什么</div>
+        </div>
+        <div v-if="adminWorkbenchRecentOperations.length" class="dashboard-admin-workbench__timeline-list">
+          <div
+            v-for="item in adminWorkbenchRecentOperations"
+            :key="item.id"
+            class="dashboard-admin-operation"
+          >
+            <div class="dashboard-admin-operation__main">
+              <div class="dashboard-admin-operation__topline">
+                <span class="dashboard-admin-operation__scope">{{ getAdminWorkbenchScopeLabel(item.scope) }}</span>
+                <span :class="getAdminWorkbenchOperationStatusClass(item.status)">
+                  {{ item.status === 'error' ? '失败' : item.status === 'warning' ? '部分失败' : '成功' }}
+                </span>
+              </div>
+              <div class="dashboard-admin-operation__label">{{ item.actionLabel }}</div>
+              <div class="dashboard-admin-operation__meta">
+                {{ formatAdminWorkbenchOperationTime(item.timestamp) }}
+                <span v-if="item.affectedNames.length">
+                  · {{ item.affectedNames.slice(0, 2).join('、') }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="dashboard-admin-workbench__timeline-empty">
+          暂无最近操作日志，后续用户治理、公告同步和热重载动作会在这里汇总展示。
+        </div>
+      </div>
+    </section>
 
     <!-- Status Cards -->
     <div class="dashboard-status-grid grid grid-cols-1 gap-3 lg:grid-cols-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -2750,6 +3033,262 @@ async function handleDashboardTrialRenew() {
 .dashboard-page [class*='bg-'][class*='black/5'],
 .dashboard-page [class*='dark:bg-'][class*='white/5'] {
   background-color: color-mix(in srgb, var(--ui-bg-surface) 62%, transparent) !important;
+}
+
+.dashboard-admin-workbench {
+  border: 1px solid var(--ui-border-subtle);
+}
+
+.dashboard-admin-workbench__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-admin-workbench__desc {
+  color: var(--ui-text-2);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  margin-top: 0.25rem;
+}
+
+.dashboard-admin-workbench__meta {
+  color: var(--ui-text-3);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.dashboard-admin-workbench__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-admin-card {
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 68%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 10px 24px color-mix(in srgb, black 8%, transparent);
+}
+
+.dashboard-admin-card--success {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-success) 18%, transparent);
+}
+
+.dashboard-admin-card--warning {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-warning) 18%, transparent);
+}
+
+.dashboard-admin-card--brand {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-brand-500) 18%, transparent);
+}
+
+.dashboard-admin-card--info {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-info) 18%, transparent);
+}
+
+.dashboard-admin-card__label {
+  color: var(--ui-text-3);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-admin-card__value {
+  color: var(--ui-text-1);
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-top: 0.35rem;
+}
+
+.dashboard-admin-card__desc {
+  color: var(--ui-text-2);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin-top: 0.35rem;
+}
+
+.dashboard-admin-workbench__actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-admin-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 72%, transparent);
+  text-align: left;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+
+.dashboard-admin-action:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-brand-500) 7%, var(--ui-bg-surface-raised) 93%);
+}
+
+.dashboard-admin-action__icon,
+.dashboard-admin-action__arrow {
+  color: var(--ui-text-3);
+  flex-shrink: 0;
+}
+
+.dashboard-admin-action__icon {
+  font-size: 1.15rem;
+}
+
+.dashboard-admin-action__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.dashboard-admin-action__label {
+  color: var(--ui-text-1);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.dashboard-admin-action__desc {
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin-top: 0.15rem;
+}
+
+.dashboard-admin-workbench__timeline {
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.dashboard-admin-workbench__timeline-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.dashboard-admin-workbench__timeline-title {
+  color: var(--ui-text-1);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.dashboard-admin-workbench__timeline-meta,
+.dashboard-admin-workbench__timeline-empty {
+  color: var(--ui-text-2);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.dashboard-admin-workbench__timeline-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.dashboard-admin-operation {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 88%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.8rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 64%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.dashboard-admin-operation__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.dashboard-admin-operation__topline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.dashboard-admin-operation__scope {
+  color: var(--ui-text-3);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-admin-operation__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.dashboard-admin-operation__status--success {
+  background: var(--ui-status-success-soft);
+  color: var(--ui-status-success);
+}
+
+.dashboard-admin-operation__status--warning {
+  background: var(--ui-status-warning-soft);
+  color: var(--ui-status-warning);
+}
+
+.dashboard-admin-operation__status--error {
+  background: var(--ui-status-danger-soft);
+  color: var(--ui-status-danger);
+}
+
+.dashboard-admin-operation__label {
+  color: var(--ui-text-1);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.dashboard-admin-operation__meta {
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin-top: 0.18rem;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-admin-workbench__grid,
+  .dashboard-admin-workbench__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-admin-workbench__grid,
+  .dashboard-admin-workbench__actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .trial-pulse-banner {

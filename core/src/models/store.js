@@ -1230,7 +1230,15 @@ async function loadGlobalConfigFromDB() {
 
     try {
         const pool = getPool();
-        const [rows] = await pool.query('SELECT * FROM account_configs');
+        const [rows] = await pool.query(`
+            SELECT c.*
+            FROM account_configs c
+            INNER JOIN (
+                SELECT account_id, MAX(id) AS latest_id
+                FROM account_configs
+                GROUP BY account_id
+            ) latest ON latest.latest_id = c.id
+        `);
         const systemSettings = await getSystemSettings([GLOBAL_CONFIG_SYSTEM_SETTING_KEY]);
         const persistedGlobalConfig = systemSettings[GLOBAL_CONFIG_SYSTEM_SETTING_KEY];
         const hasPersistedGlobalConfig = !!persistedGlobalConfig && typeof persistedGlobalConfig === 'object';
@@ -1274,7 +1282,9 @@ async function loadGlobalConfigFromDB() {
             if (r.automation_email === 1) automation.email = true;
 
             let adv = {};
-            if (r.advanced_settings) {
+            if (r.advanced_settings && typeof r.advanced_settings === 'object') {
+                adv = { ...r.advanced_settings };
+            } else if (r.advanced_settings) {
                 try { adv = JSON.parse(r.advanced_settings); } catch { }
             }
             if (adv.automation && typeof adv.automation === 'object') {

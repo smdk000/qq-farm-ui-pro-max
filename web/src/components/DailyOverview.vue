@@ -59,6 +59,10 @@ function getGiftStatusText(gift: any) {
       return '点券不足'
     if (gift.reason === 'missing_goods')
       return '商城礼包失配'
+    if (gift.reason === 'limit_reached')
+      return '已补到目标库存'
+    if (gift.reason === 'buy_disabled')
+      return '自动购肥已关闭'
     if (gift.result === 'error')
       return '执行异常'
     return '等待执行'
@@ -86,11 +90,21 @@ function formatGiftSubText(gift: any) {
     const organicTarget = Number(gift.targetHours?.organic || 0)
     const normalBought = Number(gift.typeCounts?.normal || 0)
     const organicBought = Number(gift.typeCounts?.organic || 0)
+    const missingTypes = Array.isArray(gift.missingTypes) ? gift.missingTypes.filter(Boolean) : []
+    const scopeText = `普通 ${normalHours.toFixed(1)}h/${normalTarget.toFixed(0)}h · 有机 ${organicHours.toFixed(1)}h/${organicTarget.toFixed(0)}h`
     if (gift.message)
-      return `${gift.message} · 容器 ${normalHours.toFixed(1)}h/${normalTarget.toFixed(0)}h · 有机 ${organicHours.toFixed(1)}h/${organicTarget.toFixed(0)}h`
+      return `${gift.message} · ${scopeText}`
+    if (gift.reason === 'threshold_not_reached')
+      return `当前库存已高于触发阈值 · ${scopeText}`
+    if (gift.reason === 'daily_limit' || gift.reason === 'limit_reached')
+      return `今日购买已满足规则 · ${scopeText}`
+    if (gift.reason === 'no_coupon' || gift.pausedNoGoldToday)
+      return `点券不足，今日暂停继续购买 · ${scopeText}`
+    if (gift.reason === 'missing_goods' && missingTypes.length)
+      return `商城暂缺 ${missingTypes.join('、')} 对应礼包 · ${scopeText}`
     if (normalBought > 0 || organicBought > 0)
       return `今日购买 普通 ${normalBought} / 有机 ${organicBought}`
-    return `容器 普通 ${normalHours.toFixed(1)}h / 有机 ${organicHours.toFixed(1)}h`
+    return `容器状态 · ${scopeText}`
   }
   if (gift.key === 'vip_daily_gift' && gift.hasGift === false)
     return '未开通QQ会员或无每日礼包'

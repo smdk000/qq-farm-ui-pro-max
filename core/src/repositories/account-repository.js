@@ -2,6 +2,17 @@ const { getPool, transaction } = require('../services/mysql-db');
 const { createModuleLogger } = require('../services/logger');
 
 const logger = createModuleLogger('account-repository');
+const LATEST_ACCOUNT_CONFIG_JOIN = `
+    LEFT JOIN (
+        SELECT c.*
+        FROM account_configs c
+        INNER JOIN (
+            SELECT account_id, MAX(id) AS latest_id
+            FROM account_configs
+            GROUP BY account_id
+        ) latest ON latest.latest_id = c.id
+    ) c ON a.id = c.account_id
+`;
 
 class AccountRepository {
 
@@ -39,7 +50,7 @@ class AccountRepository {
                     c.harvest_delay_max,
                     c.advanced_settings
                 FROM accounts a
-                LEFT JOIN account_configs c ON a.id = c.account_id
+                ${LATEST_ACCOUNT_CONFIG_JOIN}
                 ORDER BY a.created_at DESC
             `);
             return rows.map(r => {
@@ -95,7 +106,7 @@ class AccountRepository {
                     c.harvest_delay_min,
                     c.harvest_delay_max
                 FROM accounts a
-                LEFT JOIN account_configs c ON a.id = c.account_id
+                ${LATEST_ACCOUNT_CONFIG_JOIN}
                 ORDER BY a.created_at DESC
             `);
             return rows; // 无 JSON.parse，直接返回原生行
@@ -140,7 +151,7 @@ class AccountRepository {
                     c.account_mode, c.harvest_delay_min, c.harvest_delay_max
                     ${jsonFields}
                 FROM accounts a
-                LEFT JOIN account_configs c ON a.id = c.account_id
+                ${LATEST_ACCOUNT_CONFIG_JOIN}
                 ORDER BY a.created_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `);
@@ -170,7 +181,7 @@ class AccountRepository {
             const [rows] = await pool.execute(`
                 SELECT a.*, c.*
                 FROM accounts a
-                LEFT JOIN account_configs c ON a.id = c.account_id
+                ${LATEST_ACCOUNT_CONFIG_JOIN}
                 WHERE a.id = ?
             `, [id]);
             const row = rows[0];
@@ -215,7 +226,7 @@ class AccountRepository {
                 SELECT a.id, a.uin, a.nick, a.name, a.platform, a.running, a.username, a.last_login_at,
                        c.account_mode, c.harvest_delay_min, c.harvest_delay_max
                 FROM accounts a
-                LEFT JOIN account_configs c ON a.id = c.account_id
+                ${LATEST_ACCOUNT_CONFIG_JOIN}
                 WHERE a.username = ?
                 ORDER BY a.created_at ASC
             `, [username]);
@@ -299,7 +310,10 @@ class AccountRepository {
     async getConfig(accountId) {
         try {
             const pool = getPool();
-            const [rows] = await pool.execute('SELECT * FROM account_configs WHERE account_id = ?', [accountId]);
+            const [rows] = await pool.execute(
+                'SELECT * FROM account_configs WHERE account_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1',
+                [accountId],
+            );
             const row = rows[0];
             if (row && row.advanced_settings && typeof row.advanced_settings === 'string') {
                 try { row.advanced_settings = JSON.parse(row.advanced_settings); } catch (e) { }

@@ -271,6 +271,92 @@ test('bug report config persists to system_settings and reloads with normalizati
     }
 });
 
+test('offline reminder persists to system_settings and reloads without store.json fallback', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'store-offline-reminder-settings-'));
+    const restoreRuntimePaths = mockModule(runtimePathsModulePath, createRuntimePathsMock(tempRoot));
+    const mysqlMock = createMysqlMock();
+    const restoreMysql = mockModule(mysqlDbModulePath, mysqlMock);
+
+    try {
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
+
+        let store = require(storeModulePath);
+
+        store.setOfflineReminder({
+            channel: 'webhook',
+            reloginUrlMode: 'all',
+            endpoint: 'https://example.com/offline-hook',
+            token: 'offline-token',
+            title: '账号下线提醒',
+            msg: '检测到账号离线，请及时处理',
+            offlineDeleteEnabled: true,
+            offlineDeleteSec: 9,
+            webhookCustomJsonEnabled: true,
+            webhookCustomJsonTemplate: '{\"msg\":\"{{title}}\"}',
+        });
+
+        await store.flushGlobalConfigSave();
+
+        assert.deepEqual(mysqlMock.__state.systemSettings.global_config.offlineReminder, {
+            channel: 'webhook',
+            reloginUrlMode: 'all',
+            endpoint: 'https://example.com/offline-hook',
+            token: 'offline-token',
+            title: '账号下线提醒',
+            msg: '检测到账号离线，请及时处理',
+            offlineDeleteEnabled: true,
+            offlineDeleteSec: 9,
+            webhookCustomJsonEnabled: true,
+            webhookCustomJsonTemplate: '{"msg":"{{title}}"}',
+        });
+
+        const storeFile = path.join(tempRoot, 'data', 'store.json');
+        assert.equal(fs.existsSync(storeFile), true);
+        assert.deepEqual(JSON.parse(fs.readFileSync(storeFile, 'utf8')).offlineReminder, {
+            channel: 'webhook',
+            reloginUrlMode: 'all',
+            endpoint: 'https://example.com/offline-hook',
+            token: 'offline-token',
+            title: '账号下线提醒',
+            msg: '检测到账号离线，请及时处理',
+            offlineDeleteEnabled: true,
+            offlineDeleteSec: 9,
+            webhookCustomJsonEnabled: true,
+            webhookCustomJsonTemplate: '{"msg":"{{title}}"}',
+        });
+        fs.rmSync(storeFile, { force: true });
+
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
+
+        store = require(storeModulePath);
+        await store.initStoreRuntime();
+
+        assert.deepEqual(store.getOfflineReminder(), {
+            channel: 'webhook',
+            reloginUrlMode: 'all',
+            endpoint: 'https://example.com/offline-hook',
+            token: 'offline-token',
+            title: '账号下线提醒',
+            msg: '检测到账号离线，请及时处理',
+            offlineDeleteEnabled: true,
+            offlineDeleteSec: 9,
+            webhookCustomJsonEnabled: true,
+            webhookCustomJsonTemplate: '{"msg":"{{title}}"}',
+        });
+    } finally {
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        delete require.cache[secretCryptoModulePath];
+        restoreRuntimePaths();
+        restoreMysql();
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+});
+
 test('account settings are mirrored to store.json and can recover before db refresh', async () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'store-account-mirror-'));
     const restoreRuntimePaths = mockModule(runtimePathsModulePath, createRuntimePathsMock(tempRoot));

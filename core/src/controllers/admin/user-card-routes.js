@@ -54,19 +54,20 @@ function registerUserCardRoutes({
 }) {
     app.post('/api/auth/register', async (req, res) => {
         try {
-            if (rejectWhenCardFeatureDisabled(res, store, 'registerEnabled', '当前系统已暂停卡密注册，请联系管理员')) {
-                return;
-            }
             const { username, password, cardCode } = req.body || {};
+            const config = getCardFeatureConfigSafe(store);
+            const cardRegistrationEnabled = config.enabled !== false && config.registerEnabled !== false;
 
-            if (!username || !password || !cardCode) {
+            if (!username || !password || (cardRegistrationEnabled && !cardCode)) {
                 return res.status(400).json({
                     ok: false,
                     error: '缺少必要参数',
                     details: {
                         username: username ? '已提供' : '必填',
                         password: password ? '已提供' : '必填',
-                        cardCode: cardCode ? '已提供' : '必填',
+                        cardCode: cardRegistrationEnabled
+                            ? (cardCode ? '已提供' : '必填')
+                            : (cardCode ? '已提供' : '当前模式非必填'),
                     },
                 });
             }
@@ -81,9 +82,11 @@ function registerUserCardRoutes({
                 return res.status(400).json({ ok: false, error: passwordValidation.error });
             }
 
-            const cardCodeValidation = validateCardCode(cardCode);
-            if (!cardCodeValidation.valid) {
-                return res.status(400).json({ ok: false, error: cardCodeValidation.error });
+            if (cardRegistrationEnabled || String(cardCode || '').trim()) {
+                const cardCodeValidation = validateCardCode(cardCode);
+                if (!cardCodeValidation.valid) {
+                    return res.status(400).json({ ok: false, error: cardCodeValidation.error });
+                }
             }
 
             const result = await userStore.registerUser(username, password, cardCode);
@@ -266,6 +269,7 @@ function registerTrialCardRoutes({
     app.get('/api/public-card-feature-config', async (_req, res) => {
         try {
             const config = getCardFeatureConfigSafe(store);
+            res.set('Cache-Control', 'no-store');
             res.json({
                 ok: true,
                 data: {

@@ -135,13 +135,13 @@ export function buildFriendFetchBannerCopy(meta: FriendFetchMetaLike | null | un
           badge: '访客缓存',
         }
       }
-      let description = '微信实时好友当前不可用，系统已回退到缓存好友展示，并继续保持保守跳过自动好友互动。'
+      let description = '微信实时好友当前不可用，系统已回退到缓存好友展示，并在链路恢复前暂停本轮自动好友互动。'
       if (reason === 'self_only')
-        description = '微信实时好友当前只返回你自己，系统已回退到缓存好友，并暂停重复实时探测。'
+        description = '微信实时好友当前只返回你自己，系统已回退到缓存好友，并暂停短时间内的重复实时探测与本轮自动好友互动。'
       else if (reason === 'empty')
-        description = '微信实时好友当前没有返回可用好友，系统已回退到缓存好友，并先休息一会。'
+        description = '微信实时好友当前没有返回可用好友，系统已回退到缓存好友，并在冷却结束前暂停本轮自动好友互动。'
       else if (reason === 'error' || reason === 'request_failed')
-        description = '微信实时好友当前请求异常，系统已回退到缓存好友，并暂停短时间内的重复尝试。'
+        description = '微信实时好友当前请求异常，系统已回退到缓存好友，并暂停短时间内的重复尝试与本轮自动好友互动。'
       else if (reason === 'worker_error')
         description = '好友服务本轮获取失败，系统已回退到缓存好友展示。'
       return {

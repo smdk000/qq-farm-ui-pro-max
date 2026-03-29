@@ -8,6 +8,7 @@ import NotificationBell from '@/components/NotificationBell.vue'
 import Sidebar from '@/components/Sidebar.vue'
 import ThemeSettingDrawer from '@/components/ThemeSettingDrawer.vue'
 import { useAppStore } from '@/stores/app'
+import { clearAuth } from '@/utils/auth'
 import { attemptRouteRecovery, extractRouteErrorMessage, isRecoverableRouteError } from '@/utils/route-recovery'
 import { localizeRuntimeText } from '@/utils/runtime-text'
 
@@ -41,6 +42,11 @@ function recoverCurrentRoute() {
   const recovered = attemptRouteRecovery(route.fullPath)
   if (!recovered)
     routeRecoveryBusy.value = false
+}
+
+async function handleLogout() {
+  await clearAuth()
+  window.location.href = '/login'
 }
 
 watch(() => route.fullPath, () => {
@@ -121,6 +127,14 @@ onErrorCaptured((error, _instance, info) => {
             @click="showThemeDrawer = true"
           >
             <div class="i-carbon-settings text-xl" />
+          </button>
+          <button
+            class="layout-logout-btn glass-panel h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:translateY(-1px) hover:scale-110 focus:outline-none"
+            title="退出登录"
+            aria-label="退出登录"
+            @click="handleLogout"
+          >
+            <div class="i-carbon-logout layout-logout-icon text-xl" />
           </button>
         </div>
 
@@ -454,6 +468,14 @@ onErrorCaptured((error, _instance, info) => {
   box-shadow: 0 10px 20px -10px color-mix(in srgb, var(--ui-status-warning) 45%, transparent);
 }
 
+.layout-logout-btn {
+  border-color: color-mix(in srgb, var(--ui-status-danger) 30%, var(--ui-border-subtle));
+  background:
+    radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--ui-text-on-brand) 24%, transparent), transparent 62%),
+    color-mix(in srgb, var(--ui-status-danger) 12%, var(--ui-bg-surface-raised) 88%);
+  box-shadow: 0 12px 24px -12px color-mix(in srgb, var(--ui-status-danger) 40%, transparent);
+}
+
 .layout-bug-report-btn {
   border-color: color-mix(in srgb, var(--ui-status-danger) 28%, var(--ui-border-subtle));
   background:
@@ -466,12 +488,20 @@ onErrorCaptured((error, _instance, info) => {
   box-shadow: 0 0 0 2px var(--ui-focus-ring);
 }
 
+.layout-logout-btn:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-status-danger) 22%, var(--ui-focus-ring) 78%);
+}
+
 .layout-bug-report-btn:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-status-danger) 18%, var(--ui-focus-ring) 82%);
 }
 
 .layout-trophy-icon {
   color: var(--ui-status-warning);
+}
+
+.layout-logout-icon {
+  color: var(--ui-status-danger);
 }
 
 .layout-bug-report-icon {

@@ -2415,7 +2415,7 @@ async function checkFarm() {
         if (shouldPauseFarmDuringSuspend(state)) {
             logWeChatSuspendGuard(
                 'wechat_suspend_auto_farm',
-                `休息中 (剩余约 ${resetMinutes} 分钟)，当前平台 ${CONFIG.platform} 已暂停自家农场自动操作，避免继续打扰微信好友链路。`,
+                `休息中 (剩余约 ${resetMinutes} 分钟)，当前微信账号正处于保护窗口，已暂停自家农场自动操作。`,
                 { suspendUntil: Number(state.suspendUntil) || 0 },
             );
         } else {

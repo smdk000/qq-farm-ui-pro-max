@@ -18,6 +18,28 @@ const seasonText = computed(() => {
     return ''
   return `${current}/${total}季`
 })
+const matureProgress = computed(() => {
+  const matureInSec = Number(land.value?.matureInSec || 0)
+  const totalGrowTime = Number(land.value?.totalGrowTime || land.value?.growTime || 0)
+  if (matureInSec <= 0)
+    return land.value?.status === 'harvestable' ? 100 : 0
+  if (totalGrowTime <= 0)
+    return 0
+  const elapsed = Math.max(0, totalGrowTime - matureInSec)
+  return Math.max(0, Math.min(100, Math.round((elapsed / totalGrowTime) * 100)))
+})
+const matureProgressLabel = computed(() => {
+  const progress = matureProgress.value
+  if (land.value?.status === 'harvestable')
+    return '已成熟'
+  if (progress >= 95)
+    return '即将成熟'
+  if (progress >= 60)
+    return '生长后段'
+  if (progress > 0)
+    return '生长中'
+  return ''
+})
 
 const landMetaBadges = computed(() => {
   const badges: Array<{ key: string, label: string, title?: string, tone: MetaBadgeTone }> = []
@@ -176,6 +198,24 @@ function getLandTypeName(level: number) {
       {{ seasonText }}
     </div>
 
+    <div
+      v-if="land.status === 'growing' || land.status === 'harvestable'"
+      class="land-card-progress mb-1 mt-1 w-full px-1"
+      :title="matureProgressLabel || undefined"
+    >
+      <div class="land-card-progress__meta glass-text-muted mb-1 flex items-center justify-between text-[10px]">
+        <span>{{ matureProgressLabel || '成长进度' }}</span>
+        <span>{{ matureProgress }}%</span>
+      </div>
+      <div class="land-card-progress__track">
+        <div
+          class="land-card-progress__fill"
+          :class="{ 'is-harvestable': land.status === 'harvestable' }"
+          :style="{ width: `${matureProgress}%` }"
+        />
+      </div>
+    </div>
+
     <!-- Status Badges -->
     <div class="mt-auto flex origin-bottom scale-90 gap-0.5 text-[10px]">
       <BaseBadge
@@ -210,6 +250,45 @@ function getLandTypeName(level: number) {
 
 .land-card-timer {
   color: var(--ui-status-warning);
+}
+
+.land-card-progress__meta {
+  letter-spacing: 0.01em;
+  opacity: 0.9;
+}
+
+.land-card-progress__track {
+  overflow: hidden;
+  height: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 72%, transparent);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, black 10%, transparent);
+}
+
+.land-card-progress__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ui-brand-500) 72%, var(--ui-status-info) 28%),
+    color-mix(in srgb, var(--ui-status-warning) 58%, var(--ui-brand-500) 42%)
+  );
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ui-brand-500) 24%, transparent);
+  transition: width 240ms ease;
+}
+
+.land-card-theme:hover .land-card-progress__fill {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--ui-brand-500) 28%, transparent);
+}
+
+.land-card-progress__fill.is-harvestable {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ui-status-warning) 84%, white 16%),
+    color-mix(in srgb, var(--ui-status-success) 58%, var(--ui-status-warning) 42%)
+  );
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ui-status-warning) 28%, transparent);
 }
 
 .land-card-level-default {

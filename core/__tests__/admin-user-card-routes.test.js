@@ -33,8 +33,13 @@ function createResponse() {
     return {
         statusCode: 200,
         body: null,
+        headers: {},
         status(code) {
             this.statusCode = code;
+            return this;
+        },
+        set(name, value) {
+            this.headers[String(name)] = value;
             return this;
         },
         json(payload) {
@@ -267,8 +272,9 @@ test('auth renew route validates card code and writes renewed card back to curre
     assert.deepEqual(res.body, { ok: true, data: { card: { code: 'CARD-9', expiresAt: '2099-09-09' } } });
 });
 
-test('card feature control blocks register, renew and admin card issue when disabled', async () => {
+test('card feature control allows open registration without card while still blocking renew and admin card issue when disabled', async () => {
     const { app, routes } = createFakeApp();
+    let registerCalls = 0;
     const deps = createUserCardDeps({
         app,
         store: {
@@ -281,8 +287,10 @@ test('card feature control blocks register, renew and admin card issue when disa
             }),
         },
         userStore: {
-            registerUser: async () => {
-                throw new Error('should not reach registerUser');
+            registerUser: async (...args) => {
+                registerCalls += 1;
+                assert.deepEqual(args, ['alice', 'abc123', undefined]);
+                return { ok: true, user: { username: 'alice', role: 'user', card: null } };
             },
             renewUser: async () => {
                 throw new Error('should not reach renewUser');
@@ -304,9 +312,10 @@ test('card feature control blocks register, renew and admin card issue when disa
     registerUserCardRoutes(deps);
 
     const registerRes = createResponse();
-    await getRouteParts(routes, 'post', '/api/auth/register').handler({ body: { username: 'alice', password: 'abc123', cardCode: 'CARD-1' } }, registerRes);
-    assert.equal(registerRes.statusCode, 400);
-    assert.deepEqual(registerRes.body, { ok: false, error: '当前系统已暂停卡密注册，请联系管理员' });
+    await getRouteParts(routes, 'post', '/api/auth/register').handler({ body: { username: 'alice', password: 'abc123' } }, registerRes);
+    assert.equal(registerCalls, 1);
+    assert.equal(registerRes.statusCode, 200);
+    assert.deepEqual(registerRes.body, { ok: true, data: { user: { username: 'alice', role: 'user', card: null } } });
 
     const renewRes = createResponse();
     await getRouteParts(routes, 'post', '/api/auth/renew').handler({ currentUser: { username: 'alice' }, body: { cardCode: 'CARD-2' } }, renewRes);
@@ -317,6 +326,27 @@ test('card feature control blocks register, renew and admin card issue when disa
     await getRouteParts(routes, 'post', '/api/cards').handler({ currentUser: { role: 'admin' }, body: {} }, createRes);
     assert.equal(createRes.statusCode, 400);
     assert.deepEqual(createRes.body, { ok: false, error: '当前系统已关闭卡密发码功能' });
+});
+
+test('register route keeps card code required when card registration is enabled', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createUserCardDeps({ app });
+
+    registerUserCardRoutes(deps);
+
+    const res = createResponse();
+    await getRouteParts(routes, 'post', '/api/auth/register').handler({ body: { username: 'alice', password: 'abc123' } }, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, {
+        ok: false,
+        error: '缺少必要参数',
+        details: {
+            username: '已提供',
+            password: '已提供',
+            cardCode: '必填',
+        },
+    });
 });
 
 test('change password route keeps authRequired and delegates controller directly', async () => {
@@ -418,6 +448,7 @@ test('public card feature config read exposes register and trial availability wi
 
     const res = createResponse();
     await handler({}, res);
+    assert.equal(res.headers['Cache-Control'], 'no-store');
     assert.deepEqual(res.body, {
         ok: true,
         data: { enabled: false, registerEnabled: false, trialEnabled: false },

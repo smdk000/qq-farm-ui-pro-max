@@ -8,6 +8,9 @@
 
 ### 快速索引（精简版）
 
+- `2026-03-29` 卡密注册总控与免卡注册语义收口：修复“关闭卡密后前台仍强制卡密必填、导致无法注册”的逻辑冲突，统一前后端为“关闭后切换免卡注册，续费/体验卡/后台发码继续暂停”，并同步更新设置页与帮助中心文案。
+- `2026-03-29` 微信车载登录平台口径收口与验证文档补齐：解除 `wx_car / wx_ipad` 仅因平台名永久禁用自动偷菜的旧限制，统一日志/设置页/帮助中心口径为“按好友链路与保护窗口动态保守”，并新增微信车载账号复测清单。
+- `v4.5.55 (2026-03-29)` 近期优化补录、Docker 发布脚本与双机实装版：补齐最近一批已经落地但未完整进入公告的登录页/概览页/背包与土地体验优化，统一当前版本口径到 `v4.5.55`，并新增可直接发 Docker Hub 镜像的稳态脚本。
 - `v4.5.53 (2026-03-29)` 推送判定收口、汇报失败落库与双机发布版：补上推送渠道成功/失败状态归一化、汇报发送异常失败记录，并把发布/部署/公告默认版本统一抬升到 `v4.5.53`，作为本地最新工作区的正式发布版本。
 - `v4.5.52 (2026-03-29)` 发布口径统一、集群部署收口与双机升级复核：统一最近多轮功能更新的发布版本说明，补齐部署模板、默认镜像和工作流默认值到 `v4.5.52`，补上共享网络自动 external 复用，并对多实例升级链路继续复核。
 - `v4.5.38 (2026-03-25)` 远程更新 smoke 无 Node 兜底与默认地址修复：smoke 脚本支持自动借用主程序容器内置 `node`、首登 cookie 正常落盘，并改为从部署目录 `.env` 的 `WEB_PORT` 推导默认 `base-url`。
@@ -40,6 +43,83 @@
 
 > 说明：以上为“快速浏览摘要”；完整变更、验证命令与问题复盘请以下方详细记录为准。
 
+### 开发补记 - v4.5.55 近期优化补录、Docker 发布脚本与双机实装版 (2026-03-29)
+
+#### ✅ 本轮补录与文档收口
+- ✅ **最近一批真实 UI 优化已补进正式公告**: `Dashboard.vue` 的管理员工作台摘要与快捷入口、`Login.vue` 的公开状态卡片、`BagPanel.vue` 的物品状态标签、`LandCard.vue` 的成长进度条、`DefaultLayout.vue` 的退出登录入口都已补进 `CHANGELOG.md`、`logs/development/Update.log` 与 `README.md` 最近更新区块。
+- ✅ **公告缺口已重新梳理**: 本轮确认此前主要缺的是“已经落地的近期体验优化没有同步进更新公告”，不是版本源断档；现在公告、README 最近更新和帮助中心 Release Notes 会继续围绕同一份版本索引同步。
+- ✅ **README 与部署文档已补齐 Docker 实战主线**: README 新增“代码更新后直接发 Docker 镜像”的命令示例，`deploy/README.md`、`deploy/README.cn.md` 与部署模板中的示例版本也已统一切到 `v4.5.55`。
+
+#### ✅ 本轮发布链路补强
+- ✅ **Docker 自动发布脚本已改成非交互式稳态模式**: `scripts/deploy/auto-update-docker.sh` 现在会直接执行 `check:announcements / check:doc-links / 关键回归 / vue-tsc`，随后登录 Docker Hub 并调用 `scripts/docker/docker-build-multiarch.sh` 推镜像，不再依赖交互式 Git 提问。
+- ✅ **当前默认版本已统一切到 `v4.5.55`**: `core/package.json`、`web/package.json`、部署模板、离线包默认版本、README 与 GitHub Actions 工作流默认版本已同步抬升。
+- ✅ **下次更新后的最短镜像发布命令已固定**:
+  - `export DOCKERHUB_TOKEN='***'`
+  - `bash scripts/deploy/auto-update-docker.sh --version v4.5.55`
+  - 服务器侧再执行 `update-app.sh --image smdk000/qq-farm-bot-ui:4.5.55`
+
+#### 🔍 本轮复查结论
+- ✅ **最近公告确实遗漏了一批“用户可感知但不影响接口结构”的前端优化**: 主要集中在登录页、概览工作台、背包卡片、土地卡片与布局级快捷操作。
+- ✅ **这些遗漏暂未引起版本源错乱**: `CHANGELOG.md`、`Update.log` 和帮助中心 Release Notes 的版本号主线仍然连续；问题更多是“摘要不够完整”，导致公告对真实优化覆盖不足。
+- ✅ **当前更需要持续补强的不是再造一套公告系统，而是继续坚持发版前执行 `pnpm check:announcements`，并在体验类优化落地时同步补摘要。**
+
+#### 🚚 双机部署与验收结果
+- ✅ **`10.31.2.242` 三套实例已完成 `v4.5.55` 升级**: `2600` 主程序、`2500` Worker 和 `2400` 独立实例都已切换到 `smdk000/qq-farm-bot-ui:4.5.55`，并分别通过 `verify-stack.sh`。
+- ✅ **`10.31.1.254` 已完成最新安装链路自测**: 通过 `self-test-install.sh` 在独立目录跑通一键安装、更新、手动修复向导和安装后核验，证明最新部署包可落地。
+- ⚠️ **`10.31.1.254` 生产栈暂未强更**: 更新脚本检测到 `7` 个运行中的一次性登录账号，已按预期触发重登录风险保护，当前保留在“待人工确认后再升级”的安全状态。
+
+#### ⚠️ 本轮发现的问题与影响
+- ⚠️ **两台服务器都无法稳定直连 Docker Hub / GHCR**: 真实升级过程会先经历仓库拉取超时，再回退到本地离线镜像，虽然最终可完成升级，但会显著拉长更新时间。
+- ⚠️ **`stack2500` 更新预检提示和真实容器状态存在一次不一致**: 日志曾提示“主程序容器当前未运行”，但 `qq-farm-2500-bot` 实际在升级前后都处于运行健康态；说明更新脚本对主容器名/栈上下文的解析仍值得继续复核。
+- ⚠️ **`10.31.1.254` 强更后已出现一次性登录账号掉线**: 按你的要求跨过重登录风险保护后，`1029 / 1040 / 1041 / 1042 / 1043 / 1044 / 1045` 这批只保存一次性登录凭据的账号都在重启后出现“连接被拒绝，可能需要更新 Code”，并退出运行态；这证明此前的风险拦截是准确的，不是误报。
+
+#### 💡 后续优化建议
+- 💡 **建议给 `update-app.sh` 增加“优先本地镜像”快捷路径**: 检测到同 tag 镜像已经 `docker load` 到本机后，直接跳过官方仓库重试，可以明显缩短离线部署时间。
+- 💡 **建议给更新脚本增加单独的风险预检模式**: 先输出运行中一次性登录账号列表，再由管理员决定是否停机升级，可减少在生产机上临时判断的压力。
+- 💡 **建议在更新日志里打印解析后的 `STACK_NAME / APP_CONTAINER_NAME / COMPOSE_APP_SERVICE`**: 方便后续定位 `2500` 这类“预检提示和实际状态不一致”的问题。
+- 💡 **下次正式发镜像优先走 GitHub Actions 官方工作流**: 当前本地环境没有 Docker 引擎，虽然已经补齐自动发布脚本，但真实直推 Docker Hub 仍建议交给 CI 构建机完成。
+- 📄 **本轮完整复盘已另存为审计文档**: [发布公告、Docker 部署与双机升级审计](/Volumes/My%20Shared%20Files/AllFiles/Users/smdk000/文稿/qq/qq-farm-bot-ui-main_副本/docs/audit/REPORT_AUDIT_20260330_发布公告_Docker部署_双机升级.md)
+
+### 开发补记 - 卡密注册总控与免卡注册语义收口 (2026-03-29)
+
+#### ✅ 本轮问题修复
+- ✅ **修复“关闭卡密后仍要求填写卡密”的注册阻断**: 登录页注册表单不再把“卡密总控关闭”解释成“整个注册入口停用”，而是改为自动切换到免卡注册模式。
+- ✅ **前后端注册判断已统一**: `web/src/views/Login.vue`、`core/src/controllers/admin/user-card-routes.js` 与 `core/src/models/user-store.js` 现统一为“卡密注册开启时才强制校验卡密；关闭时允许用户名 + 密码直接注册”。
+- ✅ **无卡注册会落成普通用户**: 关闭卡密注册要求后的新用户将以普通用户身份创建，不绑定卡密、不附带体验卡账号数限制，也不会误走续费或卡密消费链路。
+
+#### ✅ 本轮产品口径同步
+- ✅ **设置页总控文案已改成真实语义**: `web/src/views/Settings.vue` 中“注册”状态卡、关闭确认弹窗和总控说明已统一改为“控制注册是否必须填写卡密，关闭后切换为免卡注册”。
+- ✅ **帮助中心与对外说明已同步**: `web/src/content/help-center/admin-console.md`、`web/src/content/help-center/settings-overview.md`、`web/src/content/help-center/advanced-settings.md`、`README.md` 与 `CHANGELOG.md` 已全部改成同一口径，避免后台仍显示“暂停注册”造成误导。
+
+#### 🧪 本轮验证
+- ✅ `node --test core/__tests__/admin-user-card-routes.test.js`
+- ✅ `pnpm -C web exec vue-tsc --noEmit`
+
+#### 📌 本轮说明
+- 📌 **这次修复的是“卡密总控”的真实产品语义，而不是简单隐藏输入框**: 重点是把“关闭卡密注册要求”和“暂停所有注册”这两种完全不同的业务行为彻底拆开。
+- 📌 **续费、体验卡和后台发码总控保持原有限制**: 本轮只放开关闭卡密要求后的普通注册，不会让卡密续费、体验卡领取和后台发码绕过总控重新生效。
+
+### 开发补记 - 微信车载登录平台口径收口与验证文档补齐 (2026-03-29)
+
+#### ✅ 本轮行为收口
+- ✅ **`wx_car / wx_ipad` 不再因平台名本身永久禁用自动偷菜**: `WeChatPlatform.allowAutoSteal()` 已从平台级硬禁用改为允许执行，真正的暂停条件改由微信好友链路实时状态与保护窗口决定。
+- ✅ **微信保守链路仍保留动态保护**: 如果 `GetAll` 连续只返回自己、空结果或异常，系统仍会进入好友链路冷却，暂停本轮自动好友互动；如果账号处于保护窗口，自家农场自动操作也仍会休息。
+
+#### ✅ 本轮提示与文档统一
+- ✅ **日志与运行态提示不再误导成“平台永久封禁”**: `friend-scanner.js`、`farm.js`、`friend-fetch-status.ts` 已统一改为“链路冷却 / 保护窗口 / 本轮暂停”这类按运行态描述，不再出现“当前平台已强制关闭自动偷菜”的旧口径。
+- ✅ **设置页说明已同步到当前真实行为**: `Settings.vue` 里的“自动偷菜”和“强效兼容尝试”说明已经明确改成“微信不会因平台名永久禁用，但链路异常时仍会自动冷却与暂停本轮互动”。
+- ✅ **帮助中心与排障说明已同步更新**: `web/src/content/help-center/troubleshooting.md` 与 `web/src/content/help-center/planting-and-automation.md` 现已明确区分“扫码登录入口”和“好友链路运行态保护”。
+- ✅ **微信车载账号复测清单已落库**: 新增 `docs/WECHAT_WX_CAR_VERIFICATION_CHECKLIST_2026-03-29.md`，把登录成功判定、好友链路恢复判定、保护窗口判定和自动偷菜恢复标准整理成可直接执行的检查单。
+
+#### 🧪 本轮验证
+- ✅ `node --test core/__tests__/wechat-platform-auto-steal.test.js core/__tests__/friend-actions-wechat-conservative.test.js core/__tests__/farm-wechat-suspend-guard.test.js`
+- ✅ `pnpm -C web exec vue-tsc --noEmit`
+- ✅ `pnpm check:doc-links`
+
+#### 📌 本轮说明
+- 📌 **这轮不是新的正式发版，而是对既有微信保守策略的口径再校正**: 核心目标是把“平台永久封禁”修正为“按运行态动态保守”，避免用户把扫码平台误解成永久禁止互动的标签。
+- 📌 **这轮同时补齐了运维/复测视角的可执行文档**: 后续再排查微信车载账号时，可以直接按复测清单判断“登录问题”“链路冷却”“保护窗口”和“自动偷菜未触发”分别属于哪一层。
+
 ### 开发补记 - v4.5.53 推送判定收口、汇报失败落库与双机发布版 (2026-03-29)
 
 #### ✅ 本轮发布收口
@@ -51,6 +131,43 @@
 #### 🧪 本轮新增验证
 - ✅ **新增推送结果判定测试**: 覆盖 HTTP 风格成功码、伪成功失败码和邮件配置异常三条高风险分支。
 - ✅ **新增汇报失败落库测试**: 覆盖发送器直接抛异常时 `report_logs` 仍会记录失败结果和错误文案。
+
+### 开发补记 - 经营汇报状态恢复、配置唯一化与 MySQL JSON 兼容修复 (2026-03-29)
+
+#### ✅ 本轮已追加落地
+- ✅ **`account_configs` 重复记录风险已收口**:
+  - 新增 [core/src/database/migrations/025-account-configs-unique.sql](/Users/smdk000/文稿/qq/qq-farm-bot-ui-main_副本/core/src/database/migrations/025-account-configs-unique.sql)
+  - 启动阶段已在 [core/src/services/mysql-db.js](/Users/smdk000/文稿/qq/qq-farm-bot-ui-main_副本/core/src/services/mysql-db.js) 接入检测与自动执行
+  - 迁移会清理同一 `account_id` 的历史重复配置，并补上唯一索引 `uniq_account_configs_account_id`
+- ✅ **账号配置读取已只取最新一条**:
+  - [core/src/repositories/account-repository.js](/Users/smdk000/文稿/qq/qq-farm-bot-ui-main_副本/core/src/repositories/account-repository.js) 现统一通过最新配置子查询读取账号配置
+  - [core/src/models/store.js](/Users/smdk000/文稿/qq/qq-farm-bot-ui-main_副本/core/src/models/store.js) 从 MySQL 载入账号配置时也只读取每账号最新一条
+- ✅ **`advanced_settings` 对象型返回已兼容**:
+  - [core/src/models/store.js](/Users/smdk000/文稿/qq/qq-farm-bot-ui-main_副本/core/src/models/store.js) 现同时兼容 MySQL 驱动返回字符串型和对象型 `advanced_settings`
+  - 避免账号级 `reportConfig` 在 `loadAllFromDB()` 后被误丢弃并回退到默认关闭
+- ✅ **`1009` 经营汇报已恢复并完成真实发送验证**:
+  - 当前为 `email` 渠道
+  - `smtpHost=smtp.qq.com`
+  - `smtpUser/emailFrom/emailTo=278050013@qq.com`
+  - `dailyEnabled=true`
+  - 已完成一次真实 `sendAccountReportTest('1009')`
+
+#### 🔍 本轮复查结论
+- ✅ 经营汇报主链路本身一直是通的，现场真正的问题在于配置层:
+  - `account_configs` 重复写入
+  - MySQL JSON 返回类型兼容缺失
+- ✅ 这两类问题叠加后，会把“已经恢复的经营汇报配置”在全新进程重载时又打回默认值，表现成“看起来保存成功，但重启后又没了”。
+- ✅ 现在 `1009` 已经在全新进程重载后保持启用态，不再出现重载后回退。
+- ✅ 审计历史里真正参与过经营汇报的真实账号只有 `1009` 和 `1005`；其中 `1005` 仅有一次早期 webhook 失败记录，且进一步复查 `account_configs`、`core/data/store.json`、`data/store.json` 与历史备份后仍未找到可复用的 webhook 目标配置，本轮未自动恢复。
+
+#### 🧪 本轮核验
+- ✅ `node --check core/src/services/mysql-db.js`
+- ✅ `node --check core/src/repositories/account-repository.js`
+- ✅ `node --check core/src/models/store.js`
+- ✅ `node --test --test-reporter spec core/__tests__/admin-settings-report-routes.test.js core/__tests__/report-email-payload.test.js core/__tests__/report-service-delivery-failure.test.js core/__tests__/report-service-restart-broadcast.test.js core/__tests__/store-account-settings-persistence.test.js core/__tests__/store-system-settings.test.js core/__tests__/data-provider-save-settings.test.js core/__tests__/admin-account-settings-routes.test.js`
+- ✅ `node --test --test-reporter spec core/__tests__/store-account-settings-persistence.test.js core/__tests__/store-system-settings.test.js`
+- ✅ 真实测试发送返回 `250 OK: queued as.`
+- ✅ 最新历史记录已新增 `1009 / test / ok=1 / email / 2026-03-29 13:11:20`
 
 ### 开发补记 - v4.5.52 发布口径统一、集群部署收口与双机升级复核 (2026-03-29)
 

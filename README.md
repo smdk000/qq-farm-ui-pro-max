@@ -2,7 +2,7 @@
 
 > 🔴 **醒目提醒：现在扫码登录失效，等其他大佬修复，本仓库暂停更新功能，仅修复bug了。**基于 Node.js 的 QQ 农场自动化工具，支持多账号管理、Web 控制面板、实时日志与数据分析。
 
-![版本](https://img.shields.io/badge/版本-v4.5.54-blue)
+![版本](https://img.shields.io/badge/版本-v4.5.55-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange)
 ![Redis](https://img.shields.io/badge/Redis-6.0-red)
@@ -311,7 +311,7 @@ bash <(curl --http1.1 --retry 4 --retry-delay 1 --retry-all-errors --connect-tim
 如需固定镜像版本或覆盖仓库，可在 `.env` 中设置：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.54
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.55
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -366,7 +366,7 @@ bash install-or-update.sh --action update --preserve-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.54
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.55
 
 # 弱网 / 离线环境：先 docker load，再用离线镜像包更新
 bash update-app.sh --image-archive /root/qq-farm-bot-images-amd64.tar.gz
@@ -421,8 +421,8 @@ curl http://localhost:3080/api/ping
 
 - `qq-farm-bot-images-amd64.tar.gz`
 - `qq-farm-bot-images-arm64.tar.gz`
-- `qq-farm-bot-v4.5.54-offline-amd64.tar.gz`
-- `qq-farm-bot-v4.5.54-offline-arm64.tar.gz`
+- `qq-farm-bot-v4.5.55-offline-amd64.tar.gz`
+- `qq-farm-bot-v4.5.55-offline-arm64.tar.gz`
 
 其中 `arm64` 离线包里的 `ipad860` 仍是 `linux/amd64`，目标宿主机需支持 QEMU。
 
@@ -436,6 +436,30 @@ curl http://localhost:3080/api/ping
 ## 🏗️ Docker 多平台构建
 
 ### 构建并推送到 Docker Hub 和 GitHub
+
+#### 0. 代码更新后直接发镜像
+
+推荐直接使用项目内置脚本，它会先跑公告/文档/关键回归检查，再登录 Docker Hub 并调用多架构构建脚本：
+
+```bash
+export DOCKERHUB_TOKEN='你的 Docker Hub Token'
+bash scripts/deploy/auto-update-docker.sh --version v4.5.55
+```
+
+如果同时要推送 GHCR：
+
+```bash
+export DOCKERHUB_TOKEN='你的 Docker Hub Token'
+export GHCR_USERNAME='你的 GitHub 用户名'
+export GHCR_TOKEN='你的 GitHub Token'
+bash scripts/deploy/auto-update-docker.sh --version v4.5.55 --with-ghcr --with-release-assets
+```
+
+镜像推送完成后，服务器直接执行：
+
+```bash
+/opt/qq-farm-current/update-app.sh --image smdk000/qq-farm-bot-ui:4.5.55
+```
 
 #### 1. 环境准备
 
@@ -456,7 +480,7 @@ echo $GH_PAT | docker login ghcr.io -u smdk000 --password-stdin
 **使用脚本构建（推荐）**:
 ```bash
 chmod +x scripts/docker/docker-build-multiarch.sh
-./scripts/docker/docker-build-multiarch.sh --version 4.5.54
+./scripts/docker/docker-build-multiarch.sh --version 4.5.55
 ```
 
 **手动构建**:
@@ -464,7 +488,7 @@ chmod +x scripts/docker/docker-build-multiarch.sh
 # 构建并推送到 Docker Hub
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t smdk000/qq-farm-bot-ui:4.5.54 \
+  -t smdk000/qq-farm-bot-ui:4.5.55 \
   -t smdk000/qq-farm-bot-ui:latest \
   -f core/Dockerfile . \
   --push
@@ -472,7 +496,7 @@ docker buildx build \
 # 构建并推送到 GitHub Container Registry
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.54 \
+  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.55 \
   -t ghcr.io/smdk000/qq-farm-ui-pro-max:latest \
   -f core/Dockerfile . \
   --push
@@ -482,7 +506,7 @@ docker buildx build \
 
 ```bash
 chmod +x scripts/release/build-release-assets.sh
-./scripts/release/build-release-assets.sh --version v4.5.54
+./scripts/release/build-release-assets.sh --version v4.5.55
 
 # 产物默认输出到 ./release-assets
 ls release-assets
@@ -492,7 +516,7 @@ ls release-assets
 
 ```bash
 # 查看镜像信息
-docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.54
+docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.55
 
 # Docker Hub 查看
 # https://hub.docker.com/r/smdk000/qq-farm-bot-ui/tags
@@ -733,8 +757,8 @@ Docker 会自动选择适合您系统架构的镜像版本。
 ---
 
 **维护者**: smdk000
-**最后更新**: 2026-03-28
-**版本**: v4.5.54
+**最后更新**: 2026-03-29
+**版本**: v4.5.55
 
 ## 多用户模式
 
@@ -1108,6 +1132,12 @@ ISC License
 
 ## 🎉 最近更新
 
+### v4.5.55 - 近期优化补录、Docker 发布脚本与双机实装版 (2026-03-29)
+- ✅ 最近登录页状态卡片、管理员概览工作台、背包状态标签、土地成长进度条和退出登录入口等一批已经落地但未完整进入公告的体验优化，现已统一补录到更新公告、README 和帮助中心 Release Notes。
+- ✅ 登录页注册逻辑已统一为“关闭卡密要求后切换为免卡注册”；`wx_car / wx_ipad` 的自动偷菜提示也已改为按好友链路冷却和保护窗口动态保守，不再误导成平台永久禁用。
+- ✅ 经营汇报配置恢复问题已补齐 `account_configs` 唯一化迁移与 MySQL JSON 兼容修复，账号级 `reportConfig` 在全新进程重载后不再误回退。
+- ✅ `scripts/deploy/auto-update-docker.sh` 已改成非交互式 Docker 发布助手，README 也补上了“代码更新后直接发镜像”和服务器同步更新命令，当前默认版本统一抬升到 `v4.5.55`。
+
 ### v4.5.54 - 双机多端口部署与 Release 完整性复核版 (2026-03-29)
 - ✅ 这次把最近 `v4.5.47` 到 `v4.5.53` 的功能更新重新整理为对外发布摘要，GitHub Release、Docker 镜像、README 最近更新和运行态公告口径会继续保持一致。
 - ✅ `core / web` 包版本、README、部署模板、自动更新脚本、离线包默认版本、GitHub Actions 默认版本与帮助中心 Release Notes 已统一抬升到 `v4.5.54`。
@@ -1131,7 +1161,7 @@ ISC License
 - ✅ 设置页“账号与安全”新增卡密发放总控，管理员可以一键开启 / 关闭卡密注册、卡密续费、体验卡领取和后台发码。
 - ✅ 后端已统一拦截注册、续费、体验卡和后台发码入口，避免后台关了总控后仍能从其他页面绕路继续使用卡密链路。
 - ✅ 用户管理页、卡密页和登录页都会同步响应总控状态，新增用户、补绑 / 更换卡密、体验卡续费和注册入口的提示与禁用状态已统一。
-- ✅ 帮助中心已补齐“卡密发放总控”的行为说明，明确关闭后只会暂停新的卡密业务流，不会影响已有已生效账号。
+- ✅ 帮助中心已补齐“卡密发放总控”的行为说明，明确关闭后注册会切换为免卡模式，其余新的卡密业务流会暂停，且不会影响已有已生效账号。
 
 ### v4.5.50 - 好友页巡检台导出与状态筛选增强 (2026-03-28)
 - ✅ 巡检结果新增“全部 / 仅未拉黑 / 仅已拉黑”状态筛选，默认名账号、低等级账号和全量好友检查时更容易聚焦目标对象。

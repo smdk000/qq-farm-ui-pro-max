@@ -309,7 +309,7 @@ function resolveWechatGuardNote(account: AccountItem) {
       : '微信农场自动操作正在休息')
   }
   if (!notes.length && Number(wechat.syncAllUnsupportedUntil || 0) > runtimeNowTs.value) {
-    notes.push('当前微信账号已记忆为不支持 SyncAll，好友链路固定走 GetAll')
+    notes.push('当前微信账号已记忆为不支持 SyncAll，好友链路将优先走 GetAll')
   }
   return notes.join('；')
 }

@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.55',
+    date: '2026-03-29',
+    title: '近期优化补录、Docker 发布脚本与双机实装版',
+    summary: '补齐最近登录页/概览页/背包与土地卡片优化的对外公告，修复免卡注册、微信车载链路提示与经营汇报配置恢复问题，并新增可直接发布 Docker Hub 镜像的稳态脚本与部署说明。',
+  },
+  {
     version: 'v4.5.54',
     date: '2026-03-29',
     title: '双机多端口部署与 Release 完整性复核版',

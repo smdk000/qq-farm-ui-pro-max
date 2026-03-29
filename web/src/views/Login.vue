@@ -35,12 +35,16 @@ const LOGIN_BROWSER_PREF_NOTE = '“记住用户名”只保存在当前浏览�
 const trialLoading = ref(false)
 const trialSuccess = ref(false)
 const trialCooldown = ref(0) // 剩余冷却秒数
+const cardFeatureConfigLoaded = ref(false)
 const cardFeatureConfig = ref({
-  enabled: true,
-  registerEnabled: true,
-  trialEnabled: true,
+  enabled: false,
+  registerEnabled: false,
+  trialEnabled: false,
 })
+const serverVersion = ref('')
+const latestNotification = ref<any | null>(null)
 let cooldownTimer: ReturnType<typeof setInterval> | null = null
+const webVersion = __APP_VERSION__
 
 // 格式化冷却时间
 const cooldownText = computed(() => {
@@ -60,6 +64,7 @@ const cooldownText = computed(() => {
 onMounted(async () => {
   await appStore.fetchUIConfig()
   await loadCardFeatureConfig()
+  await loadPublicLoginStatus()
   if (rememberUsername.value && savedUsername.value) {
     username.value = savedUsername.value
   }
@@ -71,20 +76,61 @@ onMounted(async () => {
   document.body.style.height = 'auto'
 })
 
+const versionSummary = computed(() => {
+  if (serverVersion.value)
+    return `Web v${webVersion} · Core v${serverVersion.value}`
+  return `Web v${webVersion}`
+})
+
+const registrationStatusCards = computed(() => ([
+  {
+    key: 'register',
+    label: '注册模式',
+    value: !cardFeatureConfigLoaded.value
+      ? '读取中'
+      : isRegisterCardRequired.value ? '卡密注册' : '免卡注册',
+    tone: !cardFeatureConfigLoaded.value ? 'neutral' : (isRegisterCardRequired.value ? 'warning' : 'success'),
+  },
+  {
+    key: 'trial',
+    label: '体验卡',
+    value: !cardFeatureConfigLoaded.value
+      ? '读取中'
+      : (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.trialEnabled === false ? '已暂停' : '可领取'),
+    tone: !cardFeatureConfigLoaded.value
+      ? 'neutral'
+      : (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.trialEnabled === false ? 'danger' : 'info'),
+  },
+  {
+    key: 'version',
+    label: '当前版本',
+    value: serverVersion.value ? `Core ${serverVersion.value}` : `Web ${webVersion}`,
+    tone: 'brand',
+  },
+]))
+
 const isFormValid = computed(() => {
   if (activeTab.value === 'login') {
     return username.value.trim() && password.value.trim()
   }
   else {
-    return cardFeatureConfig.value.enabled !== false
+    if (!cardFeatureConfigLoaded.value)
+      return false
+    const cardRequired = cardFeatureConfig.value.enabled !== false
       && cardFeatureConfig.value.registerEnabled !== false
-      && username.value.trim()
+    return username.value.trim()
       && password.value.trim()
-      && cardCode.value.trim()
+      && (!cardRequired || cardCode.value.trim())
   }
 })
 
+const isRegisterCardRequired = computed(() => (
+  cardFeatureConfig.value.enabled !== false
+  && cardFeatureConfig.value.registerEnabled !== false
+))
+
 async function loadCardFeatureConfig() {
+  cardFeatureConfigLoaded.value = false
   try {
     const res = await api.get('/api/public-card-feature-config')
     if (res.data?.ok && res.data?.data) {
@@ -92,7 +138,27 @@ async function loadCardFeatureConfig() {
     }
   }
   catch {
-    cardFeatureConfig.value = { enabled: true, registerEnabled: true, trialEnabled: true }
+    cardFeatureConfig.value = { enabled: false, registerEnabled: false, trialEnabled: false }
+  }
+  finally {
+    cardFeatureConfigLoaded.value = true
+  }
+}
+
+async function loadPublicLoginStatus() {
+  try {
+    const [pingRes, notificationsRes] = await Promise.all([
+      api.get('/api/ping'),
+      api.get('/api/notifications', { params: { limit: 1 } }),
+    ])
+    if (pingRes.data?.ok) {
+      serverVersion.value = String(pingRes.data?.data?.version || '').trim()
+    }
+    const notifications = Array.isArray(notificationsRes.data?.data) ? notificationsRes.data.data : []
+    latestNotification.value = notifications[0] || null
+  }
+  catch {
+    latestNotification.value = null
   }
 }
 
@@ -257,7 +323,7 @@ function validateRegisterForm() {
     error.value = '密码须同时包含字母和数字'
     return false
   }
-  if (!cardCode.value.trim()) {
+  if (isRegisterCardRequired.value && !cardCode.value.trim()) {
     error.value = '卡密不能为空'
     return false
   }
@@ -267,10 +333,6 @@ function validateRegisterForm() {
 async function handleRegister() {
   if (!isFormValid.value)
     return
-  if (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.registerEnabled === false) {
-    error.value = '当前系统已暂停卡密注册，请联系管理员'
-    return
-  }
   if (!validateRegisterForm())
     return
 
@@ -280,7 +342,7 @@ async function handleRegister() {
     const res = await api.post('/api/auth/register', {
       username: username.value,
       password: password.value,
-      cardCode: cardCode.value,
+      cardCode: cardCode.value.trim(),
     })
     if (res.data.ok) {
       // 拦截写入，唤起免责弹窗
@@ -371,6 +433,30 @@ const copyrightText = computed(() => appStore.copyrightText)
           <p class="login-brand-subtitle mb-2 text-xs font-medium tracking-wide drop-shadow-md lg:mb-8 lg:text-base">
             精简化、自动化的多账号管理助手
           </p>
+
+          <div class="login-status-strip mb-4 flex flex-wrap items-center justify-center gap-2 lg:mb-6">
+            <span class="login-status-pill">{{ versionSummary }}</span>
+            <span class="login-status-pill">QQ群 {{ supportQqGroup }}</span>
+            <span class="login-status-pill">
+              {{ latestNotification?.version ? `最新公告 ${latestNotification.version}` : '公告入口已接通' }}
+            </span>
+          </div>
+
+          <div class="login-status-grid mb-4 grid w-full gap-2 px-2 lg:mb-6 lg:grid-cols-3 lg:px-4">
+            <div
+              v-for="item in registrationStatusCards"
+              :key="item.key"
+              class="login-status-card rounded-2xl px-3 py-3 text-left"
+              :class="`tone-${item.tone}`"
+            >
+              <div class="login-status-card__label text-[11px] font-semibold uppercase tracking-[0.18em]">
+                {{ item.label }}
+              </div>
+              <div class="login-status-card__value mt-1 text-sm font-bold lg:text-base">
+                {{ item.value }}
+              </div>
+            </div>
+          </div>
 
           <div class="hidden w-full px-4 lg:grid lg:grid-cols-2 lg:gap-3">
             <div class="login-feature-card group flex flex-col cursor-default items-center justify-center gap-2 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:-translate-y-1.5">
@@ -479,29 +565,44 @@ const copyrightText = computed(() => appStore.copyrightText)
 
             <!-- 注册表单 -->
             <form v-else class="space-y-3 lg:space-y-5" @submit.prevent="handleRegister">
-              <div
-                v-if="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false"
-                class="login-trial-card p-5 space-y-2 text-center"
-              >
+              <div class="login-trial-card p-5 space-y-2 text-center">
                 <div class="text-base font-semibold">
-                  当前暂停注册
+                  {{ !cardFeatureConfigLoaded
+                    ? '正在读取注册配置'
+                    : isRegisterCardRequired ? '卡密注册已开启' : '当前为免卡注册模式' }}
                 </div>
                 <p class="glass-text-muted text-sm leading-6">
-                  管理员已临时关闭卡密注册入口，请稍后再试或联系管理员。
+                  {{ !cardFeatureConfigLoaded
+                    ? '正在同步服务器上的注册与卡密总控状态，请稍候。'
+                    : isRegisterCardRequired
+                    ? '请输入有效卡密完成注册；若没有卡密，也可以先领取下方体验卡。'
+                    : '管理员已关闭卡密注册要求，当前创建账号无需再填写卡密。' }}
                 </p>
+                <div class="login-register-summary rounded-xl px-3 py-2 text-left text-xs leading-5">
+                  <div>当前版本：{{ versionSummary }}</div>
+                  <div>注册入口：{{ !cardFeatureConfigLoaded ? '读取中' : (isRegisterCardRequired ? '需要卡密' : '无需卡密') }}</div>
+                  <div>体验卡：{{ !cardFeatureConfigLoaded ? '读取中' : (cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false ? '暂停领取' : '可自助领取') }}</div>
+                </div>
               </div>
 
-              <BaseInput v-model="username" label="用户名" placeholder="4-20个字符" autocomplete="username" required :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false">
+              <BaseInput v-model="username" label="用户名" placeholder="4-20个字符" autocomplete="username" required>
                 <template #prefix>
                   <div class="login-form-icon i-carbon-user" />
                 </template>
               </BaseInput>
-              <BaseInput v-model="password" type="password" label="新密码" placeholder="字母+数字组合" autocomplete="new-password" required :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false">
+              <BaseInput v-model="password" type="password" label="新密码" placeholder="字母+数字组合" autocomplete="new-password" required>
                 <template #prefix>
                   <div class="login-form-icon i-carbon-password" />
                 </template>
               </BaseInput>
-              <BaseInput v-model="cardCode" label="注册卡密" placeholder="请输入卡密" autocomplete="one-time-code" required :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false">
+              <BaseInput
+                v-if="isRegisterCardRequired"
+                v-model="cardCode"
+                label="注册卡密"
+                placeholder="请输入卡密"
+                autocomplete="one-time-code"
+                required
+              >
                 <template #prefix>
                   <div class="login-form-icon i-carbon-vlan" />
                 </template>
@@ -510,7 +611,7 @@ const copyrightText = computed(() => appStore.copyrightText)
               <div class="login-trial-card p-4 space-y-3">
                 <button
                   type="button"
-                  :disabled="trialLoading || trialCooldown > 0 || cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false"
+                  :disabled="!cardFeatureConfigLoaded || trialLoading || trialCooldown > 0 || cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false"
                   class="login-trial-button w-full flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold transition-all duration-200"
                   :class="trialCooldown > 0
                     ? 'login-trial-button-cooldown cursor-not-allowed'
@@ -521,12 +622,15 @@ const copyrightText = computed(() => appStore.copyrightText)
                 >
                   <div v-if="trialLoading" class="i-svg-spinners-ring-resize" />
                   <span v-if="trialCooldown > 0">⏳ 待冷却 ({{ cooldownText }})</span>
+                  <span v-else-if="!cardFeatureConfigLoaded">读取中...</span>
                   <span v-else-if="cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false">体验卡领取已暂停</span>
                   <span v-else-if="trialSuccess">✅ 已自动填充卡密</span>
                   <span v-else>🎁 立即领取 24H 免费卡</span>
                 </button>
                 <p v-if="!trialSuccess" class="glass-text-muted text-center text-[10px] leading-relaxed">
-                  {{ cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false
+                  {{ !cardFeatureConfigLoaded
+                    ? '正在读取服务器体验卡发放状态。'
+                    : cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false
                     ? '当前系统已暂停卡密发放，体验卡入口同步关闭'
                     : '新用户每 4 小时可限领一张，用于快速上手体验功能' }}
                 </p>
@@ -537,7 +641,7 @@ const copyrightText = computed(() => appStore.copyrightText)
               </div>
 
               <BaseButton type="submit" variant="primary" block size="lg" :loading="loading" :disabled="!isFormValid" class="h-12 rounded-xl">
-                立即创建账号
+                {{ !cardFeatureConfigLoaded ? '读取配置中...' : '立即创建账号' }}
               </BaseButton>
             </form>
           </div>
@@ -628,6 +732,70 @@ const copyrightText = computed(() => appStore.copyrightText)
 .login-community-card,
 .login-community-icon {
   color: color-mix(in srgb, var(--ui-text-on-brand) 92%, var(--ui-text-1) 8%) !important;
+}
+
+.login-status-strip {
+  color: color-mix(in srgb, var(--ui-text-on-brand) 92%, var(--ui-text-1) 8%);
+}
+
+.login-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--ui-text-on-brand) 14%, var(--ui-border-subtle));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-text-on-brand) 9%, transparent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  backdrop-filter: blur(12px);
+}
+
+.login-status-grid {
+  width: 100%;
+}
+
+.login-status-card {
+  border: 1px solid color-mix(in srgb, var(--ui-text-on-brand) 14%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-text-on-brand) 9%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 10px 24px color-mix(in srgb, black 10%, transparent);
+}
+
+.login-status-card__label {
+  opacity: 0.74;
+}
+
+.login-status-card__value {
+  color: color-mix(in srgb, var(--ui-text-on-brand) 92%, var(--ui-text-1) 8%);
+  line-height: 1.2;
+}
+
+.login-status-card.tone-success {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-success) 18%, transparent);
+}
+
+.login-status-card.tone-warning {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-warning) 18%, transparent);
+}
+
+.login-status-card.tone-danger {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-danger) 18%, transparent);
+}
+
+.login-status-card.tone-brand {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-brand-400) 20%, transparent);
+}
+
+.login-status-card.tone-info {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-info) 18%, transparent);
+}
+
+.login-status-card.tone-neutral {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-text-on-brand) 14%, transparent);
 }
 
 .login-logo-glow {
@@ -721,6 +889,12 @@ const copyrightText = computed(() => appStore.copyrightText)
 .login-trial-card {
   border-radius: 1rem;
   background: color-mix(in srgb, var(--ui-status-warning) 8%, var(--ui-bg-surface-raised) 92%) !important;
+}
+
+.login-register-summary {
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 84%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface) 58%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
 }
 
 .login-trial-button {

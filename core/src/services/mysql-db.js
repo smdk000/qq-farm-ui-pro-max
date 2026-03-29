@@ -324,6 +324,17 @@ async function initMysql() {
                 );
             }
 
+            const [accountConfigUniqueRows] = await pool.execute(
+                `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'account_configs' AND INDEX_NAME = 'uniq_account_configs_account_id'`,
+                [DB_NAME]
+            );
+            if (accountConfigUniqueRows.length === 0) {
+                await runMigrationFile(
+                    path.join(migrationsDir, '025-account-configs-unique.sql'),
+                    '检测到 account_configs 表缺少 account_id 唯一索引，正在执行迁移 025-account-configs-unique.sql',
+                );
+            }
+
             const [logsTable] = await pool.execute(`SHOW TABLES LIKE 'system_logs'`);
             if (logsTable.length === 0) {
                 await runMigrationFile(

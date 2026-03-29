@@ -1000,7 +1000,7 @@ async function checkFriends(mode = 'full') {
         if (baseStealEnabled) {
             _logPeriodicStatus(
                 'friend_platform_auto_steal_block',
-                `当前平台 ${CONFIG.platform} 已强制关闭自动偷菜，避免打扰微信好友链路`,
+                `当前平台 ${CONFIG.platform} 暂未开放自动偷菜能力，本轮仅保留其他好友互动策略。`,
                 {
                     level: 'warn',
                     tag: '安全',
@@ -1075,7 +1075,7 @@ async function checkFriends(mode = 'full') {
             if (!platformAllowsAutoSteal && baseStealEnabled) {
                 _logPeriodicStatus(
                     'friend_wx_safety',
-                    '微信环境安全降级：受限模式已生效，确认无好友可访问[不执行任何偷取与批处理]',
+                    '当前好友链路未拿到可访问好友，本轮不会执行偷取与批处理。',
                     { level: 'warn', tag: '安全', meta: { module: 'friend', event: 'wx_safety' } }
                 );
             }

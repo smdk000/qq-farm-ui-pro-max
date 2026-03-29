@@ -1290,7 +1290,7 @@ const cardFeatureStatusCards = computed(() => ([
     key: 'register',
     label: '注册',
     value: cardFeatureConfig.value.registerEnabled ? '已开启' : '已关闭',
-    hint: '允许新用户使用卡密注册',
+    hint: '控制注册是否必须填写卡密，关闭后切换为免卡注册',
   },
   {
     key: 'renew',
@@ -1371,7 +1371,7 @@ async function loadCardFeatureConfig() {
 
 async function saveCardFeatureConfig(enabled: boolean) {
   if (!enabled && typeof window !== 'undefined') {
-    const confirmed = window.confirm('关闭后，新用户将无法使用卡密注册，已有用户将无法使用卡密续费，体验卡领取入口也会同步暂停。已生效账号不会失去当前权益。确认继续吗？')
+    const confirmed = window.confirm('关闭后，新用户注册将切换为免卡模式；已有用户将无法继续使用卡密续费，体验卡领取与后台发码也会同步暂停。已生效账号不会失去当前权益。确认继续吗？')
     if (!confirmed)
       return
   }
@@ -7118,12 +7118,12 @@ async function restoreTimingDefaults() {
                     </div>
                   </template>
 
-                  <BaseSwitch v-model="localSettings.automation.friend_steal" label="自动偷菜" hint="访问好友农场时自动偷取成熟果实，是金币收入的重要补充来源。" recommend="on" />
+                  <BaseSwitch v-model="localSettings.automation.friend_steal" label="自动偷菜" hint="访问好友农场时自动偷取成熟果实，是金币收入的重要补充来源。微信账号不会再因登录平台名被永久禁用，但在好友链路异常或保护窗口内，后端仍会按运行态暂停本轮互动。" recommend="on" />
                   <BaseSwitch v-model="localSettings.automation.friend_help" label="自动帮忙" hint="访问好友农场时自动帮忙浇水/除草/除虫，可获得经验奖励。" recommend="on" />
                   <BaseSwitch v-model="localSettings.automation.friend_bad" label="自动捣乱" hint="访问好友农场时自动放虫/放草。有社交风险，好友可能拉黑你，小号专用。" recommend="off" />
                   <BaseSwitch v-model="localSettings.automation.friend_auto_accept" label="自动同意好友" hint="自动同意所有好友申请。好友越多偷菜机会越多，但也增加被偷风险。" recommend="conditional" />
                   <BaseSwitch v-model="localSettings.automation.friend_help_exp_limit" label="经验上限停止帮忙" hint="当日帮忙经验达到系统上限后自动停止，避免做无用功浪费请求配额。" recommend="on" />
-                  <BaseSwitch v-model="localSettings.automation.forceGetAllEnabled" label="强效兼容尝试" hint="主要用于微信环境的好友列表兼容。QQ 当前默认走保守单链路 SyncAll，这个开关在 QQ 下会被后端忽略。" recommend="conditional" />
+                  <BaseSwitch v-model="localSettings.automation.forceGetAllEnabled" label="强效兼容尝试" hint="主要用于微信环境的好友列表兼容。开启后会更积极地尝试 GetAll 拉取好友；若当前链路连续异常，系统仍会自动进入短时冷却。QQ 当前默认走保守单链路 SyncAll，这个开关在 QQ 下会被后端忽略。" recommend="conditional" />
                 </div>
               </div>
 
@@ -7289,7 +7289,7 @@ async function restoreTimingDefaults() {
                     </span>
                   </h4>
                   <p class="glass-text-muted mt-1 text-xs leading-5">
-                    统一控制卡密注册、续费、体验卡与后台发码。关闭后不会影响已有已生效账号的当前权益。
+                    统一控制注册是否必须卡密、卡密续费、体验卡与后台发码。关闭后注册会切换为免卡模式，不会影响已有已生效账号的当前权益。
                   </p>
                 </div>
                 <div class="glass-text-muted text-[11px] text-right">
@@ -7320,8 +7320,8 @@ async function restoreTimingDefaults() {
               <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <p class="glass-text-muted text-xs leading-5">
                   {{ cardFeatureConfig.enabled
-                    ? '当前允许通过卡密完成注册、续费、体验卡领取与后台发码。'
-                    : '当前已暂停新的卡密业务流，管理员仍可查看历史卡密与操作记录。' }}
+                    ? '当前注册默认要求卡密，同时允许卡密续费、体验卡领取与后台发码。'
+                    : '当前注册已切换为免卡模式，卡密续费、体验卡领取与后台发码已暂停；管理员仍可查看历史卡密与操作记录。' }}
                 </p>
                 <div class="flex flex-wrap items-center gap-2">
                   <BaseButton

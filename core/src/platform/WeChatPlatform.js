@@ -10,7 +10,9 @@ class WeChatPlatform extends BasePlatform {
     }
 
     allowAutoSteal() {
-        return false; // 微信弱网与安全机制，禁用批量偷菜
+        // 仅把 wx* 登录方式当成登录/取 code 的入口，不再因为平台名本身永久禁用好友偷菜。
+        // 真正的风险控制改由好友链路实时状态和 suspend/保护窗口决定。
+        return true;
     }
 
     getFriendScanInterval(defaultInterval) {

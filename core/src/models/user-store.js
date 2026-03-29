@@ -965,15 +965,51 @@ async function validateUser(username, password) {
 
 async function registerUser(username, password, cardCode) {
     await loadUsers();
-    await loadCards();
 
     // 检查用户名是否已存在
     if (users.find(u => u.username === username)) {
         return { ok: false, error: '用户名已存在' };
     }
 
+    const normalizedCardCode = typeof cardCode === 'string' ? cardCode.trim() : '';
+
+    if (!normalizedCardCode) {
+        const now = Date.now();
+        const newUser = {
+            username,
+            password: hashPassword(password),
+            role: 'user',
+            status: 'active',
+            cardCode: null,
+            card: null,
+            maxAccounts: 0,
+            createdAt: now,
+        };
+
+        await transaction(async (conn) => {
+            await conn.query(
+                "INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)",
+                [newUser.username, newUser.password, newUser.role || 'user', newUser.status]
+            );
+        });
+
+        users.push(newUser);
+
+        logUserAction('register', username, {
+            cardCode: null,
+            cardType: 'none',
+            cardDays: 0,
+            expiresAt: null,
+            registerMode: 'open',
+        });
+
+        return { ok: true, user: { username: newUser.username, role: newUser.role, card: null } };
+    }
+
+    await loadCards();
+
     // 查找卡密
-    const card = cards.find(c => c.code === cardCode);
+    const card = cards.find(c => c.code === normalizedCardCode);
     if (!card) {
         return { ok: false, error: '卡密不存在' };
     }
@@ -1019,7 +1055,7 @@ async function registerUser(username, password, cardCode) {
         password: hashPassword(password),
         role: 'user',
         status: 'active',
-        cardCode,
+        cardCode: normalizedCardCode,
         card: {
             code: card.code,
             description: card.description,
@@ -1071,10 +1107,11 @@ async function registerUser(username, password, cardCode) {
 
     // 记录操作日志
     logUserAction('register', username, {
-        cardCode,
+        cardCode: normalizedCardCode,
         cardType: card.type,
         cardDays: card.days,
         expiresAt: newUser.card.expiresAt,
+        registerMode: 'card',
     });
 
     return { ok: true, user: { username: newUser.username, role: newUser.role, card: newUser.card } };

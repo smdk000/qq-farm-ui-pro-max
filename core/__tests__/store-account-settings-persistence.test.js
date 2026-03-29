@@ -58,6 +58,7 @@ function createRuntimePathsMock(rootDir) {
 
 function createMysqlMock(initialState = {}) {
     const state = {
+        accounts: Array.isArray(initialState.accounts) ? [...initialState.accounts] : [],
         accountConfigs: { ...(initialState.accountConfigs || {}) },
         systemSettings: { ...(initialState.systemSettings || {}) },
     };
@@ -65,7 +66,10 @@ function createMysqlMock(initialState = {}) {
     async function handleQuery(sql, params = []) {
         const normalizedSql = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
-        if (normalizedSql.startsWith('select * from account_configs')) {
+        if (
+            normalizedSql.startsWith('select * from account_configs')
+            || (normalizedSql.startsWith('select c.* from account_configs c') && normalizedSql.includes('group by account_id'))
+        ) {
             return [Object.values(state.accountConfigs)];
         }
 
@@ -140,7 +144,7 @@ function createMysqlMock(initialState = {}) {
         }
 
         if (normalizedSql.startsWith('select * from accounts')) {
-            return [[]];
+            return [state.accounts];
         }
 
         return [[]];
@@ -477,6 +481,113 @@ test('account config persistence keeps tradeConfig and advanced account settings
             dailyHour: 20,
             dailyMinute: 30,
             retentionDays: 14,
+        });
+    } finally {
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        restoreRuntimePaths();
+        restoreMysql();
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+});
+
+test('loadAllFromDB keeps account reportConfig when mysql returns advanced_settings as object', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'store-account-settings-object-'));
+    const restoreRuntimePaths = mockModule(runtimePathsModulePath, createRuntimePathsMock(tempRoot));
+    const mysqlMock = createMysqlMock({
+        accounts: [
+            {
+                id: '1009',
+                uin: '1009',
+                open_id: '',
+                nick: '测试账号1009',
+                name: '测试账号1009',
+                platform: 'qq',
+                running: 0,
+                status: '',
+                api_error_count: 0,
+                username: 'admin',
+                avatar: '',
+                auth_data: '{}',
+                created_at: new Date('2026-03-29T00:00:00Z'),
+                updated_at: new Date('2026-03-29T00:00:00Z'),
+            },
+        ],
+        accountConfigs: {
+            1009: {
+                account_id: '1009',
+                account_mode: 'main',
+                harvest_delay_min: 0,
+                harvest_delay_max: 0,
+                planting_strategy: 'preferred',
+                preferred_seed_id: 0,
+                automation_farm: 1,
+                automation_farm_push: 1,
+                automation_land_upgrade: 1,
+                automation_friend: 1,
+                automation_friend_steal: 1,
+                automation_friend_help: 1,
+                automation_friend_bad: 0,
+                automation_task: 1,
+                automation_email: 1,
+                automation_free_gifts: 1,
+                automation_share_reward: 1,
+                automation_vip_gift: 1,
+                automation_month_card: 1,
+                automation_sell: 0,
+                automation_fertilizer: 'none',
+                advanced_settings: {
+                    reportConfig: {
+                        enabled: true,
+                        channel: 'email',
+                        smtpHost: 'smtp.qq.com',
+                        smtpPort: 465,
+                        smtpSecure: true,
+                        smtpUser: '278050013@qq.com',
+                        smtpPass: 'secret-code',
+                        emailFrom: '278050013@qq.com',
+                        emailTo: '278050013@qq.com',
+                        title: '经营汇报',
+                        hourlyEnabled: false,
+                        hourlyMinute: 5,
+                        dailyEnabled: true,
+                        dailyHour: 21,
+                        dailyMinute: 0,
+                        retentionDays: 30,
+                    },
+                },
+            },
+        },
+    });
+    const restoreMysql = mockModule(mysqlDbModulePath, mysqlMock);
+
+    try {
+        delete require.cache[storeModulePath];
+        delete require.cache[systemSettingsModulePath];
+        const store = require(storeModulePath);
+
+        await store.initStoreRuntime();
+        await store.loadAllFromDB();
+
+        assert.deepEqual(store.getReportConfig('1009'), {
+            enabled: true,
+            channel: 'email',
+            endpoint: '',
+            token: '',
+            smtpHost: 'smtp.qq.com',
+            smtpPort: 465,
+            smtpSecure: true,
+            smtpUser: '278050013@qq.com',
+            smtpPass: 'secret-code',
+            emailFrom: '278050013@qq.com',
+            emailTo: '278050013@qq.com',
+            title: '经营汇报',
+            hourlyEnabled: false,
+            hourlyMinute: 5,
+            dailyEnabled: true,
+            dailyHour: 21,
+            dailyMinute: 0,
+            retentionDays: 30,
         });
     } finally {
         delete require.cache[storeModulePath];
