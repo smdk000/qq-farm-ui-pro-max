@@ -13,6 +13,7 @@ const props = defineProps<{
   density?: 'comfortable' | 'compact'
   selectionMode?: boolean
   selected?: boolean
+  recentlyTouched?: boolean
 }>()
 const emit = defineEmits<{
   toggleSelect: [landId: number]
@@ -29,6 +30,8 @@ const actionFeedback = ref<{ type: 'success' | 'error' | 'info', message: string
 const quickMenuOpen = ref(false)
 const quickMenuPosition = ref({ x: 0, y: 0 })
 const longPressTimer = ref<number | null>(null)
+const localTouched = ref(false)
+const localTouchedTimer = ref<number | null>(null)
 const cardRef = ref<HTMLElement | null>(null)
 
 const land = computed(() => props.land)
@@ -37,6 +40,7 @@ const density = computed(() => props.density === 'compact' ? 'compact' : 'comfor
 const isCompact = computed(() => density.value === 'compact')
 const selectionMode = computed(() => props.selectionMode === true)
 const isSelected = computed(() => props.selected === true)
+const isRecentlyTouched = computed(() => props.recentlyTouched === true || localTouched.value)
 const landStatus = computed(() => String(land.value?.status || '').trim())
 const plantSize = computed(() => Number(land.value?.plantSize || 1))
 const isMultiPlant = computed(() => plantSize.value > 1)
@@ -195,6 +199,35 @@ const primaryStatusBadge = computed(() => {
     return { label: '未解锁', kind: 'locked', icon: 'i-carbon-lock' }
   return null
 })
+const batchFocusTags = computed(() => {
+  if (!selectionMode.value)
+    return []
+  const tags: Array<{ key: string, label: string, kind: string }> = []
+  if (land.value?.status === 'harvestable')
+    tags.push({ key: 'harvest', label: '可收获', kind: 'harvest' })
+  if (land.value?.needWater)
+    tags.push({ key: 'water', label: '待浇水', kind: 'water' })
+  if (land.value?.needWeed)
+    tags.push({ key: 'weed', label: '待除草', kind: 'weed' })
+  if (land.value?.needBug)
+    tags.push({ key: 'bug', label: '待除虫', kind: 'bug' })
+  if (tags.length === 0 && isGrowingCard.value)
+    tags.push({ key: 'watch', label: '观察中', kind: 'watch' })
+  return tags.slice(0, 3)
+})
+const batchFocusTone = computed(() => {
+  if (!selectionMode.value)
+    return ''
+  if (land.value?.status === 'harvestable')
+    return 'is-batch-harvest'
+  if (land.value?.needBug)
+    return 'is-batch-bug'
+  if (land.value?.needWeed)
+    return 'is-batch-weed'
+  if (land.value?.needWater)
+    return 'is-batch-water'
+  return 'is-batch-watch'
+})
 const isGrowingCard = computed(() => ['growing', 'harvestable', 'stealable', 'harvested'].includes(landStatus.value))
 const fallbackVisual = computed(() => {
   if (landStatus.value === 'locked') {
@@ -343,6 +376,16 @@ function clearLongPressTimer() {
   }
 }
 
+function flashLocalTouched() {
+  localTouched.value = true
+  if (localTouchedTimer.value !== null)
+    window.clearTimeout(localTouchedTimer.value)
+  localTouchedTimer.value = window.setTimeout(() => {
+    localTouched.value = false
+    localTouchedTimer.value = null
+  }, 2400)
+}
+
 function closeQuickMenu() {
   quickMenuOpen.value = false
 }
@@ -423,6 +466,7 @@ async function handleQuickAction(opType: string) {
     }
     const message = successMap[opType] || '地块操作已完成'
     actionFeedback.value = { type: 'success', message }
+    flashLocalTouched()
     toast.success(message)
   }
   catch (error: any) {
@@ -458,6 +502,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearLongPressTimer()
+  if (localTouchedTimer.value !== null)
+    window.clearTimeout(localTouchedTimer.value)
   window.removeEventListener('keydown', handleWindowKeydown)
   window.removeEventListener('mousedown', handleWindowPointerdown)
   window.removeEventListener('touchstart', handleWindowPointerdown)
@@ -549,7 +595,7 @@ function getLandTypeName(level: number) {
   <div
     ref="cardRef"
     class="land-card-theme relative flex flex-col items-center border rounded-xl px-3 pb-3 pt-2 transition hover:shadow-md"
-    :class="[getLandStatusClass(land), alertStateClass, { 'is-operating': isLandOperating, 'is-compact': isCompact, 'is-selection-mode': selectionMode, 'is-selected': isSelected }]"
+    :class="[getLandStatusClass(land), alertStateClass, batchFocusTone, { 'is-operating': isLandOperating, 'is-compact': isCompact, 'is-selection-mode': selectionMode, 'is-selected': isSelected, 'is-recently-touched': isRecentlyTouched }]"
     role="button"
     tabindex="0"
     @click="openDetail"
@@ -595,6 +641,17 @@ function getLandTypeName(level: number) {
     >
       <span :class="primaryStatusBadge.icon" />
       <span>{{ primaryStatusBadge.label }}</span>
+    </div>
+
+    <div v-if="selectionMode && batchFocusTags.length > 0" class="land-card-batch-tags">
+      <div
+        v-for="tag in batchFocusTags"
+        :key="tag.key"
+        class="land-card-batch-tags__item"
+        :class="`is-${tag.kind}`"
+      >
+        {{ tag.label }}
+      </div>
     </div>
 
     <div v-if="isLandOperating" class="land-card-operating">
@@ -829,10 +886,31 @@ function getLandTypeName(level: number) {
   cursor: cell;
 }
 
+.land-card-theme.is-selection-mode:not(.is-selected) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-brand-500) 12%, transparent);
+}
+
 .land-card-theme.is-selected {
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--ui-brand-500) 48%, transparent),
     0 16px 34px -24px color-mix(in srgb, var(--ui-brand-500) 46%, transparent);
+}
+
+.land-card-theme.is-recently-touched {
+  animation: land-card-success-flash 2.4s ease-out;
+}
+
+.land-card-theme.is-recently-touched::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--ui-status-success) 32%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--ui-status-success) 22%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, white 22%, transparent);
+  animation: land-card-success-ring 2.4s ease-out;
 }
 
 .land-card-select-indicator {
@@ -855,6 +933,60 @@ function getLandTypeName(level: number) {
   border-color: color-mix(in srgb, var(--ui-brand-500) 48%, transparent);
   background: color-mix(in srgb, var(--ui-brand-500) 18%, var(--ui-bg-surface-raised));
   color: var(--ui-brand-600);
+}
+
+.land-card-batch-tags {
+  position: absolute;
+  left: 0.68rem;
+  right: 2.25rem;
+  top: 3.65rem;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.land-card-batch-tags__item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.15rem;
+  padding: 0.1rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 78%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 90%, white 10%);
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.land-card-batch-tags__item.is-harvest {
+  color: color-mix(in srgb, #f97316 90%, white 10%);
+  border-color: color-mix(in srgb, #fb923c 42%, transparent);
+  background: color-mix(in srgb, #fb923c 16%, var(--ui-bg-surface-raised));
+}
+
+.land-card-batch-tags__item.is-water {
+  color: color-mix(in srgb, #0284c7 88%, white 12%);
+  border-color: color-mix(in srgb, #38bdf8 38%, transparent);
+  background: color-mix(in srgb, #38bdf8 14%, var(--ui-bg-surface-raised));
+}
+
+.land-card-batch-tags__item.is-weed {
+  color: color-mix(in srgb, #15803d 88%, white 12%);
+  border-color: color-mix(in srgb, #22c55e 38%, transparent);
+  background: color-mix(in srgb, #22c55e 13%, var(--ui-bg-surface-raised));
+}
+
+.land-card-batch-tags__item.is-bug {
+  color: color-mix(in srgb, #dc2626 90%, white 10%);
+  border-color: color-mix(in srgb, #ef4444 36%, transparent);
+  background: color-mix(in srgb, #ef4444 13%, var(--ui-bg-surface-raised));
+}
+
+.land-card-batch-tags__item.is-watch {
+  color: var(--ui-text-2);
 }
 
 .land-card-theme.is-operating {
@@ -984,6 +1116,32 @@ function getLandTypeName(level: number) {
   font-size: 0.56rem;
 }
 
+.land-card-theme.is-selection-mode.is-batch-harvest {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fb923c 34%, transparent);
+}
+
+.land-card-theme.is-selection-mode.is-batch-water {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #38bdf8 34%, transparent);
+}
+
+.land-card-theme.is-selection-mode.is-batch-weed {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #22c55e 34%, transparent);
+}
+
+.land-card-theme.is-selection-mode.is-batch-bug {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ef4444 34%, transparent);
+}
+
+.land-card-theme.is-selection-mode.is-batch-watch {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-text-3) 18%, transparent);
+}
+
+.land-card-theme.is-recently-touched .land-card-primary-status,
+.land-card-theme.is-recently-touched .land-card-batch-tags__item,
+.land-card-theme.is-recently-touched .land-card-select-indicator {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-status-success) 18%, transparent);
+}
+
 .land-card-primary-status.is-harvest {
   color: color-mix(in srgb, #f97316 90%, white 10%);
   border-color: color-mix(in srgb, #fb923c 42%, transparent);
@@ -1060,6 +1218,14 @@ function getLandTypeName(level: number) {
   margin-bottom: 0.35rem;
 }
 
+.land-card-theme.is-selection-mode .land-card-figure {
+  margin-top: 3.25rem;
+}
+
+.land-card-theme.is-selection-mode.is-compact .land-card-figure {
+  margin-top: 3rem;
+}
+
 .land-card-title {
   font-size: 15px;
 }
@@ -1101,6 +1267,19 @@ function getLandTypeName(level: number) {
 .land-card-theme.is-compact .land-card-actions__item {
   padding: 0.12rem 0.42rem;
   font-size: 0.58rem;
+}
+
+.land-card-theme.is-compact .land-card-batch-tags {
+  left: 0.52rem;
+  right: 2rem;
+  top: 3.2rem;
+  gap: 0.22rem;
+}
+
+.land-card-theme.is-compact .land-card-batch-tags__item {
+  min-height: 1.02rem;
+  padding-inline: 0.34rem;
+  font-size: 0.52rem;
 }
 
 .land-card-quick-menu {
@@ -1179,6 +1358,39 @@ function getLandTypeName(level: number) {
 
 .land-card-quick-menu__dot.is-bug {
   background: #ef4444;
+}
+
+@keyframes land-card-success-flash {
+  0% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--ui-status-success) 0%, transparent),
+      0 8px 18px -16px color-mix(in srgb, var(--ui-status-success) 0%, transparent);
+  }
+  18% {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--ui-status-success) 28%, transparent),
+      0 20px 34px -24px color-mix(in srgb, var(--ui-status-success) 36%, transparent);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--ui-status-success) 0%, transparent),
+      0 10px 22px -18px color-mix(in srgb, var(--ui-status-success) 0%, transparent);
+  }
+}
+
+@keyframes land-card-success-ring {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .land-card-index,

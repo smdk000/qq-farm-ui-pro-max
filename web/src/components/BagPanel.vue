@@ -2,7 +2,7 @@
 import type { BagPreferencesPayload } from '@/utils/bag-preference-sync'
 import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseEmptyState from '@/components/ui/BaseEmptyState.vue'
@@ -69,6 +69,7 @@ const mallSortBy = ref<'recommended' | 'price_asc' | 'price_desc' | 'contents_de
 const activityFilter = ref<'all' | 'use' | 'purchase' | 'sell'>('all')
 const bagDetailItem = ref<any | null>(null)
 const mallDetailGoods = ref<any | null>(null)
+const detailModalPanelRef = ref<HTMLElement | null>(null)
 const shopTabKey = ref<'seed' | 'pet' | 'dress'>('seed')
 const mallTabKey = ref<'gift' | 'month_card' | 'recharge'>('gift')
 const mallPurchaseMemory = ref<Record<string, { count: number, lastPurchasedAt: number, name: string }>>({})
@@ -115,6 +116,10 @@ const shopSortOptions = [
   { key: 'name_asc', label: '名称排序' },
   { key: 'level_desc', label: '等级优先' },
 ]
+
+const detailModalOpen = computed(() => !!(bagDetailItem.value || mallDetailGoods.value))
+
+let detailModalPreviousFocus: HTMLElement | null = null
 
 const mallSortOptions = [
   { key: 'recommended', label: '推荐排序' },
@@ -1821,6 +1826,26 @@ function closeDetailPanel() {
   clearSelectedLands()
 }
 
+function handleDetailBackdropClick(event: MouseEvent) {
+  if (event.target !== event.currentTarget)
+    return
+  closeDetailPanel()
+}
+
+function handleDetailCloseClick(event?: MouseEvent) {
+  event?.preventDefault()
+  event?.stopPropagation()
+  closeDetailPanel()
+}
+
+function handleDetailModalKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !detailModalOpen.value)
+    return
+  event.preventDefault()
+  event.stopPropagation()
+  closeDetailPanel()
+}
+
 // vue-tsc occasionally misses a few late template refs in this large SFC.
 const templateUsageBridge = {
   strategySaving,
@@ -1856,6 +1881,7 @@ onMounted(() => {
   loadMallPurchaseMemory()
   loadActivityHistory()
   loadBag()
+  window.addEventListener('keydown', handleDetailModalKeydown)
   void hydrateBagPreferences()
 })
 
@@ -1864,6 +1890,9 @@ onBeforeUnmount(() => {
     includeCurrentDirty: true,
     applyIfCurrent: false,
   })
+  window.removeEventListener('keydown', handleDetailModalKeydown)
+  if (typeof document !== 'undefined')
+    document.body.classList.remove('detail-modal-open')
 })
 
 watch(currentAccountId, (_nextAccountId, previousAccountId) => {
@@ -1925,6 +1954,25 @@ watch(allTradeGoods, () => {
 watch(() => settings.value.tradeConfig, () => {
   syncSellStrategyDraft()
 }, { immediate: true, deep: true })
+
+watch(detailModalOpen, async (nextOpen) => {
+  if (typeof document !== 'undefined')
+    document.body.classList.toggle('detail-modal-open', nextOpen)
+
+  if (nextOpen) {
+    detailModalPreviousFocus = typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    await nextTick()
+    detailModalPanelRef.value?.focus()
+    return
+  }
+
+  const previousFocus = detailModalPreviousFocus
+  detailModalPreviousFocus = null
+  await nextTick()
+  previousFocus?.focus?.()
+}, { flush: 'post' })
 
 useIntervalFn(loadBag, 60000)
 </script>
@@ -2947,8 +2995,17 @@ useIntervalFn(loadBag, 60000)
     </template>
 
     <Teleport to="body">
-      <div v-if="bagDetailItem || mallDetailGoods" class="detail-modal-backdrop" @click="closeDetailPanel">
-        <div class="detail-modal-panel" @click.stop>
+      <div v-if="detailModalOpen" class="detail-modal-shell">
+        <div class="detail-modal-backdrop" @click="handleDetailBackdropClick" />
+        <div
+          ref="detailModalPanelRef"
+          class="detail-modal-panel"
+          tabindex="-1"
+          role="dialog"
+          aria-modal="true"
+          @click.stop
+          @keydown.esc.stop.prevent="closeDetailPanel"
+        >
           <div class="detail-modal-header">
             <div class="detail-modal-header__copy">
               <div class="detail-modal-header__eyebrow">
@@ -2966,7 +3023,7 @@ useIntervalFn(loadBag, 60000)
                 </template>
               </div>
             </div>
-            <button type="button" class="detail-modal-close" aria-label="关闭详情弹窗" @click="closeDetailPanel">
+            <button type="button" class="detail-modal-close" aria-label="关闭详情弹窗" @click="handleDetailCloseClick">
               <span class="detail-modal-close__icon i-carbon-close" aria-hidden="true" />
               <span class="detail-modal-close__text">关闭</span>
             </button>
@@ -3047,7 +3104,7 @@ useIntervalFn(loadBag, 60000)
                     >
                       {{ isSelected(Number(bagDetailItem.id || 0)) ? '移出出售选择' : '加入出售选择' }}
                     </BaseButton>
-                    <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" @click="closeDetailPanel">
+                    <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" @click="handleDetailCloseClick">
                       返回列表
                     </BaseButton>
                   </div>
@@ -4508,7 +4565,7 @@ useIntervalFn(loadBag, 60000)
   font-weight: 700;
 }
 
-.detail-modal-backdrop {
+.detail-modal-shell {
   --bag-surface: var(--ui-bg-surface);
   --bag-surface-raised: var(--ui-bg-surface-raised);
   --bag-border: var(--ui-border-subtle);
@@ -4533,6 +4590,11 @@ useIntervalFn(loadBag, 60000)
   align-items: center;
   justify-content: center;
   padding: 1.25rem;
+}
+
+.detail-modal-backdrop {
+  position: absolute;
+  inset: 0;
   background: var(--bag-overlay-backdrop);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -4565,6 +4627,7 @@ useIntervalFn(loadBag, 60000)
   box-shadow:
     0 32px 70px -30px var(--bag-shadow-strong),
     inset 0 1px 0 var(--bag-shadow-inner);
+  outline: none;
 }
 
 .detail-modal-panel::before {
@@ -5151,6 +5214,11 @@ useIntervalFn(loadBag, 60000)
   background: rgba(2, 6, 23, 0.82);
   backdrop-filter: blur(18px) brightness(0.62) saturate(0.38);
   -webkit-backdrop-filter: blur(18px) brightness(0.62) saturate(0.38);
+}
+
+:global(body.detail-modal-open) {
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 :global(html:not(.dark) .detail-modal-backdrop)::before {

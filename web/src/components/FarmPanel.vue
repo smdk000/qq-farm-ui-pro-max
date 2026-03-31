@@ -32,6 +32,13 @@ const batchSelectionMode = ref(false)
 const selectedLandIds = ref<number[]>([])
 const batchOperating = ref(false)
 const batchResult = ref<null | { opType: string, successCount: number, skippedCount: number, timestamp: number }>(null)
+const activeBatchGroup = ref<'' | 'harvest' | 'water' | 'weed' | 'bug'>('')
+const recentBatchTouchedIds = ref<number[]>([])
+const batchHighlightTimer = ref<number | null>(null)
+const batchSelectionPulse = ref(false)
+const batchSelectionPulseTimer = ref<number | null>(null)
+const batchResultVisible = ref(false)
+const batchResultTimer = ref<number | null>(null)
 const LAND_FILTER_STORAGE_KEY = 'farm-panel-active-land-filter'
 const LAND_SORT_STORAGE_KEY = 'farm-panel-active-sort-mode'
 const LAND_DENSITY_STORAGE_KEY = 'farm-panel-active-density'
@@ -289,6 +296,12 @@ const batchEligibleCounts = computed(() => {
     bug: visible.filter((land: any) => !!land?.needBug).length,
   }
 })
+const batchQuickGroups = computed(() => [
+  { key: 'harvest', label: '可收获', description: '选中当前筛选内已成熟、可直接收获的土地', count: batchEligibleCounts.value.harvest, toneClass: 'is-harvest' },
+  { key: 'water', label: '待浇水', description: '选中当前筛选内需要补水的土地', count: batchEligibleCounts.value.water, toneClass: 'is-water' },
+  { key: 'weed', label: '待除草', description: '选中当前筛选内需要除草的土地', count: batchEligibleCounts.value.weed, toneClass: 'is-weed' },
+  { key: 'bug', label: '待除虫', description: '选中当前筛选内需要除虫的土地', count: batchEligibleCounts.value.bug, toneClass: 'is-bug' },
+].filter(item => item.count > 0))
 const batchSelectionSummary = computed(() => {
   if (!batchSelectionMode.value)
     return ''
@@ -306,6 +319,23 @@ const batchSelectionSummary = computed(() => {
   return parts.length > 0
     ? `当前筛选中 ${parts.join('，')}，已选 ${selectedLandIds.value.length} 块。`
     : `当前筛选范围内暂无可批量处理土地，已选 ${selectedLandIds.value.length} 块。`
+})
+const batchCoverageSummary = computed(() => {
+  if (!batchSelectionMode.value)
+    return ''
+  const totalVisible = visibleLands.value.length
+  const actionableVisible = batchEligibleCounts.value.harvest
+    + batchEligibleCounts.value.water
+    + batchEligibleCounts.value.weed
+    + batchEligibleCounts.value.bug
+  if (totalVisible <= 0)
+    return ''
+  const coverage = actionableVisible > 0
+    ? Math.min(100, Math.round((selectedLandIds.value.length / actionableVisible) * 100))
+    : 0
+  if (actionableVisible <= 0)
+    return `当前筛选共有 ${totalVisible} 块土地，暂时没有需要批量处理的地块。`
+  return `当前筛选 ${totalVisible} 块中约有 ${actionableVisible} 个待处理事项，已选 ${selectedLandIds.value.length} 块，覆盖约 ${coverage}% 的可处理范围。`
 })
 const batchActions = computed(() => {
   const selected = selectedLands.value
@@ -325,7 +355,7 @@ const batchResultLabelMap: Record<string, string> = {
   bug: '除虫',
 }
 const batchResultSummary = computed(() => {
-  if (!batchResult.value)
+  if (!batchResult.value || !batchResultVisible.value)
     return ''
   const label = batchResultLabelMap[batchResult.value.opType] || '处理'
   if (batchResult.value.skippedCount > 0)
@@ -353,6 +383,9 @@ watch(currentAccountId, () => {
   batchSelectionMode.value = false
   selectedLandIds.value = []
   batchResult.value = null
+  batchResultVisible.value = false
+  activeBatchGroup.value = ''
+  recentBatchTouchedIds.value = []
   refresh()
 })
 
@@ -378,6 +411,23 @@ watch(visibleLands, (lands) => {
   selectedLandIds.value = selectedLandIds.value.filter(id => visibleIds.has(id))
 }, { deep: true })
 
+watch(selectedLandIds, (current, previous) => {
+  if (!batchSelectionMode.value)
+    return
+  if ((current?.length || 0) === (previous?.length || 0))
+    return
+  batchSelectionPulse.value = false
+  if (batchSelectionPulseTimer.value !== null)
+    window.clearTimeout(batchSelectionPulseTimer.value)
+  window.setTimeout(() => {
+    batchSelectionPulse.value = true
+  }, 0)
+  batchSelectionPulseTimer.value = window.setTimeout(() => {
+    batchSelectionPulse.value = false
+    batchSelectionPulseTimer.value = null
+  }, 520)
+}, { deep: true })
+
 const { pause, resume } = useIntervalFn(() => {
   if (lands.value) {
     lands.value = lands.value.map((l: any) =>
@@ -400,6 +450,12 @@ onMounted(() => {
 onUnmounted(() => {
   pause()
   pauseRefresh()
+  if (batchHighlightTimer.value !== null)
+    window.clearTimeout(batchHighlightTimer.value)
+  if (batchSelectionPulseTimer.value !== null)
+    window.clearTimeout(batchSelectionPulseTimer.value)
+  if (batchResultTimer.value !== null)
+    window.clearTimeout(batchResultTimer.value)
 })
 
 function getLandUrgencyScore(land: any) {
@@ -556,30 +612,81 @@ function toggleBatchSelectionMode() {
   if (!batchSelectionMode.value) {
     selectedLandIds.value = []
     batchResult.value = null
+    activeBatchGroup.value = ''
   }
 }
 
 function toggleLandSelection(landId: number) {
   if (!batchSelectionMode.value)
     return
+  activeBatchGroup.value = ''
   selectedLandIds.value = selectedLandIds.value.includes(landId)
     ? selectedLandIds.value.filter(id => id !== landId)
     : [...selectedLandIds.value, landId]
 }
 
 function selectAllVisibleLands() {
+  activeBatchGroup.value = ''
   selectedLandIds.value = visibleLands.value.map((land: any) => Number(land?.id || 0)).filter(Boolean)
 }
 
 function selectActionableVisibleLands() {
+  activeBatchGroup.value = ''
   selectedLandIds.value = visibleLands.value
     .filter((land: any) => land?.status === 'harvestable' || land?.needWater || land?.needWeed || land?.needBug)
     .map((land: any) => Number(land?.id || 0))
     .filter(Boolean)
 }
 
+function selectBatchGroup(groupKey: 'harvest' | 'water' | 'weed' | 'bug') {
+  if (activeBatchGroup.value === groupKey) {
+    activeBatchGroup.value = ''
+    selectedLandIds.value = []
+    return
+  }
+  activeBatchGroup.value = groupKey
+  selectedLandIds.value = visibleLands.value
+    .filter((land: any) => {
+      if (groupKey === 'harvest')
+        return land?.status === 'harvestable'
+      if (groupKey === 'water')
+        return !!land?.needWater
+      if (groupKey === 'weed')
+        return !!land?.needWeed
+      if (groupKey === 'bug')
+        return !!land?.needBug
+      return false
+    })
+    .map((land: any) => Number(land?.id || 0))
+    .filter(Boolean)
+}
+
 function clearSelectedLands() {
+  activeBatchGroup.value = ''
   selectedLandIds.value = []
+}
+
+function flashBatchTouchedLands(landIds: number[]) {
+  recentBatchTouchedIds.value = Array.from(new Set((landIds || []).map(id => Number(id || 0)).filter(Boolean)))
+  if (batchHighlightTimer.value !== null)
+    window.clearTimeout(batchHighlightTimer.value)
+  if (recentBatchTouchedIds.value.length === 0)
+    return
+  batchHighlightTimer.value = window.setTimeout(() => {
+    recentBatchTouchedIds.value = []
+    batchHighlightTimer.value = null
+  }, 2600)
+}
+
+function showBatchResult(result: { opType: string, successCount: number, skippedCount: number, timestamp: number }) {
+  batchResult.value = result
+  batchResultVisible.value = true
+  if (batchResultTimer.value !== null)
+    window.clearTimeout(batchResultTimer.value)
+  batchResultTimer.value = window.setTimeout(() => {
+    batchResultVisible.value = false
+    batchResultTimer.value = null
+  }, 4200)
 }
 
 async function runBatchAction(opType: string) {
@@ -604,27 +711,30 @@ async function runBatchAction(opType: string) {
       .filter(Boolean)
 
     if (eligibleIds.length === 0) {
-      batchResult.value = {
+      showBatchResult({
         opType,
         successCount: 0,
         skippedCount: selected.length,
         timestamp: Date.now(),
-      }
+      })
       toast.warning('当前选中的土地没有可执行的批量操作')
       return
     }
 
     await farmStore.operateLands(currentAccountId.value, eligibleIds, opType)
-    batchResult.value = {
+    flashBatchTouchedLands(eligibleIds)
+    showBatchResult({
       opType,
       successCount: eligibleIds.length,
       skippedCount: Math.max(0, selected.length - eligibleIds.length),
       timestamp: Date.now(),
-    }
+    })
     toast.success(`已完成 ${eligibleIds.length} 块土地的批量处理`)
     selectedLandIds.value = selectedLandIds.value.filter(id => !eligibleIds.includes(id))
-    if (selectedLandIds.value.length === 0)
+    if (selectedLandIds.value.length === 0) {
+      activeBatchGroup.value = ''
       batchSelectionMode.value = false
+    }
   }
   catch (error: any) {
     toast.error(error?.response?.data?.error || error?.message || '批量处理失败，请稍后重试')
@@ -830,7 +940,7 @@ async function runBatchAction(opType: string) {
         </div>
 
         <div class="farm-panel-batch-toolbar">
-          <div class="farm-panel-batch-toolbar__main">
+          <div class="farm-panel-batch-toolbar__main" :class="{ 'is-pulsing': batchSelectionPulse }">
             <BaseButton
               variant="secondary"
               class="farm-panel-batch-toggle"
@@ -840,13 +950,51 @@ async function runBatchAction(opType: string) {
             >
               {{ batchSelectionMode ? '退出批量模式' : '进入批量模式' }}
             </BaseButton>
-            <div v-if="batchSelectionMode" class="farm-panel-batch-meta">
+            <div v-if="batchSelectionMode" class="farm-panel-batch-meta" :class="{ 'is-pulsing': batchSelectionPulse }">
               已选 {{ selectedLandIds.length }} 块
             </div>
           </div>
 
           <div v-if="batchSelectionMode" class="farm-panel-batch-note">
             {{ batchSelectionSummary }}
+          </div>
+
+          <div v-if="batchCoverageSummary" class="farm-panel-batch-coverage">
+            <div class="farm-panel-batch-coverage__icon i-carbon-chart-relationship" />
+            <div class="farm-panel-batch-coverage__copy">
+              {{ batchCoverageSummary }}
+            </div>
+          </div>
+
+          <div v-if="batchSelectionMode && selectedLandIds.length === 0" class="farm-panel-batch-empty-guide">
+            <div class="farm-panel-batch-empty-guide__icon i-carbon-touch-1" />
+            <div class="farm-panel-batch-empty-guide__copy">
+              <div class="farm-panel-batch-empty-guide__title">
+                还没有选中土地
+              </div>
+              <div class="farm-panel-batch-empty-guide__desc">
+                可以先点上方分组快速选区，或直接点击下方土地卡片；如果想省事，也可以点“智能全选可处理”。
+              </div>
+            </div>
+          </div>
+
+          <div v-if="batchSelectionMode && batchQuickGroups.length > 0" class="farm-panel-batch-groups">
+            <button
+              v-for="group in batchQuickGroups"
+              :key="group.key"
+              type="button"
+              class="farm-panel-batch-group"
+              :class="[group.toneClass, { 'is-active': activeBatchGroup === group.key }]"
+              :title="group.description"
+              :disabled="batchOperating"
+              @click="selectBatchGroup(group.key as 'harvest' | 'water' | 'weed' | 'bug')"
+            >
+              <span class="farm-panel-batch-group__content">
+                <span class="farm-panel-batch-group__label">{{ group.label }}</span>
+                <span class="farm-panel-batch-group__desc">{{ group.description }}</span>
+              </span>
+              <span class="farm-panel-batch-group__count">{{ group.count }}</span>
+            </button>
           </div>
 
           <div v-if="batchSelectionMode" class="farm-panel-batch-toolbar__actions">
@@ -877,7 +1025,7 @@ async function runBatchAction(opType: string) {
           </div>
         </div>
 
-        <div v-if="batchResultSummary" class="farm-panel-batch-result">
+        <div v-if="batchResultSummary" class="farm-panel-batch-result" :class="{ 'is-visible': batchResultVisible }">
           <div class="farm-panel-batch-result__icon i-carbon-task-complete" />
           <div class="farm-panel-batch-result__copy">
             {{ batchResultSummary }}
@@ -917,17 +1065,75 @@ async function runBatchAction(opType: string) {
           :description="`切换筛选条件后再看看，当前为 ${landFilterOptions.find(item => item.key === activeLandFilter)?.label || '全部'}。`"
         />
 
-        <div v-else class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-          <LandCard
-            v-for="land in visibleLands"
-            :key="land.id"
-            :land="land"
-            :density="activeDensity"
-            :selection-mode="batchSelectionMode"
-            :selected="selectedLandIds.includes(Number(land.id || 0))"
-            @toggle-select="toggleLandSelection"
-          />
+        <div v-else class="farm-panel-grid-wrap">
+          <div v-if="batchSelectionMode" class="farm-panel-batch-legend">
+            <div class="farm-panel-batch-legend__title">
+              批量颜色图例
+            </div>
+            <div class="farm-panel-batch-legend__items">
+              <div class="farm-panel-batch-legend__item is-harvest">
+                <span class="farm-panel-batch-legend__dot" />
+                <span>橙色表示可收获</span>
+              </div>
+              <div class="farm-panel-batch-legend__item is-water">
+                <span class="farm-panel-batch-legend__dot" />
+                <span>蓝色表示待浇水</span>
+              </div>
+              <div class="farm-panel-batch-legend__item is-weed">
+                <span class="farm-panel-batch-legend__dot" />
+                <span>绿色表示待除草</span>
+              </div>
+              <div class="farm-panel-batch-legend__item is-bug">
+                <span class="farm-panel-batch-legend__dot" />
+                <span>红色表示待除虫</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <LandCard
+              v-for="land in visibleLands"
+              :key="land.id"
+              :land="land"
+              :density="activeDensity"
+              :selection-mode="batchSelectionMode"
+              :selected="selectedLandIds.includes(Number(land.id || 0))"
+              :recently-touched="recentBatchTouchedIds.includes(Number(land.id || 0))"
+              @toggle-select="toggleLandSelection"
+            />
+          </div>
         </div>
+      </div>
+    </div>
+
+    <div v-if="batchSelectionMode && selectedLandIds.length > 0" class="farm-panel-batch-dock" :class="{ 'is-pulsing': batchSelectionPulse }">
+      <div class="farm-panel-batch-dock__summary">
+        <div class="farm-panel-batch-dock__title" :class="{ 'is-pulsing': batchSelectionPulse }">
+          已选 {{ selectedLandIds.length }} 块土地
+        </div>
+        <div class="farm-panel-batch-dock__desc">
+          {{ activeBatchGroup ? '当前按分组选中，可直接在下方执行批量操作。' : '可以继续补选土地，或直接执行下方批量操作。' }}
+        </div>
+      </div>
+      <div class="farm-panel-batch-dock__actions">
+        <BaseButton
+          v-for="action in batchActions"
+          :key="`dock-${action.key}`"
+          variant="primary"
+          class="farm-panel-batch-dock__button"
+          :disabled="batchOperating"
+          @click="runBatchAction(action.opType)"
+        >
+          {{ batchOperating ? '处理中...' : `${action.label} (${action.count})` }}
+        </BaseButton>
+        <BaseButton
+          variant="ghost"
+          class="farm-panel-batch-dock__button is-ghost"
+          :disabled="batchOperating"
+          @click="clearSelectedLands"
+        >
+          清空已选
+        </BaseButton>
       </div>
     </div>
 
@@ -1141,10 +1347,192 @@ async function runBatchAction(opType: string) {
   font-weight: 700;
 }
 
+.farm-panel-batch-toolbar__main.is-pulsing .farm-panel-batch-toggle,
+.farm-panel-batch-meta.is-pulsing {
+  animation: farm-batch-count-pulse 420ms ease-out;
+}
+
 .farm-panel-batch-note {
   color: var(--ui-text-2);
   font-size: 0.76rem;
   line-height: 1.55;
+}
+
+.farm-panel-batch-coverage {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.68rem;
+  padding: 0.72rem 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-500) 18%, var(--ui-border-subtle));
+  border-radius: 0.95rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 10%, transparent), transparent 72%),
+    color-mix(in srgb, var(--ui-brand-500) 8%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-coverage__icon {
+  flex: none;
+  margin-top: 0.05rem;
+  font-size: 1rem;
+  color: color-mix(in srgb, var(--ui-brand-600) 82%, white 18%);
+}
+
+.farm-panel-batch-coverage__copy {
+  min-width: 0;
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.farm-panel-batch-empty-guide {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.72rem;
+  padding: 0.78rem 0.82rem;
+  border: 1px dashed color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle));
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 14%, transparent), transparent 72%),
+    color-mix(in srgb, var(--ui-brand-500) 7%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-empty-guide__icon {
+  flex: none;
+  margin-top: 0.05rem;
+  font-size: 1rem;
+  color: color-mix(in srgb, var(--ui-brand-600) 84%, white 16%);
+}
+
+.farm-panel-batch-empty-guide__copy {
+  min-width: 0;
+}
+
+.farm-panel-batch-empty-guide__title {
+  color: var(--ui-text-1);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.farm-panel-batch-empty-guide__desc {
+  margin-top: 0.2rem;
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.farm-panel-batch-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.farm-panel-batch-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  padding: 0.34rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 58%, transparent);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.farm-panel-batch-group:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.farm-panel-batch-group.is-active {
+  box-shadow: 0 12px 24px -18px color-mix(in srgb, var(--ui-brand-500) 72%, transparent);
+  transform: translateY(-1px);
+}
+
+.farm-panel-batch-group:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.farm-panel-batch-group__label {
+  white-space: nowrap;
+}
+
+.farm-panel-batch-group__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.farm-panel-batch-group__desc {
+  color: currentColor;
+  opacity: 0.72;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.farm-panel-batch-group__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  min-height: 1.3rem;
+  padding-inline: 0.24rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface) 82%, transparent);
+  color: var(--ui-text-1);
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.farm-panel-batch-group.is-harvest {
+  color: color-mix(in srgb, #f97316 90%, white 10%);
+  border-color: color-mix(in srgb, #fb923c 42%, transparent);
+  background: color-mix(in srgb, #fb923c 13%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-group.is-harvest.is-active {
+  border-color: color-mix(in srgb, #fb923c 70%, transparent);
+  background: color-mix(in srgb, #fb923c 20%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-group.is-water {
+  color: color-mix(in srgb, #0284c7 88%, white 12%);
+  border-color: color-mix(in srgb, #38bdf8 38%, transparent);
+  background: color-mix(in srgb, #38bdf8 12%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-group.is-water.is-active {
+  border-color: color-mix(in srgb, #38bdf8 68%, transparent);
+  background: color-mix(in srgb, #38bdf8 18%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-group.is-weed {
+  color: color-mix(in srgb, #15803d 88%, white 12%);
+  border-color: color-mix(in srgb, #22c55e 38%, transparent);
+  background: color-mix(in srgb, #22c55e 12%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-group.is-weed.is-active {
+  border-color: color-mix(in srgb, #22c55e 68%, transparent);
+  background: color-mix(in srgb, #22c55e 18%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-group.is-bug {
+  color: color-mix(in srgb, #dc2626 90%, white 10%);
+  border-color: color-mix(in srgb, #ef4444 36%, transparent);
+  background: color-mix(in srgb, #ef4444 12%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-group.is-bug.is-active {
+  border-color: color-mix(in srgb, #ef4444 68%, transparent);
+  background: color-mix(in srgb, #ef4444 18%, var(--ui-bg-surface-raised));
 }
 
 .farm-panel-batch-result {
@@ -1158,6 +1546,7 @@ async function runBatchAction(opType: string) {
   background:
     linear-gradient(135deg, color-mix(in srgb, white 12%, transparent), transparent 72%),
     color-mix(in srgb, var(--ui-status-success) 10%, var(--ui-bg-surface-raised));
+  animation: farm-batch-result-fade 4.2s ease forwards;
 }
 
 .farm-panel-batch-result__icon {
@@ -1170,6 +1559,10 @@ async function runBatchAction(opType: string) {
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.55;
+}
+
+.farm-panel-batch-result.is-visible {
+  opacity: 1;
 }
 
 .farm-panel-batch-mini {
@@ -1369,6 +1762,201 @@ async function runBatchAction(opType: string) {
   background: color-mix(in srgb, var(--ui-bg-surface-raised) 82%, transparent) !important;
 }
 
+.farm-panel-grid-wrap {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.farm-panel-batch-legend {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.78rem 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 72%, transparent);
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 10%, transparent), transparent 72%),
+    color-mix(in srgb, var(--ui-bg-surface-raised) 54%, transparent);
+}
+
+.farm-panel-batch-legend__title {
+  color: var(--ui-text-1);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.farm-panel-batch-legend__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.farm-panel-batch-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 1.95rem;
+  padding: 0.28rem 0.66rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 72%, transparent);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.farm-panel-batch-legend__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex: none;
+}
+
+.farm-panel-batch-legend__item.is-harvest {
+  color: color-mix(in srgb, #f97316 90%, white 10%);
+  border-color: color-mix(in srgb, #fb923c 42%, transparent);
+  background: color-mix(in srgb, #fb923c 13%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-legend__item.is-harvest .farm-panel-batch-legend__dot {
+  background: #fb923c;
+}
+
+.farm-panel-batch-legend__item.is-water {
+  color: color-mix(in srgb, #0284c7 88%, white 12%);
+  border-color: color-mix(in srgb, #38bdf8 38%, transparent);
+  background: color-mix(in srgb, #38bdf8 12%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-legend__item.is-water .farm-panel-batch-legend__dot {
+  background: #38bdf8;
+}
+
+.farm-panel-batch-legend__item.is-weed {
+  color: color-mix(in srgb, #15803d 88%, white 12%);
+  border-color: color-mix(in srgb, #22c55e 38%, transparent);
+  background: color-mix(in srgb, #22c55e 12%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-legend__item.is-weed .farm-panel-batch-legend__dot {
+  background: #22c55e;
+}
+
+.farm-panel-batch-legend__item.is-bug {
+  color: color-mix(in srgb, #dc2626 90%, white 10%);
+  border-color: color-mix(in srgb, #ef4444 36%, transparent);
+  background: color-mix(in srgb, #ef4444 12%, var(--ui-bg-surface-raised));
+}
+
+.farm-panel-batch-legend__item.is-bug .farm-panel-batch-legend__dot {
+  background: #ef4444;
+}
+
+.farm-panel-batch-dock {
+  position: sticky;
+  bottom: 0.85rem;
+  z-index: 8;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: -0.25rem;
+  padding: 0.82rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-500) 22%, var(--ui-border-subtle));
+  border-radius: 1.1rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 16%, transparent), transparent 72%),
+    color-mix(in srgb, var(--ui-bg-elevated) 92%, white 8%);
+  box-shadow: 0 18px 40px -26px color-mix(in srgb, var(--ui-shadow-panel) 82%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.farm-panel-batch-dock.is-pulsing {
+  animation: farm-batch-dock-pulse 460ms ease-out;
+}
+
+.farm-panel-batch-dock__summary {
+  min-width: 0;
+}
+
+.farm-panel-batch-dock__title {
+  color: var(--ui-text-1);
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.farm-panel-batch-dock__title.is-pulsing {
+  animation: farm-batch-count-pulse 420ms ease-out;
+}
+
+.farm-panel-batch-dock__desc {
+  margin-top: 0.22rem;
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.farm-panel-batch-dock__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.farm-panel-batch-dock__button {
+  min-height: 2.2rem;
+}
+
+.farm-panel-batch-dock__button.is-ghost {
+  color: var(--ui-text-2) !important;
+}
+
+@keyframes farm-batch-count-pulse {
+  0% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes farm-batch-dock-pulse {
+  0% {
+    transform: translateY(0);
+    box-shadow: 0 18px 40px -26px color-mix(in srgb, var(--ui-shadow-panel) 82%, transparent);
+  }
+  36% {
+    transform: translateY(-2px);
+    box-shadow:
+      0 24px 46px -24px color-mix(in srgb, var(--ui-brand-500) 30%, transparent),
+      0 18px 40px -26px color-mix(in srgb, var(--ui-shadow-panel) 82%, transparent);
+  }
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 18px 40px -26px color-mix(in srgb, var(--ui-shadow-panel) 82%, transparent);
+  }
+}
+
+@keyframes farm-batch-result-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  82% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
 .farm-panel-empty-icon,
 .farm-panel-empty-copy {
   color: var(--ui-text-2) !important;
@@ -1516,6 +2104,18 @@ async function runBatchAction(opType: string) {
     top: 0.4rem;
   }
 
+  .farm-panel-batch-dock {
+    bottom: 0.5rem;
+    margin-inline: 0.25rem;
+    padding: 0.78rem;
+    border-radius: 1rem;
+  }
+
+  .farm-panel-batch-dock__actions > * {
+    flex: 1 1 calc(50% - 0.55rem);
+    min-width: 0;
+  }
+
   .farm-panel-control-groups,
   .farm-panel-preference-grid {
     grid-template-columns: 1fr;
@@ -1530,6 +2130,16 @@ async function runBatchAction(opType: string) {
   .farm-panel-batch-toolbar__actions > * {
     flex: 1 1 calc(50% - 0.55rem);
     min-width: 0;
+  }
+
+  .farm-panel-batch-group {
+    width: 100%;
+    justify-content: space-between;
+    border-radius: 1rem;
+  }
+
+  .farm-panel-batch-group__desc {
+    white-space: normal;
   }
 
   .farm-panel-filters {

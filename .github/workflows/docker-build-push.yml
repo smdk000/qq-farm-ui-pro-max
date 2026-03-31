@@ -19,7 +19,7 @@ on:
       version:
         description: 'Version (e.g., v3.6.0)'
         required: false
-        default: 'v4.5.57'
+        default: 'v4.5.58'
       push_to_docker_hub:
         description: 'Push to Docker Hub'
         required: false

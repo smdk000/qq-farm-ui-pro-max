@@ -2,7 +2,7 @@
 
 > 🔴 **醒目提醒：现在扫码登录失效，等其他大佬修复，本仓库暂停更新功能，仅修复bug了。**基于 Node.js 的 QQ 农场自动化工具，支持多账号管理、Web 控制面板、实时日志与数据分析。
 
-![版本](https://img.shields.io/badge/版本-v4.5.57-blue)
+![版本](https://img.shields.io/badge/版本-v4.5.58-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange)
 ![Redis](https://img.shields.io/badge/Redis-6.0-red)
@@ -311,7 +311,7 @@ bash <(curl --http1.1 --retry 4 --retry-delay 1 --retry-all-errors --connect-tim
 如需固定镜像版本或覆盖仓库，可在 `.env` 中设置：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.57
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.58
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -366,7 +366,7 @@ bash install-or-update.sh --action update --preserve-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.57
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.58
 
 # 弱网 / 离线环境：先 docker load，再用离线镜像包更新
 bash update-app.sh --image-archive /root/qq-farm-bot-images-amd64.tar.gz
@@ -421,8 +421,8 @@ curl http://localhost:3080/api/ping
 
 - `qq-farm-bot-images-amd64.tar.gz`
 - `qq-farm-bot-images-arm64.tar.gz`
-- `qq-farm-bot-v4.5.57-offline-amd64.tar.gz`
-- `qq-farm-bot-v4.5.57-offline-arm64.tar.gz`
+- `qq-farm-bot-v4.5.58-offline-amd64.tar.gz`
+- `qq-farm-bot-v4.5.58-offline-arm64.tar.gz`
 
 其中 `arm64` 离线包里的 `ipad860` 仍是 `linux/amd64`，目标宿主机需支持 QEMU。
 
@@ -443,7 +443,7 @@ curl http://localhost:3080/api/ping
 
 ```bash
 export DOCKERHUB_TOKEN='你的 Docker Hub Token'
-bash scripts/deploy/auto-update-docker.sh --version v4.5.57
+bash scripts/deploy/auto-update-docker.sh --version v4.5.58
 ```
 
 如果同时要推送 GHCR：
@@ -452,13 +452,13 @@ bash scripts/deploy/auto-update-docker.sh --version v4.5.57
 export DOCKERHUB_TOKEN='你的 Docker Hub Token'
 export GHCR_USERNAME='你的 GitHub 用户名'
 export GHCR_TOKEN='你的 GitHub Token'
-bash scripts/deploy/auto-update-docker.sh --version v4.5.57 --with-ghcr --with-release-assets
+bash scripts/deploy/auto-update-docker.sh --version v4.5.58 --with-ghcr --with-release-assets
 ```
 
 镜像推送完成后，服务器直接执行：
 
 ```bash
-/opt/qq-farm-current/update-app.sh --image smdk000/qq-farm-bot-ui:4.5.57
+/opt/qq-farm-current/update-app.sh --image smdk000/qq-farm-bot-ui:4.5.58
 ```
 
 #### 1. 环境准备
@@ -480,7 +480,7 @@ echo $GH_PAT | docker login ghcr.io -u smdk000 --password-stdin
 **使用脚本构建（推荐）**:
 ```bash
 chmod +x scripts/docker/docker-build-multiarch.sh
-./scripts/docker/docker-build-multiarch.sh --version 4.5.57
+./scripts/docker/docker-build-multiarch.sh --version 4.5.58
 ```
 
 **手动构建**:
@@ -488,7 +488,7 @@ chmod +x scripts/docker/docker-build-multiarch.sh
 # 构建并推送到 Docker Hub
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t smdk000/qq-farm-bot-ui:4.5.57 \
+  -t smdk000/qq-farm-bot-ui:4.5.58 \
   -t smdk000/qq-farm-bot-ui:latest \
   -f core/Dockerfile . \
   --push
@@ -496,7 +496,7 @@ docker buildx build \
 # 构建并推送到 GitHub Container Registry
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.57 \
+  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.58 \
   -t ghcr.io/smdk000/qq-farm-ui-pro-max:latest \
   -f core/Dockerfile . \
   --push
@@ -506,7 +506,7 @@ docker buildx build \
 
 ```bash
 chmod +x scripts/release/build-release-assets.sh
-./scripts/release/build-release-assets.sh --version v4.5.57
+./scripts/release/build-release-assets.sh --version v4.5.58
 
 # 产物默认输出到 ./release-assets
 ls release-assets
@@ -516,7 +516,7 @@ ls release-assets
 
 ```bash
 # 查看镜像信息
-docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.57
+docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.58
 
 # Docker Hub 查看
 # https://hub.docker.com/r/smdk000/qq-farm-bot-ui/tags
@@ -757,8 +757,8 @@ Docker 会自动选择适合您系统架构的镜像版本。
 ---
 
 **维护者**: smdk000
-**最后更新**: 2026-03-30
-**版本**: v4.5.57
+**最后更新**: 2026-03-31
+**版本**: v4.5.58
 
 ## 多用户模式
 
@@ -1131,6 +1131,11 @@ ISC License
 ---
 
 ## 🎉 最近更新
+
+### v4.5.58 - 农场批量作业导航与 QQ 高风险保存预览增强版 (2026-03-31)
+- ✅ 农场批量模式新增“可收获 / 待浇水 / 待除草 / 待除虫”分组快选、覆盖率提示、空状态引导、颜色图例与底部操作坞，批量执行后会高亮刚处理的地块并自动收敛结果提示。
+- ✅ 土地卡片在批量模式下新增待办标签与色带语义，支持“最近批量处理”成功闪烁反馈；背包详情弹窗补齐 Esc 关闭、焦点回归、背景点击关闭和滚动锁定，交互更稳。
+- ✅ 设置页新增 QQ 高风险保存前预览卡片，会根据“是否新开启高风险项”和“是否不限制时长”给出本次保存风险摘要；默认版本、部署模板和工作流已统一抬升到 `v4.5.58`。
 
 ### v4.5.57 - 农场土地工作台重构、单地块操作与高风险窗口扩展版 (2026-03-30)
 - ✅ 农场页新增智能筛选/排序、紧凑视图、问题快捷筛选、批量选择和单块快捷操作，土地卡片可直接查看整株与阶段进度、成熟倒计时和详情面板。

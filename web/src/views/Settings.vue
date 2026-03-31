@@ -3491,20 +3491,49 @@ const isCurrentAccountQq = computed(() => {
   return isCurrentAccountQqValue()
 })
 
+const qqHighRiskActivationDefinitions = [
+  {
+    path: 'automation.fertilizer_60s_anti_steal',
+    label: '60秒施肥(防偷)',
+    detail: '会在成熟前集中施肥并抢收，形成非常强的临界时点请求特征。',
+  },
+  {
+    path: 'automation.fastHarvest',
+    label: '成熟秒收取',
+    detail: '会提前预设精确收获时机，容易表现出近乎固定的秒级操作节奏。',
+  },
+  {
+    path: 'stakeoutSteal.enabled',
+    label: '精准蹲守偷菜',
+    detail: '会围绕好友成熟时间做精确蹲点，属于典型的自动化蹲守行为。',
+  },
+  {
+    path: 'automation.qqFriendFetchMultiChain',
+    label: 'QQ 多链路好友拉取',
+    detail: '会恢复旧版多接口探测链路，显著扩大 QQ 侧好友列表接口探测面。',
+  },
+] as const
+
+function collectEnabledQqHighRiskItemsFromPayload(payload: any) {
+  return qqHighRiskActivationDefinitions.filter(item => Boolean(getValueByPath(payload, item.path)))
+}
+
+function collectEnabledQqHighRiskLabelsFromPayload(payload: any) {
+  return collectEnabledQqHighRiskItemsFromPayload(payload).map(item => item.label)
+}
+
+function collectNewQqHighRiskActivationItems(previousPayload: any, nextPayload: any) {
+  return qqHighRiskActivationDefinitions.filter((item) => {
+    const beforeEnabled = Boolean(getValueByPath(previousPayload, item.path))
+    const afterEnabled = Boolean(getValueByPath(nextPayload, item.path))
+    return !beforeEnabled && afterEnabled
+  })
+}
+
 const qqHighRiskEnabledLabels = computed(() => {
   if (!isCurrentAccountQq.value)
     return []
-
-  const enabled: string[] = []
-  if (localSettings.value?.automation?.fertilizer_60s_anti_steal)
-    enabled.push('60秒施肥(防偷)')
-  if (localSettings.value?.automation?.fastHarvest)
-    enabled.push('成熟秒收取')
-  if (localSettings.value?.stakeoutSteal?.enabled)
-    enabled.push('精准蹲守偷菜')
-  if (localSettings.value?.automation?.qqFriendFetchMultiChain)
-    enabled.push('QQ 多链路好友拉取')
-  return enabled
+  return collectEnabledQqHighRiskLabelsFromPayload(localSettings.value || {})
 })
 
 function normalizeQqHighRiskDuration(rawDuration: any, fallbackDuration = QQ_HIGH_RISK_WINDOW_DEFAULT_MINUTES) {
@@ -5409,6 +5438,67 @@ function getAccountSettingsDiffItems() {
 const accountSettingsDiffItems = computed(() => getAccountSettingsDiffItems())
 const accountSettingsDirtyCount = computed(() => accountSettingsDiffItems.value.length)
 const hasUnsavedAccountSettings = computed(() => accountSettingsDirtyCount.value > 0)
+const qqHighRiskSavePreview = computed<null | {
+  tone: 'warning' | 'danger'
+  chip: string
+  title: string
+  summary: string
+}>(() => {
+  if (!isCurrentAccountQq.value || !settings.value || !hasUnsavedAccountSettings.value)
+    return null
+
+  const previousPayload = buildSettingsPayloadFromState(buildAccountSettingsStateFromSources())
+  const nextPayload = buildSettingsPayload()
+  const previousWindow = buildNormalizedQqHighRiskWindow(previousPayload.qqHighRiskWindow)
+  const nextWindow = buildNormalizedQqHighRiskWindow(nextPayload.qqHighRiskWindow)
+  const nextEnabledLabels = collectEnabledQqHighRiskLabelsFromPayload(nextPayload)
+  const newEnabledItems = collectNewQqHighRiskActivationItems(previousPayload, nextPayload)
+  const durationChanged = previousWindow.durationMinutes !== nextWindow.durationMinutes
+  const hasAnyEnabled = nextEnabledLabels.length > 0
+
+  if (!durationChanged && newEnabledItems.length === 0)
+    return null
+
+  const nextWindowLabel = formatQqHighRiskWindowDuration(nextWindow.durationMinutes)
+  const newlyEnabledText = newEnabledItems.length > 0
+    ? `新开启：${newEnabledItems.map(item => item.label).join('、')}。`
+    : ''
+
+  if (!hasAnyEnabled) {
+    if (nextWindow.durationMinutes === QQ_HIGH_RISK_WINDOW_UNLIMITED_MINUTES) {
+      return {
+        tone: 'danger',
+        chip: '下次生效：不自动回退',
+        title: '本次保存会更新默认高风险策略',
+        summary: '当前没有高风险项开启；后续新开启时将保持开启，需手动关闭。',
+      }
+    }
+    return {
+      tone: 'warning',
+      chip: `下次生效：${nextWindowLabel}`,
+      title: '本次保存会更新默认高风险窗口',
+      summary: `当前没有高风险项开启；后续新开启时将签发 ${nextWindowLabel} 的临时窗口。`,
+    }
+  }
+
+  if (nextWindow.durationMinutes === QQ_HIGH_RISK_WINDOW_UNLIMITED_MINUTES) {
+    return {
+      tone: 'danger',
+      chip: '本次保存：不自动回退',
+      title: '本次保存会切到手动收口模式',
+      summary: `${newlyEnabledText}保存后后端不会再自动关闭当前已开启的 ${nextEnabledLabels.length} 项高风险功能，请在使用完后手动关闭。`,
+    }
+  }
+
+  return {
+    tone: 'warning',
+    chip: `本次保存：${nextWindowLabel}`,
+    title: newEnabledItems.length > 0 && !durationChanged
+      ? '本次保存会签发 QQ 高风险窗口'
+      : '本次保存会刷新 QQ 高风险窗口',
+    summary: `${newlyEnabledText}保存后将签发 ${nextWindowLabel} 的临时窗口，到期后后端会自动关闭当前已开启的 ${nextEnabledLabels.length} 项高风险功能。`,
+  }
+})
 
 function closeDiffModal() {
   diffModalVisible.value = false
@@ -5490,34 +5580,7 @@ function collectQqHighRiskActivationItems(payload: any) {
     return []
 
   const previousPayload = buildSettingsPayloadFromState(buildAccountSettingsStateFromSources())
-  const definitions = [
-    {
-      path: 'automation.fertilizer_60s_anti_steal',
-      label: '60秒施肥(防偷)',
-      detail: '会在成熟前集中施肥并抢收，形成非常强的临界时点请求特征。',
-    },
-    {
-      path: 'automation.fastHarvest',
-      label: '成熟秒收取',
-      detail: '会提前预设精确收获时机，容易表现出近乎固定的秒级操作节奏。',
-    },
-    {
-      path: 'stakeoutSteal.enabled',
-      label: '精准蹲守偷菜',
-      detail: '会围绕好友成熟时间做精确蹲点，属于典型的自动化蹲守行为。',
-    },
-    {
-      path: 'automation.qqFriendFetchMultiChain',
-      label: 'QQ 多链路好友拉取',
-      detail: '会恢复旧版多接口探测链路，显著扩大 QQ 侧好友列表接口探测面。',
-    },
-  ]
-
-  return definitions.filter((item) => {
-    const beforeEnabled = Boolean(getValueByPath(previousPayload, item.path))
-    const afterEnabled = Boolean(getValueByPath(payload, item.path))
-    return !beforeEnabled && afterEnabled
-  })
+  return collectNewQqHighRiskActivationItems(previousPayload, payload)
 }
 
 async function runAccountSettingsRiskConfirmations(
@@ -7110,7 +7173,10 @@ async function restoreTimingDefaults() {
                     </div>
                     <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,260px)_1fr]">
                       <div class="space-y-2">
-                        <div class="settings-qq-risk-toolbar rounded-xl p-3">
+                        <div
+                          class="settings-qq-risk-toolbar rounded-xl p-3"
+                          :class="{ 'settings-qq-risk-toolbar--unlimited': qqHighRiskWindowUnlimited }"
+                        >
                           <div class="flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <div class="settings-qq-risk-toolbar__title text-[11px] font-semibold tracking-[0.18em] uppercase">
@@ -7119,6 +7185,13 @@ async function restoreTimingDefaults() {
                               <div class="settings-qq-risk-toolbar__summary mt-1 text-xs font-medium">
                                 {{ qqHighRiskDraftSummaryText }}
                               </div>
+                              <Transition name="qq-risk-chip">
+                                <div v-if="qqHighRiskWindowUnlimited" class="settings-qq-risk-toolbar__mode mt-2">
+                                  <span class="settings-mode-badge ui-meta-chip--danger text-[11px]">
+                                    手动收口模式
+                                  </span>
+                                </div>
+                              </Transition>
                             </div>
                             <BaseBadge surface="meta" :tone="qqHighRiskWindowUnlimited ? 'danger' : 'warning'">
                               {{ qqHighRiskWindowBadgeText }}
@@ -7137,26 +7210,43 @@ async function restoreTimingDefaults() {
                             </BaseButton>
                           </div>
                         </div>
-                        <div class="flex items-end gap-2">
-                          <BaseInput
-                            v-if="!qqHighRiskWindowUnlimited"
-                            v-model.number="localSettings.qqHighRiskWindow.durationMinutes"
-                            class="min-w-0 flex-1"
-                            label="自动回退时长 (分钟)"
-                            type="number"
-                            min="5"
-                            :max="QQ_HIGH_RISK_WINDOW_MAX_MINUTES"
-                          />
-                          <div v-else class="min-w-0 flex-1">
-                            <div class="glass-text-muted mb-1.5 text-sm font-medium">
-                              自动回退时长 (分钟)
+                        <div class="settings-qq-risk-window-control flex items-end gap-2">
+                          <Transition name="qq-risk-mode" mode="out-in">
+                            <div
+                              v-if="!qqHighRiskWindowUnlimited"
+                              key="finite"
+                              class="settings-qq-risk-window-field"
+                            >
+                              <BaseInput
+                                v-model.number="localSettings.qqHighRiskWindow.durationMinutes"
+                                class="min-w-0"
+                                label="自动回退时长 (分钟)"
+                                type="number"
+                                min="5"
+                                :max="QQ_HIGH_RISK_WINDOW_MAX_MINUTES"
+                              />
                             </div>
-                            <div class="settings-qq-risk-window-pill min-h-[var(--ui-control-height)] flex items-center rounded-lg px-3 text-sm font-medium">
-                              不限制
+                            <div v-else key="unlimited" class="settings-qq-risk-window-field">
+                              <div class="glass-text-muted mb-1.5 text-sm font-medium">
+                                自动回退时长 (分钟)
+                              </div>
+                              <div class="settings-qq-risk-window-pill settings-qq-risk-window-pill--unlimited rounded-lg px-3 py-2.5">
+                                <div class="settings-qq-risk-window-pill__eyebrow">
+                                  当前模式
+                                </div>
+                                <div class="settings-qq-risk-window-pill__title">
+                                  不自动回退
+                                </div>
+                                <div class="settings-qq-risk-window-pill__meta">
+                                  保存后保持开启，需手动关闭
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          </Transition>
                           <BaseButton
-                            class="shrink-0"
+                            class="settings-qq-risk-window-toggle shrink-0" :class="[
+                              { 'settings-qq-risk-window-toggle--active': qqHighRiskWindowUnlimited },
+                            ]"
                             size="md"
                             :variant="qqHighRiskWindowUnlimited ? 'danger' : 'outline'"
                             @click="toggleQqHighRiskWindowUnlimited"
@@ -7537,10 +7627,29 @@ async function restoreTimingDefaults() {
           </div>
 
           <!-- Save Button -->
-          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
-            <p class="settings-sticky-save-note md:hidden">
-              保存后会立即应用到当前账号。
-            </p>
+          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex flex-col justify-end gap-3 px-4 py-3 md:flex-row md:items-center md:justify-end">
+            <div class="min-w-0 md:mr-auto space-y-2">
+              <div
+                v-if="qqHighRiskSavePreview"
+                class="settings-save-preview rounded-xl px-3 py-2.5"
+                :class="`settings-save-preview--${qqHighRiskSavePreview.tone}`"
+              >
+                <div class="flex flex-wrap items-center gap-2">
+                  <BaseBadge surface="meta" :tone="qqHighRiskSavePreview.tone">
+                    {{ qqHighRiskSavePreview.chip }}
+                  </BaseBadge>
+                  <span class="settings-save-preview__title">
+                    {{ qqHighRiskSavePreview.title }}
+                  </span>
+                </div>
+                <p class="settings-save-preview__body mt-1">
+                  {{ qqHighRiskSavePreview.summary }}
+                </p>
+              </div>
+              <p class="settings-sticky-save-note">
+                保存后会立即应用到当前账号。
+              </p>
+            </div>
             <BaseButton
               variant="primary"
               size="sm"
@@ -12104,6 +12213,23 @@ async function restoreTimingDefaults() {
           <p class="settings-account-save-dock-copy">
             巡查时间、静默时段、策略和自动控制都属于账号级设置；右侧“仅保存全局下线提醒”不会保存这些改动。
           </p>
+          <div
+            v-if="qqHighRiskSavePreview"
+            class="settings-save-preview settings-save-preview--dock mt-3 rounded-xl px-3 py-2.5"
+            :class="`settings-save-preview--${qqHighRiskSavePreview.tone}`"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <BaseBadge surface="meta" :tone="qqHighRiskSavePreview.tone">
+                {{ qqHighRiskSavePreview.chip }}
+              </BaseBadge>
+              <span class="settings-save-preview__title">
+                {{ qqHighRiskSavePreview.title }}
+              </span>
+            </div>
+            <p class="settings-save-preview__body mt-1">
+              {{ qqHighRiskSavePreview.summary }}
+            </p>
+          </div>
         </div>
         <BaseButton
           variant="primary"
@@ -12150,6 +12276,23 @@ async function restoreTimingDefaults() {
                 <span class="text-primary-600 font-bold dark:text-primary-400">{{ item.to }}</span>
               </div>
             </div>
+          </div>
+          <div
+            v-if="qqHighRiskSavePreview"
+            class="settings-save-preview settings-save-preview--modal rounded-xl px-3 py-2.5 text-left"
+            :class="`settings-save-preview--${qqHighRiskSavePreview.tone}`"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <BaseBadge surface="meta" :tone="qqHighRiskSavePreview.tone">
+                {{ qqHighRiskSavePreview.chip }}
+              </BaseBadge>
+              <span class="settings-save-preview__title">
+                {{ qqHighRiskSavePreview.title }}
+              </span>
+            </div>
+            <p class="settings-save-preview__body mt-1">
+              {{ qqHighRiskSavePreview.summary }}
+            </p>
           </div>
           <p class="settings-system-warning-note text-[10px] italic">
             {{ diffModalHint }}
@@ -12681,6 +12824,47 @@ async function restoreTimingDefaults() {
   color: var(--ui-text-2);
   font-size: 0.75rem;
   line-height: 1.5;
+}
+
+.settings-save-preview {
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+
+.settings-save-preview--warning {
+  border-color: color-mix(in srgb, var(--ui-status-warning) 24%, var(--ui-border-subtle));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ui-status-warning-soft) 40%, transparent), transparent 62%),
+    color-mix(in srgb, var(--ui-bg-surface-raised) 92%, transparent);
+}
+
+.settings-save-preview--danger {
+  border-color: color-mix(in srgb, var(--ui-status-danger) 24%, var(--ui-border-subtle));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ui-status-danger-soft) 38%, transparent), transparent 62%),
+    color-mix(in srgb, var(--ui-bg-surface-raised) 92%, transparent);
+}
+
+.settings-save-preview--dock {
+  max-width: 44rem;
+}
+
+.settings-save-preview--modal {
+  width: 100%;
+}
+
+.settings-save-preview__title {
+  color: var(--ui-text-1);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.settings-save-preview__body {
+  color: var(--ui-text-2);
+  font-size: 0.75rem;
+  line-height: 1.55;
 }
 
 .settings-footer-button {
@@ -13978,6 +14162,12 @@ async function restoreTimingDefaults() {
   background: color-mix(in srgb, var(--ui-bg-surface-raised) 82%, var(--ui-status-danger-soft) 18%);
   color: var(--ui-text-1);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  transition:
+    border-color 180ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease,
+    transform 180ms ease,
+    color 180ms ease;
 }
 
 .settings-qq-risk-toolbar {
@@ -13986,17 +14176,154 @@ async function restoreTimingDefaults() {
     linear-gradient(135deg, color-mix(in srgb, var(--ui-status-warning-soft) 44%, transparent), transparent 58%),
     color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  transition:
+    border-color 180ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease,
+    transform 180ms ease;
+}
+
+.settings-qq-risk-toolbar--unlimited {
+  border-color: color-mix(in srgb, var(--ui-status-danger) 20%, var(--ui-border-subtle));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ui-status-danger-soft) 40%, transparent), transparent 58%),
+    color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
 }
 
 .settings-qq-risk-toolbar__title {
   color: color-mix(in srgb, var(--ui-status-warning) 82%, var(--ui-text-2));
 }
 
+.settings-qq-risk-toolbar--unlimited .settings-qq-risk-toolbar__title {
+  color: color-mix(in srgb, var(--ui-status-danger) 82%, var(--ui-text-2));
+}
+
 .settings-qq-risk-toolbar__summary {
   color: var(--ui-text-1);
 }
 
+.settings-qq-risk-toolbar__mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .settings-qq-risk-preset {
   min-width: 4.75rem;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 180ms ease,
+    transform 160ms ease,
+    color 160ms ease;
+}
+
+.settings-qq-risk-window-field {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.settings-qq-risk-window-pill--unlimited {
+  min-height: calc(var(--ui-control-height) + 0.75rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15rem;
+  border-color: color-mix(in srgb, var(--ui-status-danger) 28%, var(--ui-border-subtle));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ui-status-danger-soft) 48%, transparent), transparent 68%),
+    color-mix(in srgb, var(--ui-bg-surface-raised) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 14px 32px -24px color-mix(in srgb, var(--ui-status-danger) 48%, transparent);
+}
+
+.settings-qq-risk-window-pill__eyebrow {
+  color: color-mix(in srgb, var(--ui-status-danger) 82%, var(--ui-text-2));
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-qq-risk-window-pill__title {
+  color: color-mix(in srgb, var(--ui-status-danger) 88%, var(--ui-text-1));
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.settings-qq-risk-window-pill__meta {
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.settings-qq-risk-window-toggle--active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-status-danger) 22%, transparent);
+  transform: translateY(-1px);
+}
+
+.settings-qq-risk-window-toggle {
+  transition:
+    border-color 180ms ease,
+    background-color 200ms ease,
+    box-shadow 220ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.qq-risk-chip-enter-active,
+.qq-risk-chip-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.qq-risk-chip-enter-from,
+.qq-risk-chip-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.qq-risk-mode-enter-active,
+.qq-risk-mode-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 220ms ease;
+}
+
+.qq-risk-mode-enter-from,
+.qq-risk-mode-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+  filter: blur(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-qq-risk-window-pill,
+  .settings-qq-risk-toolbar,
+  .settings-qq-risk-preset,
+  .settings-qq-risk-window-toggle,
+  .qq-risk-chip-enter-active,
+  .qq-risk-chip-leave-active,
+  .qq-risk-mode-enter-active,
+  .qq-risk-mode-leave-active {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 389px) {
+  .settings-qq-risk-window-control {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-qq-risk-window-toggle {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>
