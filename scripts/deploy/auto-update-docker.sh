@@ -30,7 +30,7 @@ print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 usage() {
     cat <<'EOF'
 用法:
-  bash scripts/deploy/auto-update-docker.sh [--version v4.5.58] [--with-release-assets] [--with-ghcr]
+  bash scripts/deploy/auto-update-docker.sh [--version v4.5.59] [--with-release-assets] [--with-ghcr]
 
 说明:
   1. 先执行公告/文档/关键回归检查
@@ -46,11 +46,11 @@ usage() {
 
 示例:
   export DOCKERHUB_TOKEN='***'
-  bash scripts/deploy/auto-update-docker.sh --version v4.5.58
+  bash scripts/deploy/auto-update-docker.sh --version v4.5.59
 
   export DOCKERHUB_TOKEN='***'
   export GHCR_TOKEN='***'
-  bash scripts/deploy/auto-update-docker.sh --version 4.5.58 --with-ghcr --with-release-assets
+  bash scripts/deploy/auto-update-docker.sh --version 4.5.59 --with-ghcr --with-release-assets
 EOF
 }
 

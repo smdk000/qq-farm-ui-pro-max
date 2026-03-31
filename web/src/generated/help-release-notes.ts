@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.59',
+    date: '2026-03-31',
+    title: '批量作业与发布部署闭环复核版',
+    summary: '汇总 `v4.5.56 ~ v4.5.58` 的设置总控、农场工作台、批量作业反馈与 QQ 高风险保存预览更新，统一 GitHub Release、Docker Hub、部署文档与更新公告到 `v4.5.59`，并继续复核双机多端口安装升级与历史 Release 完整性。',
+  },
+  {
     version: 'v4.5.58',
     date: '2026-03-31',
     title: '农场批量作业导航与 QQ 高风险保存预览增强版',
