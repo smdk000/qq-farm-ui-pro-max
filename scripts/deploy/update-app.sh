@@ -1259,7 +1259,7 @@ NODE
 }
 
 compose_pull_with_retry() {
-    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.52}"
+    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.59}"
 
     if is_truthy "${SKIP_DOCKER_PULL}"; then
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过主程序镜像拉取，直接使用本地镜像。"

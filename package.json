@@ -35,6 +35,8 @@
     "package:linux": "pnpm build:web && pnpm -C core build:linux",
     "package:mac": "pnpm build:web && pnpm -C core build:mac",
     "package:release": "pnpm build:web && pnpm -C core build:release",
+    "release:docker": "bash scripts/deploy/auto-update-docker.sh",
+    "release:rollout": "bash scripts/deploy/publish-and-rollout.sh",
     "install:all": "pnpm install -r"
   },
   "pnpm": {

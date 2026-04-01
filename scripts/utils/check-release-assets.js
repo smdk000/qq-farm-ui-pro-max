@@ -3,15 +3,12 @@ const { execSync } = require('child_process');
 const https = require('https');
 
 const DEFAULT_TAGS = [
-  'v4.5.42',
-  'v4.5.43',
-  'v4.5.44',
-  'v4.5.45',
-  'v4.5.46',
-  'v4.5.47',
-  'v4.5.48',
-  'v4.5.50',
-  'v4.5.51',
+  'v4.5.54',
+  'v4.5.55',
+  'v4.5.56',
+  'v4.5.57',
+  'v4.5.58',
+  'v4.5.59',
 ];
 
 function print(level, scope, message) {

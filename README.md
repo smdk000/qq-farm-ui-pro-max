@@ -317,6 +317,16 @@ REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
 ```
 
+### 最短 Docker Compose 部署
+
+```bash
+mkdir -p /opt/qq-farm && cd /opt/qq-farm
+curl -fsSLO https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/docker-compose.yml
+curl -fsSLo .env https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/.env.example
+mkdir -p init-db && curl -fsSLo init-db/01-init.sql https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/init-db/01-init.sql
+docker compose up -d
+```
+
 ### 手动分步骤部署
 
 ```bash
@@ -439,10 +449,10 @@ curl http://localhost:3080/api/ping
 
 #### 0. 代码更新后直接发镜像
 
-推荐直接使用项目内置脚本，它会先跑公告/文档/关键回归检查，再登录 Docker Hub 并调用多架构构建脚本：
+推荐直接使用项目内置脚本，它会先跑公告/文档/关键回归检查，再优先复用当前 Docker 登录态并调用多架构构建脚本：
 
 ```bash
-export DOCKERHUB_TOKEN='你的 Docker Hub Token'
+docker login
 bash scripts/deploy/auto-update-docker.sh --version v4.5.59
 ```
 
@@ -459,6 +469,21 @@ bash scripts/deploy/auto-update-docker.sh --version v4.5.59 --with-ghcr --with-r
 
 ```bash
 /opt/qq-farm-current/update-app.sh --image smdk000/qq-farm-bot-ui:4.5.59
+```
+
+#### 0.5 发镜像后顺手滚动两台服务器
+
+`publish-and-rollout.sh` 会先调用上面的镜像发布脚本，然后通过本地 `expect + ssh` 按目标列表逐台执行安装或升级。密码不写进仓库，只从本地环境变量读取：
+
+```bash
+export QQ_FARM_PRIMARY_PASSWORD='***'
+export QQ_FARM_CLUSTER_PASSWORD='***'
+
+bash scripts/deploy/publish-and-rollout.sh --version v4.5.59 --with-ghcr \
+  --target "10.31.1.254|root|QQ_FARM_PRIMARY_PASSWORD|update|qq-farm|/opt/qq-farm-current|" \
+  --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2400|/opt/qq-farm-2400-current|" \
+  --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2500|/opt/qq-farm-2500-current|" \
+  --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2600|/opt/qq-farm-2600-current|"
 ```
 
 #### 1. 环境准备
@@ -530,7 +555,7 @@ docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.59
 pnpm check:release-assets
 
 # 也可以只检查指定版本
-node scripts/utils/check-release-assets.js v4.5.43 v4.5.51
+node scripts/utils/check-release-assets.js v4.5.54 v4.5.59
 ```
 
 ---
@@ -757,7 +782,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 ---
 
 **维护者**: smdk000
-**最后更新**: 2026-03-31
+**最后更新**: 2026-04-01
 **版本**: v4.5.59
 
 ## 多用户模式
@@ -1132,10 +1157,11 @@ ISC License
 
 ## 🎉 最近更新
 
-### v4.5.59 - 批量作业与发布部署闭环复核版 (2026-03-31)
-- ✅ 已把 `v4.5.56` 的设置总控工作台收口、`v4.5.57` 的农场土地工作台与单地块操作，以及 `v4.5.58` 的批量作业反馈与 QQ 高风险保存预览整理成新的统一对外版本，避免功能已更新但发布口径仍停留在旧版。
-- ✅ `core / web` 包版本、README、部署模板、Docker 默认镜像、GitHub Actions 手工发布默认值与帮助中心 Release Notes 已统一切到 `v4.5.59`，用于 GitHub Release、Docker Hub、更新公告和服务器部署。
-- ✅ 本轮会继续承接两台服务器安装与多端口同步升级，并复核最近几个版本的 GitHub Release 完整性，确保新装、升级、离线包和回滚链路保持可用。
+### v4.5.59 - Docker 发布续航、默认镜像对齐与双机批量滚动升级版 (2026-04-01)
+- ✅ `deploy/docker-compose.yml`、`.env.example`、`fresh-install / update-app / update-agent / verify-stack` 等默认主程序镜像已统一抬升到 `v4.5.59`，修复新装模板仍停在旧版 `4.5.55` 的问题。
+- ✅ `scripts/deploy/auto-update-docker.sh` 现在支持优先复用当前 Docker Hub / GHCR 登录态；本机已执行过 `docker login` 时，下次代码更新后不必每次重新导出 Token 才能发镜像。
+- ✅ 新增 `scripts/deploy/publish-and-rollout.sh`，可在本地发完镜像后按目标列表通过 `expect + ssh` 批量滚动 `10.31.1.254` 与 `10.31.2.242` 的 `2400 / 2500 / 2600` 多实例。
+- ✅ README、部署文档、帮助中心远程更新说明与 Release 资产巡检脚本已同步补齐 Docker Compose 首装、镜像发布、双机滚动升级与最近多个版本 Release 资产复核口径。
 
 ### v4.5.58 - 农场批量作业导航与 QQ 高风险保存预览增强版 (2026-03-31)
 - ✅ 农场批量模式新增“可收获 / 待浇水 / 待除草 / 待除虫”分组快选、覆盖率提示、空状态引导、颜色图例与底部操作坞，批量执行后会高亮刚处理的地块并自动收敛结果提示。

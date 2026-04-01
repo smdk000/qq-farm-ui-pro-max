@@ -516,7 +516,7 @@ main() {
     resolve_deploy_dir
     load_deploy_env "${DEPLOY_DIR}/.env"
     WEB_PORT="${WEB_PORT:-3080}"
-    APP_IMAGE="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.52}"
+    APP_IMAGE="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.59}"
     APP_ROLE="${APP_ROLE:-${ROLE:-standalone}}"
     MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-qq007qq008}"
     MYSQL_DATABASE="${MYSQL_DATABASE:-qq_farm}"

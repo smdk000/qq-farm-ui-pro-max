@@ -46,16 +46,27 @@ git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-如果你是手工推 Docker 镜像，也可以直接推镜像：
+如果你是手工推 Docker 镜像，也可以直接使用仓库内置脚本：
 
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 \
-  -t smdk000/qq-farm-bot-ui:vX.Y.Z \
-  -t smdk000/qq-farm-bot-ui:latest \
-  -f core/Dockerfile . --push
+docker login
+bash scripts/deploy/auto-update-docker.sh --version vX.Y.Z --with-ghcr --with-release-assets
 ```
 
 只要保证“系统更新中心”配置的版本源已经能读到这个版本，就可以继续下一步。
+
+如果你希望本地发完镜像后顺手滚动多台服务器，也可以继续执行：
+
+```bash
+export QQ_FARM_PRIMARY_PASSWORD='***'
+export QQ_FARM_CLUSTER_PASSWORD='***'
+
+bash scripts/deploy/publish-and-rollout.sh --version vX.Y.Z --with-ghcr \
+  --target "10.31.1.254|root|QQ_FARM_PRIMARY_PASSWORD|update|qq-farm|/opt/qq-farm-current|" \
+  --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2400|/opt/qq-farm-2400-current|" \
+  --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2500|/opt/qq-farm-2500-current|" \
+  --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2600|/opt/qq-farm-2600-current|"
+```
 
 ## 服务器第一次要准备什么
 

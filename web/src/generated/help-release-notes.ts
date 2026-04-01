@@ -4,9 +4,9 @@
 export const helpReleaseNotes = [
   {
     version: 'v4.5.59',
-    date: '2026-03-31',
-    title: '批量作业与发布部署闭环复核版',
-    summary: '汇总 `v4.5.56 ~ v4.5.58` 的设置总控、农场工作台、批量作业反馈与 QQ 高风险保存预览更新，统一 GitHub Release、Docker Hub、部署文档与更新公告到 `v4.5.59`，并继续复核双机多端口安装升级与历史 Release 完整性。',
+    date: '2026-04-01',
+    title: 'Docker 发布续航、默认镜像对齐与双机批量滚动升级版',
+    summary: '统一部署模板和安装/更新脚本里的默认镜像到 `v4.5.59`，让 `auto-update-docker.sh` 支持复用现有 Docker 登录态，并新增可批量滚动两台服务器多实例的发布脚本。',
   },
   {
     version: 'v4.5.58',

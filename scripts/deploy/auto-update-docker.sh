@@ -34,18 +34,18 @@ usage() {
 
 说明:
   1. 先执行公告/文档/关键回归检查
-  2. 登录 Docker Hub（需要导出 DOCKERHUB_TOKEN）
+  2. 优先复用当前 Docker 登录态；如未登录，再使用 DOCKERHUB_TOKEN / GHCR_TOKEN
   3. 调用 scripts/docker/docker-build-multiarch.sh 构建并推送镜像
   4. 可选同时输出 Release 离线包
 
 常用环境变量:
-  DOCKERHUB_TOKEN   Docker Hub Access Token（必填）
+  DOCKERHUB_TOKEN   Docker Hub Access Token（可选；未提供时复用当前 docker login）
   DOCKERHUB_USERNAME Docker Hub 用户名，默认 smdk000
-  GHCR_TOKEN        如需同步 GHCR 时提供
+  GHCR_TOKEN        如需同步 GHCR 时可提供；未提供时复用当前 ghcr.io 登录态
   GHCR_USERNAME     GHCR 登录用户名，默认取 GITHUB_ACTOR
 
 示例:
-  export DOCKERHUB_TOKEN='***'
+  docker login
   bash scripts/deploy/auto-update-docker.sh --version v4.5.59
 
   export DOCKERHUB_TOKEN='***'
@@ -145,21 +145,20 @@ run_checks() {
 docker_login() {
     require_cmd docker
 
-    if [ -z "${DOCKERHUB_TOKEN}" ]; then
-        print_error "未检测到 DOCKERHUB_TOKEN，请先导出 Docker Hub Token。"
-        exit 1
+    if [ -n "${DOCKERHUB_TOKEN}" ]; then
+        print_info "登录 Docker Hub..."
+        printf '%s' "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin >/dev/null
+    else
+        print_warning "未检测到 DOCKERHUB_TOKEN，改为复用当前 Docker Hub 登录态。若尚未 docker login，推送阶段会失败。"
     fi
 
-    print_info "登录 Docker Hub..."
-    printf '%s' "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin >/dev/null
-
     if [ "${PUSH_GHCR}" = "1" ]; then
-        if [ -z "${GHCR_TOKEN}" ] || [ -z "${GHCR_USERNAME}" ]; then
-            print_error "启用 GHCR 推送时需要同时提供 GHCR_TOKEN 和 GHCR_USERNAME。"
-            exit 1
+        if [ -n "${GHCR_TOKEN}" ] && [ -n "${GHCR_USERNAME}" ]; then
+            print_info "登录 GHCR..."
+            printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin >/dev/null
+        else
+            print_warning "未检测到 GHCR_TOKEN / GHCR_USERNAME，改为复用当前 GHCR 登录态。若尚未 docker login ghcr.io，推送阶段会失败。"
         fi
-        print_info "登录 GHCR..."
-        printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin >/dev/null
     fi
 }
 
@@ -218,6 +217,7 @@ EOF
 
 说明:
   - 当前脚本不会自动提交 Git 或创建 tag，适合本地代码已更新后直接发镜像。
+  - 如需发镜像后顺手滚动更新多台服务器，可继续执行 `bash scripts/deploy/publish-and-rollout.sh --version ${VERSION_TAG}`。
   - 如需触发 GitHub Release / Actions，请在代码推送并打 tag 后再执行远端发布链路。
 ========================================
 EOF
