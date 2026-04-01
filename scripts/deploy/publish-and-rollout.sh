@@ -156,7 +156,7 @@ publish_image() {
 }
 
 create_remote_helper() {
-    REMOTE_HELPER="$(mktemp "${TMPDIR:-/tmp}/qq-farm-rollout.XXXXXX.sh")"
+    REMOTE_HELPER="$(mktemp "${TMPDIR:-/tmp}/qq-farm-rollout.XXXXXX")"
     cat > "${REMOTE_HELPER}" <<'EOF'
 #!/usr/bin/env bash
 
@@ -173,6 +173,7 @@ ALLOW_RELOGIN_RISK="$7"
 REPO_SLUG="${REPO_SLUG:-smdk000/qq-farm-ui-pro-max}"
 REPO_REF="${REPO_REF:-main}"
 INSTALL_URL="https://raw.githubusercontent.com/${REPO_SLUG}/${REPO_REF}/scripts/deploy/install-or-update.sh"
+BOOTSTRAP_SCRIPT=""
 
 curl_flags=(
     --http1.1
@@ -184,6 +185,38 @@ curl_flags=(
     -fsSL
 )
 
+cleanup_bootstrap() {
+    if [ -n "${BOOTSTRAP_SCRIPT}" ] && [ -f "${BOOTSTRAP_SCRIPT}" ]; then
+        rm -f "${BOOTSTRAP_SCRIPT}"
+    fi
+}
+
+trap cleanup_bootstrap EXIT
+
+download_install_script() {
+    BOOTSTRAP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/qq-farm-install-or-update.XXXXXX")"
+    curl "${curl_flags[@]}" "${INSTALL_URL}" -o "${BOOTSTRAP_SCRIPT}"
+    chmod +x "${BOOTSTRAP_SCRIPT}"
+    printf '%s\n' "${BOOTSTRAP_SCRIPT}"
+}
+
+resolve_install_script() {
+    local candidate=""
+
+    for candidate in \
+        "${CURRENT_LINK}/install-or-update.sh" \
+        "/opt/qq-farm-current/install-or-update.sh" \
+        "/opt/qq-farm-bot-current/install-or-update.sh"
+    do
+        if [ -x "${candidate}" ]; then
+            printf '%s\n' "${candidate}"
+            return 0
+        fi
+    done
+
+    download_install_script
+}
+
 common_args=(--stack-name "${STACK_NAME}" --non-interactive --image "${APP_IMAGE}")
 if [ "${ALLOW_RELOGIN_RISK}" = "1" ]; then
     common_args+=(--allow-relogin-risk)
@@ -194,16 +227,14 @@ fi
 
 export STACK_NAME CURRENT_LINK
 
+INSTALL_SCRIPT="$(resolve_install_script)"
+
 case "${ACTION}" in
     install)
-        bash <(curl "${curl_flags[@]}" "${INSTALL_URL}") --action install "${common_args[@]}"
+        bash "${INSTALL_SCRIPT}" --action install "${common_args[@]}"
         ;;
     update)
-        if [ -x "${CURRENT_LINK}/install-or-update.sh" ]; then
-            bash "${CURRENT_LINK}/install-or-update.sh" --action update --preserve-current "${common_args[@]}"
-        else
-            bash <(curl "${curl_flags[@]}" "${INSTALL_URL}") --action update --preserve-current "${common_args[@]}"
-        fi
+        bash "${INSTALL_SCRIPT}" --action update --preserve-current "${common_args[@]}"
         ;;
     *)
         echo "[ERROR] 未知 action: ${ACTION}" >&2
@@ -244,8 +275,8 @@ set remote_path $env(SSH_REMOTE_PATH)
 
 spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $local_path "${user}@${host}:${remote_path}"
 expect {
-    -re "yes/no" { send "yes\r"; exp_continue }
-    -re "[Pp]assword:" { send -- "$password\r"; exp_continue }
+    -re {yes/no} { send "yes\r"; exp_continue }
+    -re {[Pp]assword:} { send -- "$password\r"; exp_continue }
     eof
 }
 catch wait result
@@ -273,8 +304,8 @@ set command $env(SSH_COMMAND)
 
 spawn ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${user}@${host}" $command
 expect {
-    -re "yes/no" { send "yes\r"; exp_continue }
-    -re "[Pp]assword:" { send -- "$password\r"; exp_continue }
+    -re {yes/no} { send "yes\r"; exp_continue }
+    -re {[Pp]assword:} { send -- "$password\r"; exp_continue }
     eof
 }
 catch wait result
