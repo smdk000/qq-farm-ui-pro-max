@@ -162,6 +162,11 @@ const router = createRouter({
       ],
     },
     {
+      path: '/pastoral-view',
+      name: 'pastoral-view',
+      component: () => import('@/views/PastoralFullscreenPage.vue'),
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/Login.vue'),

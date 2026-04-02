@@ -32,7 +32,7 @@ usage() {
 用法:
   export QQ_FARM_PRIMARY_PASSWORD='***'
   export QQ_FARM_CLUSTER_PASSWORD='***'
-  bash scripts/deploy/publish-and-rollout.sh --version v4.5.60 --with-ghcr \
+  bash scripts/deploy/publish-and-rollout.sh --version v4.5.61 --with-ghcr \
     --target "10.31.1.254|root|QQ_FARM_PRIMARY_PASSWORD|update|qq-farm|/opt/qq-farm-current|" \
     --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2400|/opt/qq-farm-2400-current|" \
     --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2500|/opt/qq-farm-2500-current|" \

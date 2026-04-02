@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, onErrorCaptured, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import BugReportModal from '@/components/BugReportModal.vue'
 import LeaderboardModal from '@/components/LeaderboardModal.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import Sidebar from '@/components/Sidebar.vue'
 import ThemeSettingDrawer from '@/components/ThemeSettingDrawer.vue'
+import { menuRoutes } from '@/router/menu'
 import { useAppStore } from '@/stores/app'
 import { clearAuth } from '@/utils/auth'
+import { writePastoralRememberedRoute } from '@/utils/pastoral-view'
 import { attemptRouteRecovery, extractRouteErrorMessage, isRecoverableRouteError } from '@/utils/route-recovery'
 import { localizeRuntimeText } from '@/utils/runtime-text'
 
 const appStore = useAppStore()
 const route = useRoute()
+const router = useRouter()
 const { sidebarOpen } = storeToRefs(appStore)
 
 const showThemeDrawer = ref(false)
@@ -21,6 +24,8 @@ const showLeaderboard = ref(false)
 const showBugReportModal = ref(false)
 const routeRenderError = ref<unknown | null>(null)
 const routeRecoveryBusy = ref(false)
+const isPastoralView = computed(() => route.name === 'pastoral-view')
+const routeLabelMap = new Map(menuRoutes.map(item => [item.name, item.label]))
 const workspaceShellClass = computed(() => `workspace-shell--${appStore.workspaceVisualPreset}`)
 const workspaceContentClass = computed(() => {
   const mode = String(route.meta?.layoutMode || 'fluid')
@@ -49,10 +54,44 @@ async function handleLogout() {
   window.location.href = '/login'
 }
 
+function resolveRouteLabel(targetRoute = route) {
+  const routeName = String(targetRoute.name || '').trim()
+  if (routeLabelMap.has(routeName))
+    return routeLabelMap.get(routeName) || '概览'
+  if (routeName === 'help')
+    return '帮助中心'
+  if (routeName === 'farm-tools')
+    return '农场工具'
+  return String(targetRoute.meta?.title || targetRoute.meta?.label || routeName || '概览').trim() || '概览'
+}
+
+function rememberLastConsoleRoute(targetRoute = route) {
+  const fullPath = String(targetRoute.fullPath || '').trim()
+  const routeName = String(targetRoute.name || '').trim()
+  if (!fullPath || !routeName || routeName === 'pastoral-view' || fullPath.includes('/pastoral-view'))
+    return
+
+  writePastoralRememberedRoute({
+    name: routeName,
+    fullPath,
+    label: resolveRouteLabel(targetRoute),
+    recordedAt: Date.now(),
+  })
+}
+
+function openPastoralView() {
+  if (isPastoralView.value)
+    return
+  rememberLastConsoleRoute()
+  void router.push({ name: 'pastoral-view' })
+}
+
 watch(() => route.fullPath, () => {
   routeRenderError.value = null
   routeRecoveryBusy.value = false
-})
+  if (!isPastoralView.value)
+    rememberLastConsoleRoute()
+}, { immediate: true })
 
 onErrorCaptured((error, _instance, info) => {
   console.error('布局页捕获到路由内容异常:', error, info)
@@ -99,6 +138,16 @@ onErrorCaptured((error, _instance, info) => {
       <div class="relative flex flex-1 flex-col overflow-hidden">
         <!-- 浮动操作区域 (配置与通知) -->
         <div class="workspace-floating-actions absolute z-40 flex items-center gap-3">
+          <button
+            class="layout-pastoral-btn glass-panel h-10 flex items-center justify-center gap-2 border rounded-full px-4 shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:scale-105 focus:outline-none"
+            :class="{ 'layout-pastoral-btn--active': isPastoralView }"
+            title="田园视图"
+            aria-label="田园视图"
+            @click="openPastoralView"
+          >
+            <div class="i-carbon-sprout layout-pastoral-icon text-lg" />
+            <span class="layout-pastoral-label text-xs font-semibold">田园UI</span>
+          </button>
           <button
             class="layout-bug-report-btn glass-panel h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:scale-110 focus:outline-none hover:-rotate-6"
             title="问题反馈"
@@ -468,6 +517,26 @@ onErrorCaptured((error, _instance, info) => {
   box-shadow: 0 10px 20px -10px color-mix(in srgb, var(--ui-status-warning) 45%, transparent);
 }
 
+.layout-pastoral-btn {
+  border-color: color-mix(in srgb, var(--ui-status-warning) 34%, var(--ui-border-subtle));
+  color: #7a4f10;
+  background:
+    radial-gradient(circle at 18% 24%, color-mix(in srgb, var(--ui-text-on-brand) 36%, transparent), transparent 42%),
+    linear-gradient(135deg, rgba(255, 242, 201, 0.98), rgba(242, 186, 84, 0.94));
+  box-shadow: 0 12px 24px -12px color-mix(in srgb, var(--ui-status-warning) 52%, transparent);
+}
+
+.layout-pastoral-btn:hover {
+  box-shadow: 0 16px 28px -16px color-mix(in srgb, var(--ui-status-warning) 56%, transparent);
+}
+
+.layout-pastoral-btn--active {
+  border-color: color-mix(in srgb, var(--ui-status-warning) 48%, var(--ui-brand-500) 24%);
+  box-shadow:
+    0 16px 30px -16px color-mix(in srgb, var(--ui-status-warning) 60%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--ui-status-warning) 18%, transparent);
+}
+
 .layout-logout-btn {
   border-color: color-mix(in srgb, var(--ui-status-danger) 30%, var(--ui-border-subtle));
   background:
@@ -496,6 +565,12 @@ onErrorCaptured((error, _instance, info) => {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-status-danger) 18%, var(--ui-focus-ring) 82%);
 }
 
+.layout-pastoral-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--ui-status-warning) 26%, var(--ui-focus-ring) 74%),
+    0 14px 30px -16px color-mix(in srgb, var(--ui-status-warning) 56%, transparent);
+}
+
 .layout-trophy-icon {
   color: var(--ui-status-warning);
 }
@@ -514,6 +589,15 @@ onErrorCaptured((error, _instance, info) => {
 .layout-bug-report-icon-svg {
   height: 100%;
   width: 100%;
+}
+
+.layout-pastoral-icon {
+  color: color-mix(in srgb, var(--ui-status-warning) 82%, #6f4a13 18%);
+}
+
+.layout-pastoral-label {
+  color: inherit;
+  letter-spacing: 0.02em;
 }
 
 .workspace-floating-actions {

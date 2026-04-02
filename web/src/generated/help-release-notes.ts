@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.61',
+    date: '2026-04-02',
+    title: '田园 UI 正式发布与双机补发版',
+    summary: '把本地已完成但未进入正式 Release 的田园 UI 入口、全屏工作台、快捷抽屉和场景资源正式纳入版本控制，并统一默认镜像、部署模板、工作流与 Release 巡检口径到 `v4.5.61`。',
+  },
+  {
     version: 'v4.5.60',
     date: '2026-04-01',
     title: '正式 Release 对齐与远端发布加固版',

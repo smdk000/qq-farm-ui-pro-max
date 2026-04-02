@@ -2,7 +2,7 @@
 
 > 🔴 **醒目提醒：现在扫码登录失效，等其他大佬修复，本仓库暂停更新功能，仅修复bug了。**基于 Node.js 的 QQ 农场自动化工具，支持多账号管理、Web 控制面板、实时日志与数据分析。
 
-![版本](https://img.shields.io/badge/版本-v4.5.60-blue)
+![版本](https://img.shields.io/badge/版本-v4.5.61-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange)
 ![Redis](https://img.shields.io/badge/Redis-6.0-red)
@@ -311,7 +311,7 @@ bash <(curl --http1.1 --retry 4 --retry-delay 1 --retry-all-errors --connect-tim
 如需固定镜像版本或覆盖仓库，可在 `.env` 中设置：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.60
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.61
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -376,7 +376,7 @@ bash install-or-update.sh --action update --preserve-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.60
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.61
 
 # 弱网 / 离线环境：先 docker load，再用离线镜像包更新
 bash update-app.sh --image-archive /root/qq-farm-bot-images-amd64.tar.gz
@@ -431,8 +431,8 @@ curl http://localhost:3080/api/ping
 
 - `qq-farm-bot-images-amd64.tar.gz`
 - `qq-farm-bot-images-arm64.tar.gz`
-- `qq-farm-bot-v4.5.60-offline-amd64.tar.gz`
-- `qq-farm-bot-v4.5.60-offline-arm64.tar.gz`
+- `qq-farm-bot-v4.5.61-offline-amd64.tar.gz`
+- `qq-farm-bot-v4.5.61-offline-arm64.tar.gz`
 
 其中 `arm64` 离线包里的 `ipad860` 仍是 `linux/amd64`，目标宿主机需支持 QEMU。
 
@@ -453,7 +453,7 @@ curl http://localhost:3080/api/ping
 
 ```bash
 docker login
-bash scripts/deploy/auto-update-docker.sh --version v4.5.60
+bash scripts/deploy/auto-update-docker.sh --version v4.5.61
 ```
 
 如果同时要推送 GHCR：
@@ -462,13 +462,13 @@ bash scripts/deploy/auto-update-docker.sh --version v4.5.60
 export DOCKERHUB_TOKEN='你的 Docker Hub Token'
 export GHCR_USERNAME='你的 GitHub 用户名'
 export GHCR_TOKEN='你的 GitHub Token'
-bash scripts/deploy/auto-update-docker.sh --version v4.5.60 --with-ghcr --with-release-assets
+bash scripts/deploy/auto-update-docker.sh --version v4.5.61 --with-ghcr --with-release-assets
 ```
 
 镜像推送完成后，服务器直接执行：
 
 ```bash
-/opt/qq-farm-current/update-app.sh --image smdk000/qq-farm-bot-ui:4.5.60
+/opt/qq-farm-current/update-app.sh --image smdk000/qq-farm-bot-ui:4.5.61
 ```
 
 #### 0.5 发镜像后顺手滚动两台服务器
@@ -479,7 +479,7 @@ bash scripts/deploy/auto-update-docker.sh --version v4.5.60 --with-ghcr --with-r
 export QQ_FARM_PRIMARY_PASSWORD='***'
 export QQ_FARM_CLUSTER_PASSWORD='***'
 
-bash scripts/deploy/publish-and-rollout.sh --version v4.5.60 --with-ghcr \
+bash scripts/deploy/publish-and-rollout.sh --version v4.5.61 --with-ghcr \
   --target "10.31.1.254|root|QQ_FARM_PRIMARY_PASSWORD|update|qq-farm|/opt/qq-farm-current|" \
   --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2400|/opt/qq-farm-2400-current|" \
   --target "10.31.2.242|smdk000|QQ_FARM_CLUSTER_PASSWORD|update|qq-farm-2500|/opt/qq-farm-2500-current|" \
@@ -505,7 +505,7 @@ echo $GH_PAT | docker login ghcr.io -u smdk000 --password-stdin
 **使用脚本构建（推荐）**:
 ```bash
 chmod +x scripts/docker/docker-build-multiarch.sh
-./scripts/docker/docker-build-multiarch.sh --version 4.5.60
+./scripts/docker/docker-build-multiarch.sh --version 4.5.61
 ```
 
 **手动构建**:
@@ -513,7 +513,7 @@ chmod +x scripts/docker/docker-build-multiarch.sh
 # 构建并推送到 Docker Hub
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t smdk000/qq-farm-bot-ui:4.5.60 \
+  -t smdk000/qq-farm-bot-ui:4.5.61 \
   -t smdk000/qq-farm-bot-ui:latest \
   -f core/Dockerfile . \
   --push
@@ -521,7 +521,7 @@ docker buildx build \
 # 构建并推送到 GitHub Container Registry
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.60 \
+  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.61 \
   -t ghcr.io/smdk000/qq-farm-ui-pro-max:latest \
   -f core/Dockerfile . \
   --push
@@ -531,7 +531,7 @@ docker buildx build \
 
 ```bash
 chmod +x scripts/release/build-release-assets.sh
-./scripts/release/build-release-assets.sh --version v4.5.60
+./scripts/release/build-release-assets.sh --version v4.5.61
 
 # 产物默认输出到 ./release-assets
 ls release-assets
@@ -541,7 +541,7 @@ ls release-assets
 
 ```bash
 # 查看镜像信息
-docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.60
+docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.61
 
 # Docker Hub 查看
 # https://hub.docker.com/r/smdk000/qq-farm-bot-ui/tags
@@ -555,7 +555,7 @@ docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.60
 pnpm check:release-assets
 
 # 也可以只检查指定版本
-node scripts/utils/check-release-assets.js v4.5.54 v4.5.60
+node scripts/utils/check-release-assets.js v4.5.54 v4.5.61
 ```
 
 ---
@@ -782,8 +782,8 @@ Docker 会自动选择适合您系统架构的镜像版本。
 ---
 
 **维护者**: smdk000
-**最后更新**: 2026-04-01
-**版本**: v4.5.60
+**最后更新**: 2026-04-02
+**版本**: v4.5.61
 
 ## 多用户模式
 
@@ -1156,6 +1156,11 @@ ISC License
 ---
 
 ## 🎉 最近更新
+
+### v4.5.61 - 田园 UI 正式发布与双机补发版 (2026-04-02)
+- ✅ 这次把本地已完成但未进入正式 Release 的 `田园UI` 入口、`/pastoral-view` 全屏工作台、快捷抽屉组件和 `dashboard-assets` 场景资源正式纳入版本控制，Docker / Release / 服务器版本终于和本地页面保持一致。
+- ✅ `PastoralView.vue` 复制进干净发布仓时已清理末尾异常空字节，并通过正式 `vue-tsc + vite build` 构建验证，避免再出现“本地能看、正式版不完整”的情况。
+- ✅ `core / web` 包版本、README、部署模板、离线包脚本、Docker 发布脚本、GitHub Actions 默认值与 Release 资产巡检范围已统一抬升到 `v4.5.61`。
 
 ### v4.5.60 - 正式 Release 对齐与远端发布加固版 (2026-04-01)
 - ✅ 这次不改写既有 `v4.5.59` GitHub Release 历史，改为新发 `v4.5.60`，让 Release 页面、源码归档、`git checkout v4.5.60` 和当前干净 `main` 保持一致。
