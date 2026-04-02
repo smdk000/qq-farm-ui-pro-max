@@ -172,6 +172,7 @@ copy_deploy_bundle_files() {
     cp "${PROJECT_ROOT}/scripts/deploy/manual-config-wizard.sh" "${target_dir}/manual-config-wizard.sh"
     cp "${PROJECT_ROOT}/scripts/deploy/stack-layout.sh" "${target_dir}/stack-layout.sh"
     cp "${PROJECT_ROOT}/scripts/deploy/verify-stack.sh" "${target_dir}/verify-stack.sh"
+    cp "${PROJECT_ROOT}/scripts/deploy/smoke-system-update-center.sh" "${target_dir}/smoke-system-update-center.sh"
     cp "${PROJECT_ROOT}/scripts/deploy/repair-mysql.sh" "${target_dir}/repair-mysql.sh"
     cp "${PROJECT_ROOT}/scripts/deploy/repair-deploy.sh" "${target_dir}/repair-deploy.sh"
     cp "${PROJECT_ROOT}/scripts/deploy/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
