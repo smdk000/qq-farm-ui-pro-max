@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.62',
+    date: '2026-04-18',
+    title: 'QQ 客户端版本 `1.10.0.13` 与双机同步升级版',
+    summary: '默认 `clientVersion` 切到 `1.10.0.13`，并统一发布、部署与核验脚本口径到 `v4.5.62`，用于 GitHub、Docker 与 `10.31.1.254 / 10.31.2.242` 多实例同步升级。',
+  },
+  {
     version: 'v4.5.61',
     date: '2026-04-02',
     title: '田园 UI 正式发布与双机补发版',

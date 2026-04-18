@@ -8,9 +8,9 @@ loadProjectEnv();
 
 const CONFIG = {
     serverUrl: 'wss://gate-obt.nqf.qq.com/prod/ws',
-    // 2026-03-15 同步到稳定参考工程版本 1.7.0.6_20260313。
+    // 2026-04-18 同步默认 QQ 客户端版本到 1.10.0.13。
     // 若本地设置了 FARM_CLIENT_VERSION，则仍以环境变量为准。
-    clientVersion: process.env.FARM_CLIENT_VERSION || '1.7.0.6_20260313',
+    clientVersion: process.env.FARM_CLIENT_VERSION || '1.10.0.13',
     platform: 'qq',              // 平台: qq 或 wx (可通过 --wx 切换为微信)
     os: 'iOS',
     heartbeatInterval: 25000,    // 心跳间隔 25秒
